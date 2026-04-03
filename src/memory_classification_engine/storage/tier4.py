@@ -83,39 +83,16 @@ class Tier4Storage:
             
             # Store fact declaration
             if memory.get('type') == 'fact_declaration':
-                # Extract entities and relationships from content
-                # For simplicity, we'll store the fact as a relationship
-                # In a real implementation, we would use NLP to extract entities
+                # Extract entities from content
+                subject, predicate, obj = self._extract_entities(memory.get('content', ''))
                 
-                # Create a subject entity
-                subject_id = f"entity_{get_current_time().replace(':', '').replace('-', '').replace('T', '').replace('Z', '')}"
-                cursor.execute('''
-                    INSERT INTO semantic_entities 
-                    (id, name, type, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (
-                    subject_id,
-                    "User",  # Assuming user is the subject
-                    "person",
-                    current_time,
-                    current_time
-                ))
+                # Create subject entity
+                subject_id = self._get_or_create_entity(cursor, subject, "person", current_time)
                 
-                # Create an object entity
-                object_id = f"entity_{get_current_time().replace(':', '').replace('-', '').replace('T', '').replace('Z', '')}_obj"
-                cursor.execute('''
-                    INSERT INTO semantic_entities 
-                    (id, name, type, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (
-                    object_id,
-                    memory.get('content', '')[:50],  # Use first 50 chars as object name
-                    "fact",
-                    current_time,
-                    current_time
-                ))
+                # Create object entity
+                object_id = self._get_or_create_entity(cursor, obj, "fact", current_time)
                 
-                # Create a relationship
+                # Create relationship
                 relationship_id = memory.get('id')
                 cursor.execute('''
                     INSERT INTO semantic_relationships 
@@ -124,7 +101,7 @@ class Tier4Storage:
                 ''', (
                     relationship_id,
                     subject_id,
-                    "declares",
+                    predicate or "declares",
                     object_id,
                     current_time,
                     current_time,
@@ -135,41 +112,16 @@ class Tier4Storage:
             
             # Store relationship information
             elif memory.get('type') == 'relationship':
-                # Extract entities and relationships from content
-                # For simplicity, we'll store the relationship directly
+                # Extract entities from content
+                subject, predicate, obj = self._extract_entities(memory.get('content', ''))
                 
-                # Create subject and object entities if they don't exist
-                # In a real implementation, we would use NLP to extract entities
+                # Create subject entity
+                subject_id = self._get_or_create_entity(cursor, subject, "entity", current_time)
                 
-                # Create a subject entity
-                subject_id = f"entity_{get_current_time().replace(':', '').replace('-', '').replace('T', '').replace('Z', '')}"
-                cursor.execute('''
-                    INSERT INTO semantic_entities 
-                    (id, name, type, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (
-                    subject_id,
-                    "Entity1",  # Placeholder
-                    "entity",
-                    current_time,
-                    current_time
-                ))
+                # Create object entity
+                object_id = self._get_or_create_entity(cursor, obj, "entity", current_time)
                 
-                # Create an object entity
-                object_id = f"entity_{get_current_time().replace(':', '').replace('-', '').replace('T', '').replace('Z', '')}_obj"
-                cursor.execute('''
-                    INSERT INTO semantic_entities 
-                    (id, name, type, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (
-                    object_id,
-                    "Entity2",  # Placeholder
-                    "entity",
-                    current_time,
-                    current_time
-                ))
-                
-                # Create a relationship
+                # Create relationship
                 relationship_id = memory.get('id')
                 cursor.execute('''
                     INSERT INTO semantic_relationships 
@@ -178,7 +130,7 @@ class Tier4Storage:
                 ''', (
                     relationship_id,
                     subject_id,
-                    "related_to",  # Placeholder
+                    predicate or "related_to",
                     object_id,
                     current_time,
                     current_time,
@@ -193,6 +145,87 @@ class Tier4Storage:
         except Exception as e:
             print(f"Error storing memory: {e}")
             return False
+    
+    def _extract_entities(self, content: str) -> tuple:
+        """Extract entities from content.
+        
+        Args:
+            content: The content to extract entities from.
+            
+        Returns:
+            A tuple of (subject, predicate, object).
+        """
+        # Simple entity extraction based on common patterns
+        # In a real implementation, this would use NLP techniques
+        
+        # Default values
+        subject = "User"
+        predicate = "declares"
+        obj = content
+        
+        # Look for common relationship patterns
+        patterns = [
+            (r'(.*)是(.*)', '是'),
+            (r'(.*)有(.*)', '有'),
+            (r'(.*)在(.*)', '在'),
+            (r'(.*)位于(.*)', '位于'),
+            (r'(.*)属于(.*)', '属于'),
+            (r'(.*)负责(.*)', '负责'),
+            (r'(.*)管理(.*)', '管理'),
+            (r'(.*)领导(.*)', '领导'),
+            (r'(.*)汇报给(.*)', '汇报给'),
+            (r'(.*)合作(.*)', '合作'),
+        ]
+        
+        import re
+        for pattern, pred in patterns:
+            match = re.match(pattern, content)
+            if match:
+                subject = match.group(1).strip()
+                predicate = pred
+                obj = match.group(2).strip()
+                break
+        
+        return subject, predicate, obj
+    
+    def _get_or_create_entity(self, cursor, name: str, entity_type: str, current_time: str) -> str:
+        """Get or create an entity.
+        
+        Args:
+            cursor: Database cursor.
+            name: Entity name.
+            entity_type: Entity type.
+            current_time: Current time.
+            
+        Returns:
+            Entity ID.
+        """
+        # Check if entity already exists
+        cursor.execute('''
+            SELECT id FROM semantic_entities 
+            WHERE name = ? AND type = ?
+        ''', (name, entity_type))
+        
+        result = cursor.fetchone()
+        if result:
+            return result[0]
+        
+        # Create new entity
+        import hashlib
+        entity_id = f"entity_{hashlib.md5((name + entity_type + current_time).encode()).hexdigest()[:16]}"
+        cursor.execute('''
+            INSERT INTO semantic_entities 
+            (id, name, type, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (
+            entity_id,
+            name,
+            entity_type,
+            current_time,
+            current_time
+        ))
+        
+        return entity_id
     
     def retrieve_memories(self, query: str = None, limit: int = 10) -> List[Dict[str, Any]]:
         """Retrieve memories from tier 4.

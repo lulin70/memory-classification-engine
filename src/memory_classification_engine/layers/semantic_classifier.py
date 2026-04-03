@@ -29,73 +29,19 @@ class SemanticClassifier:
             return []
         
         try:
-            # In a real implementation, we would call an LLM API here
-            # For now, we'll use a mock implementation
-            return self._mock_classify(message, context)
+            # Generate prompt
+            prompt = self._generate_prompt(message, context)
+            
+            # Call LLM API
+            response = self._call_llm(prompt)
+            
+            # Parse response
+            classified_memories = self._parse_response(response)
+            
+            return classified_memories
         except Exception as e:
             print(f"Error in semantic classification: {e}")
             return []
-    
-    def _mock_classify(self, message: str, context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """Mock semantic classification for testing.
-        
-        Args:
-            message: The message to classify.
-            context: Optional context for the message.
-            
-        Returns:
-            A list of classified memories.
-        """
-        classified_memories = []
-        
-        # Mock classification logic
-        # In a real implementation, this would be done by an LLM
-        
-        # Check for fact declarations
-        if any(keyword in message for keyword in ['是', '有', '在', '位于', '属于', '成立于', '创建于']):
-            classified_memories.append({
-                'memory_type': 'fact_declaration',
-                'tier': 4,
-                'content': message,
-                'confidence': 0.8,
-                'source': 'semantic:fact',
-                'description': '事实声明'
-            })
-        
-        # Check for relationship information
-        if any(keyword in message for keyword in ['负责', '管理', '领导', '汇报', '属于', '合作', '关系']):
-            classified_memories.append({
-                'memory_type': 'relationship',
-                'tier': 4,
-                'content': message,
-                'confidence': 0.7,
-                'source': 'semantic:relationship',
-                'description': '关系信息'
-            })
-        
-        # Check for user preferences
-        if any(keyword in message for keyword in ['喜欢', '偏好', '希望', '想要', '不要', '别', '避免']):
-            classified_memories.append({
-                'memory_type': 'user_preference',
-                'tier': 2,
-                'content': message,
-                'confidence': 0.75,
-                'source': 'semantic:preference',
-                'description': '用户偏好'
-            })
-        
-        # Check for corrections
-        if any(keyword in message for keyword in ['不对', '错了', '不是', '你搞错了', '应该是', '实际上是']):
-            classified_memories.append({
-                'memory_type': 'correction',
-                'tier': 3,
-                'content': message,
-                'confidence': 0.85,
-                'source': 'semantic:correction',
-                'description': '纠正信号'
-            })
-        
-        return classified_memories
     
     def _call_llm(self, prompt: str) -> str:
         """Call the LLM API.
@@ -106,9 +52,59 @@ class SemanticClassifier:
         Returns:
             The LLM's response.
         """
-        # In a real implementation, this would call an LLM API like OpenAI's GPT
-        # For now, we'll return a mock response
-        return "{\"has_memory\": true, \"memory_type\": \"user_preference\", \"tier\": 2, \"content\": \"Test content\", \"confidence\": 0.9, \"reasoning\": \"Test reasoning\"}"
+        import requests
+        
+        # Default to using OpenAI API
+        api_url = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"role": "system", "content": "You are a memory classification assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.3,
+            "max_tokens": 500
+        }
+        
+        response = requests.post(api_url, headers=headers, json=payload, timeout=30)
+        response.raise_for_status()
+        
+        return response.json()['choices'][0]['message']['content']
+    
+    def _parse_response(self, response: str) -> List[Dict[str, Any]]:
+        """Parse the LLM response.
+        
+        Args:
+            response: The LLM's response.
+            
+        Returns:
+            A list of classified memories.
+        """
+        import json
+        
+        try:
+            # Parse JSON response
+            data = json.loads(response)
+            
+            if data.get('has_memory'):
+                memory = {
+                    'memory_type': data.get('memory_type'),
+                    'tier': data.get('tier'),
+                    'content': data.get('content'),
+                    'confidence': data.get('confidence', 0.0),
+                    'source': 'semantic:llm',
+                    'description': 'LLM semantic classification'
+                }
+                return [memory]
+        except json.JSONDecodeError as e:
+            print(f"Error parsing LLM response: {e}")
+        
+        return []
     
     def _generate_prompt(self, message: str, context: Optional[Dict[str, Any]] = None) -> str:
         """Generate a prompt for the LLM.
