@@ -8,3 +8,45 @@ Traceback (most recent call last):
   File "/Users/lin/Documents/trae_projects/OPC-Agents/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 83, in store_memory
     cursor.execute('''
 sqlite3.IntegrityError: UNIQUE constraint failed: episodic_memories.id
+2026-04-03 21:35:06,907 - memory-classification-engine - ERROR - Error storing memory: UNIQUE constraint failed: episodic_memories.id
+Traceback (most recent call last):
+  File "/Users/lin/Documents/trae_projects/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 129, in store_memory
+    cursor.execute('''
+sqlite3.IntegrityError: UNIQUE constraint failed: episodic_memories.id
+2026-04-03 21:35:12,142 - memory-classification-engine - ERROR - Error storing memory: database is locked
+Traceback (most recent call last):
+  File "/Users/lin/Documents/trae_projects/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 129, in store_memory
+    cursor.execute('''
+sqlite3.OperationalError: database is locked
+2026-04-03 21:35:12,299 - memory-classification-engine - WARNING - FTS5 search failed, falling back to regular search: no such column: fts
+2026-04-03 21:35:12,348 - memory-classification-engine - WARNING - FTS5 search failed, falling back to regular search: no such column: fts
+2026-04-03 21:35:31,490 - memory-classification-engine - ERROR - Error storing memory: UNIQUE constraint failed: episodic_memories.id
+Traceback (most recent call last):
+  File "/Users/lin/Documents/trae_projects/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 129, in store_memory
+    cursor.execute('''
+sqlite3.IntegrityError: UNIQUE constraint failed: episodic_memories.id
+2026-04-03 21:35:36,731 - memory-classification-engine - ERROR - Error storing memory: database is locked
+Traceback (most recent call last):
+  File "/Users/lin/Documents/trae_projects/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 129, in store_memory
+    cursor.execute('''
+sqlite3.OperationalError: database is locked
+2026-04-03 21:37:23,653 - memory-classification-engine - ERROR - Error storing memory: UNIQUE constraint failed: episodic_memories.id
+Traceback (most recent call last):
+  File "/Users/lin/Documents/trae_projects/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 129, in store_memory
+    cursor.execute('''
+sqlite3.IntegrityError: UNIQUE constraint failed: episodic_memories.id
+2026-04-03 21:37:28,920 - memory-classification-engine - ERROR - Error storing memory: database is locked
+Traceback (most recent call last):
+  File "/Users/lin/Documents/trae_projects/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 129, in store_memory
+    cursor.execute('''
+sqlite3.OperationalError: database is locked
+2026-04-03 21:43:49,351 - memory-classification-engine - ERROR - Error storing memory: UNIQUE constraint failed: episodic_memories.id
+Traceback (most recent call last):
+  File "/Users/lin/Documents/trae_projects/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 129, in store_memory
+    cursor.execute('''
+sqlite3.IntegrityError: UNIQUE constraint failed: episodic_memories.id
+2026-04-03 21:43:54,600 - memory-classification-engine - ERROR - Error storing memory: database is locked
+Traceback (most recent call last):
+  File "/Users/lin/Documents/trae_projects/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 129, in store_memory
+    cursor.execute('''
+sqlite3.OperationalError: database is locked

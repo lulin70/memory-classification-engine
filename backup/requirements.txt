@@ -1,0 +1,10 @@
+# Memory Classification Engine Requirements
+
+# Core dependencies
+
+# Development dependencies
+[dev]
+pytest
+pytest-cov
+flake8
+black

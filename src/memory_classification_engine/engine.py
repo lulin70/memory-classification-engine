@@ -248,6 +248,12 @@ class MemoryClassificationEngine:
         # Step 4: Deduplicate and resolve conflicts
         unique_matches = self._deduplicate_matches(all_matches)
         
+        # If no matches found, add a default classification
+        if not unique_matches:
+            default_match = self._get_default_classification(message)
+            if default_match:
+                unique_matches.append(default_match)
+        
         # Step 5: Store memories
         stored_memories = []
         for match in unique_matches:
@@ -636,6 +642,92 @@ class MemoryClassificationEngine:
         union = len(tokens1.union(tokens2))
         
         return intersection / union if union > 0 else 0.0
+    
+    def _get_default_classification(self, message: str) -> Optional[Dict[str, Any]]:
+        """Get default classification for a message when no other matches are found.
+        
+        Args:
+            message: The message to classify.
+            
+        Returns:
+            A default classification match if found, None otherwise.
+        """
+        message_lower = message.lower()
+        
+        # English patterns
+        if any(keyword in message_lower for keyword in ["like", "love", "prefer", "enjoy"]):
+            return {
+                'memory_type': 'user_preference',
+                'tier': 2,
+                'content': message,
+                'confidence': 0.9,
+                'source': 'default:preference',
+                'description': 'User preference detected'
+            }
+        elif any(keyword in message_lower for keyword in ["correct", "wrong", "fix"]):
+            return {
+                'memory_type': 'correction',
+                'tier': 3,
+                'content': message,
+                'confidence': 0.8,
+                'source': 'default:correction',
+                'description': 'Correction detected'
+            }
+        elif any(keyword in message_lower for keyword in ["is", "are", "was", "were", "will be"]):
+            return {
+                'memory_type': 'fact_declaration',
+                'tier': 3,
+                'content': message,
+                'confidence': 0.7,
+                'source': 'default:fact',
+                'description': 'Fact declaration detected'
+            }
+        elif any(keyword in message_lower for keyword in ["decide", "decision", "choose"]):
+            return {
+                'memory_type': 'decision',
+                'tier': 2,
+                'content': message,
+                'confidence': 0.8,
+                'source': 'default:decision',
+                'description': 'Decision detected'
+            }
+        elif any(keyword in message_lower for keyword in ["friend", "family", "relationship"]):
+            return {
+                'memory_type': 'relationship',
+                'tier': 3,
+                'content': message,
+                'confidence': 0.7,
+                'source': 'default:relationship',
+                'description': 'Relationship information detected'
+            }
+        elif any(keyword in message_lower for keyword in ["task", "todo", "need to"]):
+            return {
+                'memory_type': 'task_pattern',
+                'tier': 2,
+                'content': message,
+                'confidence': 0.8,
+                'source': 'default:task',
+                'description': 'Task pattern detected'
+            }
+        elif any(keyword in message_lower for keyword in ["happy", "sad", "angry", "excited"]):
+            return {
+                'memory_type': 'sentiment_marker',
+                'tier': 3,
+                'content': message,
+                'confidence': 0.7,
+                'source': 'default:sentiment',
+                'description': 'Sentiment detected'
+            }
+        else:
+            # Default to general fact declaration
+            return {
+                'memory_type': 'fact_declaration',
+                'tier': 3,
+                'content': message,
+                'confidence': 0.5,
+                'source': 'default:general',
+                'description': 'General fact declaration'
+            }
     
     def clear_working_memory(self):
         """Clear working memory."""

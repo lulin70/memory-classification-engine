@@ -20,10 +20,14 @@ class Tier2Storage:
         # File paths
         self.preferences_file = os.path.join(self.storage_path, "user_preferences.json")
         self.corrections_file = os.path.join(self.storage_path, "corrections.json")
+        self.claude_md_file = os.path.join(self.storage_path, "CLAUDE.md")
         
         # Load existing data
         self.preferences = self._load_file(self.preferences_file)
         self.corrections = self._load_file(self.corrections_file)
+        
+        # Initialize CLAUDE.md file
+        self._init_claude_md()
     
     def _load_file(self, file_path: str) -> List[Dict[str, Any]]:
         """Load data from file.
@@ -55,6 +59,49 @@ class Tier2Storage:
         except Exception as e:
             logger.error(f"Error saving file {file_path}: {e}", exc_info=True)
     
+    def _init_claude_md(self):
+        """Initialize CLAUDE.md file if it doesn't exist."""
+        if not os.path.exists(self.claude_md_file):
+            try:
+                with open(self.claude_md_file, 'w', encoding='utf-8') as f:
+                    f.write("# Claude Memory\n\n")
+                    f.write("## User Preferences\n\n")
+                    f.write("## Corrections\n\n")
+            except Exception as e:
+                logger.error(f"Error initializing CLAUDE.md: {e}", exc_info=True)
+    
+    def _update_claude_md(self):
+        """Update CLAUDE.md file with current memories."""
+        try:
+            with open(self.claude_md_file, 'w', encoding='utf-8') as f:
+                f.write("# Claude Memory\n\n")
+                
+                # User Preferences
+                f.write("## User Preferences\n\n")
+                for memory in self.preferences:
+                    content = memory.get('content', '')
+                    try:
+                        if content.startswith('gAAAAA'):
+                            content = encryption_manager.decrypt(content)
+                    except Exception as e:
+                        logger.error(f"Error decrypting memory: {e}", exc_info=True)
+                    f.write(f"- {content}\n")
+                
+                f.write("\n")
+                
+                # Corrections
+                f.write("## Corrections\n\n")
+                for memory in self.corrections:
+                    content = memory.get('content', '')
+                    try:
+                        if content.startswith('gAAAAA'):
+                            content = encryption_manager.decrypt(content)
+                    except Exception as e:
+                        logger.error(f"Error decrypting memory: {e}", exc_info=True)
+                    f.write(f"- {content}\n")
+        except Exception as e:
+            logger.error(f"Error updating CLAUDE.md: {e}", exc_info=True)
+    
     def store_memory(self, memory: Dict[str, Any]) -> bool:
         """Store a memory in tier 2.
         
@@ -83,12 +130,14 @@ class Tier2Storage:
                     memory['content'] = encryption_manager.encrypt(memory['content'])
                 self.preferences.append(memory)
                 self._save_file(self.preferences_file, self.preferences)
+                self._update_claude_md()
             elif memory_type == 'correction':
                 # Encrypt memory content
                 if 'content' in memory:
                     memory['content'] = encryption_manager.encrypt(memory['content'])
                 self.corrections.append(memory)
                 self._save_file(self.corrections_file, self.corrections)
+                self._update_claude_md()
             else:
                 return False
             
@@ -171,6 +220,7 @@ class Tier2Storage:
                     memory.update(updates)
                     memory['updated_at'] = get_current_time()
                     self._save_file(self.preferences_file, self.preferences)
+                    self._update_claude_md()
                     return True
             
             # Check corrections
@@ -182,6 +232,7 @@ class Tier2Storage:
                     memory.update(updates)
                     memory['updated_at'] = get_current_time()
                     self._save_file(self.corrections_file, self.corrections)
+                    self._update_claude_md()
                     return True
             
             return False
@@ -204,6 +255,7 @@ class Tier2Storage:
                 if memory.get('id') == memory_id:
                     del self.preferences[i]
                     self._save_file(self.preferences_file, self.preferences)
+                    self._update_claude_md()
                     return True
             
             # Check corrections
@@ -211,6 +263,7 @@ class Tier2Storage:
                 if memory.get('id') == memory_id:
                     del self.corrections[i]
                     self._save_file(self.corrections_file, self.corrections)
+                    self._update_claude_md()
                     return True
             
             return False
