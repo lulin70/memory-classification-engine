@@ -13,6 +13,9 @@ from memory_classification_engine.utils.helpers import (
     MEMORY_TYPES,
     MEMORY_TIERS
 )
+from memory_classification_engine.utils.logger import logger
+from memory_classification_engine.utils.encryption import EncryptionManager, encryption_manager
+from memory_classification_engine.utils.access_control import AccessControlManager, access_control_manager
 
 __version__ = "0.1.0"
 __all__ = [
@@ -26,5 +29,10 @@ __all__ = [
     "load_json_file",
     "save_json_file",
     "MEMORY_TYPES",
-    "MEMORY_TIERS"
+    "MEMORY_TIERS",
+    "logger",
+    "EncryptionManager",
+    "encryption_manager",
+    "AccessControlManager",
+    "access_control_manager"
 ]

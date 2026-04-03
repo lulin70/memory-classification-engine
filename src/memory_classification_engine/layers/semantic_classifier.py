@@ -1,5 +1,6 @@
 import json
 from typing import Dict, List, Optional, Any
+from memory_classification_engine.utils.logger import logger
 
 class SemanticClassifier:
     """Semantic memory classifier using LLM."""
@@ -40,7 +41,7 @@ class SemanticClassifier:
             
             return classified_memories
         except Exception as e:
-            print(f"Error in semantic classification: {e}")
+            logger.error(f"Error in semantic classification: {e}", exc_info=True)
             return []
     
     def _call_llm(self, prompt: str) -> str:
@@ -102,7 +103,9 @@ class SemanticClassifier:
                 }
                 return [memory]
         except json.JSONDecodeError as e:
-            print(f"Error parsing LLM response: {e}")
+            logger.error(f"Error parsing LLM response: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Error processing LLM response: {e}", exc_info=True)
         
         return []
     

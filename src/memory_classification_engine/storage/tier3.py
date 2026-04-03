@@ -2,6 +2,7 @@ import os
 import sqlite3
 from typing import Dict, List, Optional, Any
 from memory_classification_engine.utils.helpers import get_current_time
+from memory_classification_engine.utils.logger import logger
 
 class Tier3Storage:
     """Storage for episodic memory (tier 3)."""
@@ -53,7 +54,7 @@ class Tier3Storage:
             conn.commit()
             conn.close()
         except Exception as e:
-            print(f"Error initializing database: {e}")
+            logger.error(f"Error initializing database: {e}", exc_info=True)
     
     def store_memory(self, memory: Dict[str, Any]) -> bool:
         """Store a memory in tier 3.
@@ -101,7 +102,7 @@ class Tier3Storage:
             conn.close()
             return True
         except Exception as e:
-            print(f"Error storing memory: {e}")
+            logger.error(f"Error storing memory: {e}", exc_info=True)
             return False
     
     def retrieve_memories(self, query: str = None, limit: int = 10) -> List[Dict[str, Any]]:
@@ -150,7 +151,7 @@ class Tier3Storage:
             
             return memories
         except Exception as e:
-            print(f"Error retrieving memories: {e}")
+            logger.error(f"Error retrieving memories: {e}", exc_info=True)
             return []
     
     def update_memory(self, memory_id: str, updates: Dict[str, Any]) -> bool:
@@ -194,7 +195,7 @@ class Tier3Storage:
             
             return cursor.rowcount > 0
         except Exception as e:
-            print(f"Error updating memory: {e}")
+            logger.error(f"Error updating memory: {e}", exc_info=True)
             return False
     
     def delete_memory(self, memory_id: str) -> bool:
@@ -222,7 +223,7 @@ class Tier3Storage:
             
             return cursor.rowcount > 0
         except Exception as e:
-            print(f"Error deleting memory: {e}")
+            logger.error(f"Error deleting memory: {e}", exc_info=True)
             return False
     
     def get_stats(self) -> Dict[str, Any]:
@@ -255,7 +256,7 @@ class Tier3Storage:
                 'memory_types': types
             }
         except Exception as e:
-            print(f"Error getting stats: {e}")
+            logger.error(f"Error getting stats: {e}", exc_info=True)
             return {
                 'total_memories': 0,
                 'active_memories': 0,

@@ -2,6 +2,8 @@ import os
 import json
 from typing import Dict, List, Optional, Any
 from memory_classification_engine.utils.helpers import get_current_time, format_memory
+from memory_classification_engine.utils.logger import logger
+from memory_classification_engine.utils.encryption import encryption_manager
 
 class Tier2Storage:
     """Storage for procedural memory (tier 2)."""
@@ -37,7 +39,7 @@ class Tier2Storage:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     return json.load(f)
         except Exception as e:
-            print(f"Error loading file {file_path}: {e}")
+            logger.error(f"Error loading file {file_path}: {e}", exc_info=True)
         return []
     
     def _save_file(self, file_path: str, data: List[Dict[str, Any]]):
@@ -51,7 +53,7 @@ class Tier2Storage:
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(f"Error saving file {file_path}: {e}")
+            logger.error(f"Error saving file {file_path}: {e}", exc_info=True)
     
     def store_memory(self, memory: Dict[str, Any]) -> bool:
         """Store a memory in tier 2.
@@ -76,9 +78,15 @@ class Tier2Storage:
             
             # Store based on memory type
             if memory_type == 'user_preference':
+                # Encrypt memory content
+                if 'content' in memory:
+                    memory['content'] = encryption_manager.encrypt(memory['content'])
                 self.preferences.append(memory)
                 self._save_file(self.preferences_file, self.preferences)
             elif memory_type == 'correction':
+                # Encrypt memory content
+                if 'content' in memory:
+                    memory['content'] = encryption_manager.encrypt(memory['content'])
                 self.corrections.append(memory)
                 self._save_file(self.corrections_file, self.corrections)
             else:
@@ -86,7 +94,7 @@ class Tier2Storage:
             
             return True
         except Exception as e:
-            print(f"Error storing memory: {e}")
+            logger.error(f"Error storing memory: {e}", exc_info=True)
             return False
     
     def retrieve_memories(self, query: str = None, limit: int = 10) -> List[Dict[str, Any]]:
@@ -107,9 +115,28 @@ class Tier2Storage:
         if query:
             filtered_memories = []
             for memory in all_memories:
-                if query.lower() in memory.get('content', '').lower():
+                # Decrypt content before filtering
+                content = memory.get('content', '')
+                try:
+                    if content.startswith('gAAAAA'):
+                        content = encryption_manager.decrypt(content)
+                except Exception as e:
+                    logger.error(f"Error decrypting memory: {e}", exc_info=True)
+                
+                if query.lower() in content.lower():
+                    # Store decrypted content in the memory object for return
+                    memory['content'] = content
                     filtered_memories.append(memory)
             all_memories = filtered_memories
+        else:
+            # Decrypt all memories when no query is provided
+            for memory in all_memories:
+                content = memory.get('content', '')
+                try:
+                    if content.startswith('gAAAAA'):
+                        memory['content'] = encryption_manager.decrypt(content)
+                except Exception as e:
+                    logger.error(f"Error decrypting memory: {e}", exc_info=True)
         
         # Ensure memory_type field is present
         for memory in all_memories:
@@ -138,6 +165,9 @@ class Tier2Storage:
             # Check preferences
             for i, memory in enumerate(self.preferences):
                 if memory.get('id') == memory_id:
+                    # Encrypt content if it's being updated
+                    if 'content' in updates:
+                        updates['content'] = encryption_manager.encrypt(updates['content'])
                     memory.update(updates)
                     memory['updated_at'] = get_current_time()
                     self._save_file(self.preferences_file, self.preferences)
@@ -146,6 +176,9 @@ class Tier2Storage:
             # Check corrections
             for i, memory in enumerate(self.corrections):
                 if memory.get('id') == memory_id:
+                    # Encrypt content if it's being updated
+                    if 'content' in updates:
+                        updates['content'] = encryption_manager.encrypt(updates['content'])
                     memory.update(updates)
                     memory['updated_at'] = get_current_time()
                     self._save_file(self.corrections_file, self.corrections)
@@ -153,7 +186,7 @@ class Tier2Storage:
             
             return False
         except Exception as e:
-            print(f"Error updating memory: {e}")
+            logger.error(f"Error updating memory: {e}", exc_info=True)
             return False
     
     def delete_memory(self, memory_id: str) -> bool:
@@ -182,7 +215,7 @@ class Tier2Storage:
             
             return False
         except Exception as e:
-            print(f"Error deleting memory: {e}")
+            logger.error(f"Error deleting memory: {e}", exc_info=True)
             return False
     
     def get_stats(self) -> Dict[str, Any]:
