@@ -23,7 +23,7 @@ rules:
 llm:
   enabled: false
   api_key: ""
-  model: "gpt-3.5-turbo"
+  model: "glm-4-plus"
   temperature: 0.3
   max_tokens: 500
   timeout: 30  # In seconds

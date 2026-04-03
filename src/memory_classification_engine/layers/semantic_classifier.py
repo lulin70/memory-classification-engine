@@ -54,15 +54,15 @@ class SemanticClassifier:
         """
         import requests
         
-        # Default to using OpenAI API
-        api_url = "https://api.openai.com/v1/chat/completions"
+        # Use GLM API
+        api_url = "https://open.bigmodel.cn/api/messages"
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}"
         }
         
         payload = {
-            "model": "gpt-3.5-turbo",
+            "model": "glm-4-plus",
             "messages": [
                 {"role": "system", "content": "You are a memory classification assistant."},
                 {"role": "user", "content": prompt}

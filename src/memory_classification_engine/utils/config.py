@@ -12,6 +12,33 @@ class ConfigManager:
         self.config_path = config_path or os.environ.get('MCE_CONFIG_PATH', './config/config.yaml')
         self.config = self.load_config()
     
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get a configuration value by key.
+        
+        Args:
+            key: The configuration key, using dot notation (e.g., "storage.data_path").
+            default: The default value to return if the key is not found.
+            
+        Returns:
+            The configuration value or the default.
+        """
+        # Check environment variable first
+        env_key = key.upper().replace('.', '_')
+        if f'MCE_{env_key}' in os.environ:
+            return os.environ[f'MCE_{env_key}']
+        
+        # Then check config file
+        keys = key.split('.')
+        value = self.config
+        
+        for k in keys:
+            if isinstance(value, dict) and k in value:
+                value = value[k]
+            else:
+                return default
+        
+        return value
+    
     def load_config(self) -> Dict[str, Any]:
         """Load configuration from file.
         

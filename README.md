@@ -142,11 +142,43 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/yourusername/memory-classification-engine.git
+git clone https://github.com/lulin70/memory-classification-engine.git
 cd memory-classification-engine
 
 # 安装依赖
 pip install -r requirements.txt
+```
+
+### 配置
+
+#### 环境变量配置
+
+为了安全管理API Key，建议使用环境变量来配置：
+
+```bash
+# 设置GLM API Key
+export MCE_LLM_API_KEY="your_glm_api_key"
+
+# 启用LLM功能
+export MCE_LLM_ENABLED=true
+
+# 可选：设置配置文件路径
+export MCE_CONFIG_PATH="./config/config.yaml"
+```
+
+#### 配置文件
+
+编辑 `config/config.yaml` 文件：
+
+```yaml
+# LLM settings (optional)
+llm:
+  enabled: false  # 默认为false，设置为true启用
+  api_key: ""  # 建议通过环境变量设置，不要直接在此文件中填写
+  model: "glm-4-plus"
+  temperature: 0.3
+  max_tokens: 500
+  timeout: 30  # In seconds
 ```
 
 ### 基本使用
