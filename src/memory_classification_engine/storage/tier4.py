@@ -5,10 +5,69 @@ import sqlite3
 import json
 from typing import Dict, List, Optional, Any, Set, Tuple
 from datetime import datetime
-from collections import defaultdict
+from collections import defaultdict, deque
+import threading
 
 from memory_classification_engine.utils.helpers import get_current_time
 from memory_classification_engine.utils.logger import logger
+
+
+class ConnectionPool:
+    """Database connection pool for SQLite."""
+    
+    def __init__(self, db_path: str, max_connections: int = 5):
+        """Initialize the connection pool.
+        
+        Args:
+            db_path: Path to the SQLite database.
+            max_connections: Maximum number of connections in the pool.
+        """
+        self.db_path = db_path
+        self.max_connections = max_connections
+        self.connections = deque()
+        self.lock = threading.Lock()
+        
+    def get_connection(self):
+        """Get a connection from the pool.
+        
+        Returns:
+            sqlite3.Connection: A database connection.
+        """
+        with self.lock:
+            if self.connections:
+                return self.connections.popleft()
+            else:
+                # Create a new connection
+                conn = sqlite3.connect(self.db_path, timeout=30)
+                # Enable WAL mode for better concurrency
+                conn.execute('PRAGMA journal_mode=WAL')
+                # Enable foreign keys
+                conn.execute('PRAGMA foreign_keys=ON')
+                # Set busy timeout
+                conn.execute('PRAGMA busy_timeout=30000')
+                return conn
+    
+    def return_connection(self, conn):
+        """Return a connection to the pool.
+        
+        Args:
+            conn: The database connection to return.
+        """
+        with self.lock:
+            if len(self.connections) < self.max_connections:
+                self.connections.append(conn)
+            else:
+                conn.close()
+    
+    def close_all(self):
+        """Close all connections in the pool."""
+        with self.lock:
+            while self.connections:
+                conn = self.connections.popleft()
+                try:
+                    conn.close()
+                except:
+                    pass
 
 
 class KnowledgeGraph:
@@ -266,6 +325,14 @@ class Tier4Storage:
         # Database path
         self.db_path = os.path.join(self.storage_path, "semantic_memories.db")
         
+        # Database connection pool
+        self.connection_pool = ConnectionPool(self.db_path)
+        
+        # Memory cache
+        self.memory_cache = {}
+        self.cache_lock = threading.Lock()
+        self.cache_size = 100  # Max cache size
+        
         # Knowledge graph
         self.enable_graph = enable_graph
         if enable_graph:
@@ -276,10 +343,15 @@ class Tier4Storage:
         
         logger.info("Tier4Storage initialized")
     
+    def __del__(self):
+        """Clean up resources."""
+        if hasattr(self, 'connection_pool'):
+            self.connection_pool.close_all()
+    
     def _init_db(self):
         """Initialize the database."""
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self.connection_pool.get_connection()
             cursor = conn.cursor()
             
             # Create semantic memories table
@@ -309,8 +381,14 @@ class Tier4Storage:
             # Create index on entities (for graph queries)
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_entities ON semantic_memories (entities)')
             
+            # Create index on last_accessed for faster sorting
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_last_accessed ON semantic_memories (last_accessed)')
+            
+            # Create index on id for faster lookups
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_id ON semantic_memories (id)')
+            
             conn.commit()
-            conn.close()
+            self.connection_pool.return_connection(conn)
         except Exception as e:
             logger.error(f"Error initializing database: {e}", exc_info=True)
     
@@ -325,8 +403,23 @@ class Tier4Storage:
             True if the memory was stored successfully, False otherwise.
         """
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
+            # Get memory ID
+            memory_id = memory.get('id')
+            if not memory_id:
+                return False
+            
+            # Ensure content is not None
+            if not memory.get('content'):
+                logger.warning(f"Memory {memory_id} has no content, skipping storage")
+                return False
+            
+            # Ensure confidence is present
+            if 'confidence' not in memory:
+                memory['confidence'] = 0.5
+            
+            # Ensure source is present
+            if 'source' not in memory:
+                memory['source'] = 'unknown'
             
             current_time = get_current_time()
             
@@ -346,35 +439,66 @@ class Tier4Storage:
             entities_json = json.dumps(entities) if entities else '[]'
             relations_json = json.dumps(memory.get('relations', []))
             
-            # Insert memory
-            cursor.execute('''
-                INSERT INTO semantic_memories 
-                (id, type, memory_type, content, semantic_embedding, entities, relations, created_at, updated_at, last_accessed, access_count, confidence, source, context, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                memory.get('id'),
-                memory.get('type'),
-                memory.get('memory_type'),
-                memory.get('content'),
-                memory.get('semantic_embedding', ''),
-                entities_json,
-                relations_json,
-                memory.get('created_at'),
-                memory.get('updated_at'),
-                memory.get('last_accessed'),
-                memory.get('access_count'),
-                memory.get('confidence'),
-                memory.get('source'),
-                memory.get('context'),
-                memory.get('status')
-            ))
+            # Retry mechanism for database locked errors
+            max_retries = 3
+            for retry in range(max_retries):
+                try:
+                    conn = self.connection_pool.get_connection()
+                    cursor = conn.cursor()
+                    
+                    # Insert memory
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO semantic_memories 
+                        (id, type, memory_type, content, semantic_embedding, entities, relations, created_at, updated_at, last_accessed, access_count, confidence, source, context, status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        memory.get('id'),
+                        memory.get('type'),
+                        memory.get('memory_type'),
+                        memory.get('content'),
+                        memory.get('semantic_embedding', ''),
+                        entities_json,
+                        relations_json,
+                        memory.get('created_at'),
+                        memory.get('updated_at'),
+                        memory.get('last_accessed'),
+                        memory.get('access_count'),
+                        memory.get('confidence'),
+                        memory.get('source'),
+                        memory.get('context'),
+                        memory.get('status')
+                    ))
+                    
+                    conn.commit()
+                    self.connection_pool.return_connection(conn)
+                    break
+                except sqlite3.OperationalError as e:
+                    if 'database is locked' in str(e) and retry < max_retries - 1:
+                        logger.warning(f"Database locked, retrying ({retry + 1}/{max_retries})...")
+                        self.connection_pool.return_connection(conn)
+                        import time
+                        time.sleep(0.5)  # Wait before retrying
+                    else:
+                        raise
             
-            conn.commit()
-            conn.close()
+            # Add to memory cache
+            # Create a copy of the memory with entities added
+            cached_memory = memory.copy()
+            cached_memory['entities'] = entities if entities else []
+            cached_memory['relations'] = memory.get('relations', [])
             
-            # Add to knowledge graph
+            with self.cache_lock:
+                self.memory_cache[memory_id] = cached_memory
+                # Limit cache size
+                if len(self.memory_cache) > self.cache_size:
+                    # Remove oldest item
+                    oldest_key = next(iter(self.memory_cache))
+                    del self.memory_cache[oldest_key]
+            
+            # Add to knowledge graph (async to avoid blocking)
             if self.enable_graph:
-                self._add_to_knowledge_graph(memory, entities)
+                import threading
+                threading.Thread(target=self._add_to_knowledge_graph, args=(memory, entities)).start()
             
             return True
         except Exception as e:
@@ -444,7 +568,17 @@ class Tier4Storage:
             A list of matching memories.
         """
         try:
-            conn = sqlite3.connect(self.db_path)
+            # Try to get from cache first if no query
+            if not query:
+                with self.cache_lock:
+                    if self.memory_cache:
+                        # Return most recent memories from cache
+                        cached_memories = list(self.memory_cache.values())
+                        # Sort by last_accessed
+                        cached_memories.sort(key=lambda x: x.get('last_accessed', ''), reverse=True)
+                        return cached_memories[:limit]
+            
+            conn = self.connection_pool.get_connection()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
@@ -466,7 +600,7 @@ class Tier4Storage:
                 ''', (limit,))
             
             rows = cursor.fetchall()
-            conn.close()
+            self.connection_pool.return_connection(conn)
             
             # Convert rows to dictionaries
             memories = []
@@ -475,6 +609,14 @@ class Tier4Storage:
                 # Parse JSON fields
                 memory['entities'] = json.loads(memory.get('entities', '[]'))
                 memory['relations'] = json.loads(memory.get('relations', '[]'))
+                # Update cache
+                with self.cache_lock:
+                    self.memory_cache[memory['id']] = memory
+                    # Limit cache size
+                    if len(self.memory_cache) > self.cache_size:
+                        # Remove oldest item
+                        oldest_key = next(iter(self.memory_cache))
+                        del self.memory_cache[oldest_key]
                 memories.append(memory)
             
             return memories
@@ -505,26 +647,53 @@ class Tier4Storage:
             # Retrieve full memory data
             related_ids = [r['memory_id'] for r in related]
             
-            conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+            # Try to get from cache first
+            cached_memories = []
+            remaining_ids = []
             
-            placeholders = ','.join(['?'] * len(related_ids))
-            cursor.execute(f'''
-                SELECT * FROM semantic_memories 
-                WHERE status = 'active' AND id IN ({placeholders})
-            ''', related_ids)
+            with self.cache_lock:
+                for memory_id in related_ids:
+                    if memory_id in self.memory_cache:
+                        cached_memories.append(self.memory_cache[memory_id])
+                    else:
+                        remaining_ids.append(memory_id)
             
-            rows = cursor.fetchall()
-            conn.close()
+            # Get remaining from database
+            db_memories = []
+            if remaining_ids:
+                conn = self.connection_pool.get_connection()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                placeholders = ','.join(['?'] * len(remaining_ids))
+                cursor.execute(f'''
+                    SELECT * FROM semantic_memories 
+                    WHERE status = 'active' AND id IN ({placeholders})
+                ''', remaining_ids)
+                
+                rows = cursor.fetchall()
+                self.connection_pool.return_connection(conn)
+                
+                for row in rows:
+                    memory = dict(row)
+                    memory['entities'] = json.loads(memory.get('entities', '[]'))
+                    memory['relations'] = json.loads(memory.get('relations', '[]'))
+                    # Update cache
+                    with self.cache_lock:
+                        self.memory_cache[memory['id']] = memory
+                        # Limit cache size
+                        if len(self.memory_cache) > self.cache_size:
+                            # Remove oldest item
+                            oldest_key = next(iter(self.memory_cache))
+                            del self.memory_cache[oldest_key]
+                    db_memories.append(memory)
+            
+            # Combine cached and database memories
+            all_memories = cached_memories + db_memories
             
             # Build result with relationship info
-            memories = []
-            for row in rows:
-                memory = dict(row)
-                memory['entities'] = json.loads(memory.get('entities', '[]'))
-                memory['relations'] = json.loads(memory.get('relations', '[]'))
-                
+            result = []
+            for memory in all_memories:
                 # Add relationship info
                 relation_info = next((r for r in related if r['memory_id'] == memory['id']), None)
                 if relation_info:
@@ -533,12 +702,12 @@ class Tier4Storage:
                         'weight': relation_info['weight']
                     }
                 
-                memories.append(memory)
+                result.append(memory)
             
             # Sort by relationship weight
-            memories.sort(key=lambda x: x.get('relation', {}).get('weight', 0), reverse=True)
+            result.sort(key=lambda x: x.get('relation', {}).get('weight', 0), reverse=True)
             
-            return memories
+            return result
         except Exception as e:
             logger.error(f"Error getting related memories: {e}", exc_info=True)
             return []
@@ -570,7 +739,7 @@ class Tier4Storage:
             A dictionary with statistics.
         """
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self.connection_pool.get_connection()
             cursor = conn.cursor()
             
             # Get total memories
@@ -585,7 +754,7 @@ class Tier4Storage:
             cursor.execute('SELECT type, COUNT(*) FROM semantic_memories WHERE status = ? GROUP BY type', ('active',))
             types = {row[0]: row[1] for row in cursor.fetchall()}
             
-            conn.close()
+            self.connection_pool.return_connection(conn)
             
             stats = {
                 'total_memories': total,
@@ -596,6 +765,13 @@ class Tier4Storage:
             # Add graph stats if enabled
             if self.enable_graph:
                 stats['knowledge_graph'] = self.knowledge_graph.get_stats()
+            
+            # Add cache stats
+            with self.cache_lock:
+                stats['cache'] = {
+                    'size': len(self.memory_cache),
+                    'max_size': self.cache_size
+                }
             
             return stats
         except Exception as e:

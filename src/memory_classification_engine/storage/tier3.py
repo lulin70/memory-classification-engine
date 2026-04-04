@@ -59,7 +59,7 @@ class Tier3Storage:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Create episodic memories table
+            # Create episodic memories table if it doesn't exist
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS episodic_memories (
                     id TEXT PRIMARY KEY,
@@ -76,6 +76,22 @@ class Tier3Storage:
                     status TEXT DEFAULT 'active'
                 )
             ''')
+            
+            # Add new columns if they don't exist
+            try:
+                cursor.execute('ALTER TABLE episodic_memories ADD COLUMN version INTEGER DEFAULT 1')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            
+            try:
+                cursor.execute('ALTER TABLE episodic_memories ADD COLUMN weight REAL DEFAULT 1.0')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            
+            try:
+                cursor.execute('ALTER TABLE episodic_memories ADD COLUMN conflict_status TEXT DEFAULT "none"')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
             
             # Create index on type and status
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_type_status ON episodic_memories (type, status)')
@@ -166,9 +182,6 @@ class Tier3Storage:
             True if the memory was stored successfully, False otherwise.
         """
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
             current_time = get_current_time()
             
             # Add timestamps if not present
@@ -178,17 +191,35 @@ class Tier3Storage:
             memory['last_accessed'] = current_time
             memory['access_count'] = 1
             memory['status'] = 'active'
+            memory['version'] = 1
+            memory['conflict_status'] = 'none'
+            
+            # Calculate weight
+            memory['weight'] = self._calculate_memory_weight(memory)
             
             # Ensure memory_type field is present
             if 'memory_type' not in memory and 'type' in memory:
                 memory['memory_type'] = memory['type']
             
-            # Insert memory
-            cursor.execute('''
-                INSERT INTO episodic_memories 
-                (id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
+            # Detect conflicts
+            conflicts = self._detect_conflicts(memory)
+            if conflicts:
+                # Mark current memory as conflicting
+                memory['conflict_status'] = 'conflicting'
+                # Update conflicting memories
+                for conflict in conflicts:
+                    self._mark_conflicting(conflict['id'])
+            
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Check if new columns exist
+            cursor.execute('PRAGMA table_info(episodic_memories)')
+            columns = [column[1] for column in cursor.fetchall()]
+            
+            # Build insert statement based on existing columns
+            insert_columns = ['id', 'type', 'memory_type', 'content', 'created_at', 'updated_at', 'last_accessed', 'access_count', 'confidence', 'source', 'context', 'status']
+            insert_values = [
                 memory.get('id'),
                 memory.get('type'),
                 memory.get('memory_type'),
@@ -201,7 +232,27 @@ class Tier3Storage:
                 memory.get('source'),
                 memory.get('context'),
                 memory.get('status')
-            ))
+            ]
+            
+            # Add new columns if they exist
+            if 'version' in columns:
+                insert_columns.append('version')
+                insert_values.append(memory.get('version', 1))
+            if 'weight' in columns:
+                insert_columns.append('weight')
+                insert_values.append(memory.get('weight', 1.0))
+            if 'conflict_status' in columns:
+                insert_columns.append('conflict_status')
+                insert_values.append(memory.get('conflict_status', 'none'))
+            
+            # Build and execute insert statement
+            placeholders = ','.join(['?'] * len(insert_columns))
+            columns_str = ','.join(insert_columns)
+            cursor.execute(f'''
+                INSERT INTO episodic_memories 
+                ({columns_str})
+                VALUES ({placeholders})
+            ''', insert_values)
             
             conn.commit()
             conn.close()
@@ -418,6 +469,237 @@ class Tier3Storage:
             True if the query is English-only, False otherwise.
         """
         return bool(re.match(r'^[a-zA-Z\s]+$', query))
+    
+    def _calculate_memory_weight(self, memory: Dict[str, Any]) -> float:
+        """Calculate memory weight based on confidence, recency, and source.
+        
+        Args:
+            memory: The memory to calculate weight for.
+            
+        Returns:
+            The calculated weight.
+        """
+        from datetime import datetime, timezone
+        
+        # Get memory properties
+        confidence = memory.get('confidence', 1.0)
+        created_at = memory.get('created_at', get_current_time())
+        source = memory.get('source', '')
+        
+        # Calculate days since creation
+        try:
+            created_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            current_dt = datetime.now(timezone.utc)
+            days_since_creation = (current_dt - created_dt).days
+        except:
+            days_since_creation = 0
+        
+        # Exponential decay for recency
+        recency_score = 2 ** (-0.1 * days_since_creation)
+        
+        # Source priority
+        source_priority = {
+            'rule': 4.0,      # Rule-based matches are most reliable
+            'pattern': 3.0,    # Pattern-based matches are next
+            'semantic': 2.0,   # Semantic-based matches are less reliable
+            'default': 1.0     # Default matches are least reliable
+        }
+        
+        def get_source_priority(source_str):
+            for key, priority in source_priority.items():
+                if key in source_str:
+                    return priority
+            return 1.0
+        
+        source_score = get_source_priority(source)
+        
+        # Calculate final weight
+        weight = confidence * recency_score * source_score
+        
+        return min(weight, 1.0)  # Cap at 1.0
+    
+    def _detect_conflicts(self, memory: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Detect conflicts with existing memories.
+        
+        Args:
+            memory: The memory to check for conflicts.
+            
+        Returns:
+            A list of conflicting memories.
+        """
+        conflicts = []
+        
+        # Get memory properties
+        content = memory.get('content', '').lower()
+        memory_type = memory.get('memory_type', '')
+        
+        # Get existing memories of the same type
+        existing_memories = self.retrieve_memories(limit=50)
+        
+        for existing_memory in existing_memories:
+            existing_memory_type = existing_memory.get('memory_type', existing_memory.get('type', ''))
+            if existing_memory_type != memory_type:
+                continue
+            
+            existing_content = existing_memory.get('content', '').lower()
+            
+            # Skip empty content
+            if not content or not existing_content:
+                continue
+            
+            # Check for direct negation
+            if self._check_negation_conflict(content, existing_content):
+                conflicts.append(existing_memory)
+            
+            # Check for semantic conflict
+            similarity = self._calculate_semantic_similarity(content, existing_content)
+            if similarity > 0.8 and self._check_semantic_conflict(content, existing_content):
+                conflicts.append(existing_memory)
+        
+        return conflicts
+    
+    def _check_negation_conflict(self, content1: str, content2: str) -> bool:
+        """Check for negation conflicts between two contents.
+        
+        Args:
+            content1: First content.
+            content2: Second content.
+            
+        Returns:
+            True if there's a negation conflict, False otherwise.
+        """
+        # Check for direct negation in Chinese
+        chinese_negation_words = ['不', '没', '没有', '不是', '不要', '不喜欢', '不想要', '反对', '拒绝', '否定']
+        # Check for direct negation in English
+        english_negation_words = ['not', 'no', 'don\'t', 'doesn\'t', 'didn\'t', 'won\'t', 'can\'t', 'never', 'against', 'reject', 'deny']
+        
+        # Check Chinese negation
+        for word in chinese_negation_words:
+            if word in content1 and word not in content2:
+                # Check if the rest of the content is similar
+                content1_without_negation = content1.replace(word, '').strip()
+                similarity = self._calculate_semantic_similarity(content1_without_negation, content2)
+                if similarity > 0.7:
+                    return True
+            elif word in content2 and word not in content1:
+                # Check if the rest of the content is similar
+                content2_without_negation = content2.replace(word, '').strip()
+                similarity = self._calculate_semantic_similarity(content1, content2_without_negation)
+                if similarity > 0.7:
+                    return True
+        
+        # Check English negation
+        for word in english_negation_words:
+            if word in content1 and word not in content2:
+                # Check if the rest of the content is similar
+                content1_without_negation = content1.replace(word, '').strip()
+                similarity = self._calculate_semantic_similarity(content1_without_negation, content2)
+                if similarity > 0.7:
+                    return True
+            elif word in content2 and word not in content1:
+                # Check if the rest of the content is similar
+                content2_without_negation = content2.replace(word, '').strip()
+                similarity = self._calculate_semantic_similarity(content1, content2_without_negation)
+                if similarity > 0.7:
+                    return True
+        
+        return False
+    
+    def _check_semantic_conflict(self, content1: str, content2: str) -> bool:
+        """Check for semantic conflicts between two contents.
+        
+        Args:
+            content1: First content.
+            content2: Second content.
+            
+        Returns:
+            True if there's a semantic conflict, False otherwise.
+        """
+        # Simple conflict detection for now
+        # In a real implementation, this would use more sophisticated NLP
+        
+        # Check for opposite sentiment
+        positive_words = ['like', 'love', 'prefer', 'enjoy', 'happy', 'positive', '好', '喜欢', '开心', '正面']
+        negative_words = ['dislike', 'hate', 'avoid', 'unhappy', 'negative', 'bad', '不喜欢', '讨厌', '负面']
+        
+        content1_positive = any(word in content1 for word in positive_words)
+        content1_negative = any(word in content1 for word in negative_words)
+        content2_positive = any(word in content2 for word in positive_words)
+        content2_negative = any(word in content2 for word in negative_words)
+        
+        if (content1_positive and content2_negative) or (content1_negative and content2_positive):
+            return True
+        
+        return False
+    
+    def _calculate_semantic_similarity(self, text1: str, text2: str) -> float:
+        """Calculate semantic similarity between two texts.
+        
+        Args:
+            text1: First text.
+            text2: Second text.
+            
+        Returns:
+            Similarity score between 0 and 1.
+        """
+        # Simple bag-of-words similarity for now
+        def tokenize(text):
+            return set(word.lower() for word in text.split() if word.isalnum())
+        
+        tokens1 = tokenize(text1)
+        tokens2 = tokenize(text2)
+        
+        if not tokens1 and not tokens2:
+            return 1.0
+        
+        # Calculate Jaccard similarity
+        intersection = len(tokens1.intersection(tokens2))
+        union = len(tokens1.union(tokens2))
+        
+        return intersection / union if union > 0 else 0.0
+    
+    def _mark_conflicting(self, memory_id: str) -> bool:
+        """Mark a memory as conflicting.
+        
+        Args:
+            memory_id: The ID of the memory to mark.
+            
+        Returns:
+            True if the memory was marked successfully, False otherwise.
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Check if conflict_status column exists
+            cursor.execute('PRAGMA table_info(episodic_memories)')
+            columns = [column[1] for column in cursor.fetchall()]
+            
+            if 'conflict_status' in columns:
+                cursor.execute('''
+                    UPDATE episodic_memories 
+                    SET conflict_status = 'conflicting', updated_at = ? 
+                    WHERE id = ?
+                ''', (get_current_time(), memory_id))
+            else:
+                # If column doesn't exist, just update the updated_at timestamp
+                cursor.execute('''
+                    UPDATE episodic_memories 
+                    SET updated_at = ? 
+                    WHERE id = ?
+                ''', (get_current_time(), memory_id))
+            
+            conn.commit()
+            conn.close()
+            
+            # Update cache
+            if self.enable_cache and hasattr(self, 'cache'):
+                self.cache.delete(memory_id)
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error marking memory as conflicting: {e}", exc_info=True)
+            return False
     
     def _update_vector_index(self, memory: Dict[str, Any]):
         """Update vector index with a new memory.

@@ -13,6 +13,7 @@ from memory_classification_engine.storage.tier4 import Tier4Storage
 from memory_classification_engine.plugins import PluginManager
 from memory_classification_engine.utils.performance import PerformanceMonitor, PerformanceOptimizer
 from memory_classification_engine.utils.distributed import DistributedManager, DataSynchronizer
+from memory_classification_engine.utils.tenant import TenantManager, Tenant
 
 class MemoryClassificationEngine:
     """Memory Classification Engine."""
@@ -89,6 +90,9 @@ class MemoryClassificationEngine:
         self.cache = {}
         self.cache_size = 1000  # Maximum cache size
         self.cache_ttl = 3600  # Cache time-to-live in seconds
+        
+        # Initialize tenant manager
+        self.tenant_manager = TenantManager()
         
         # Run initial archive
         self._run_archive()
@@ -262,10 +266,27 @@ class MemoryClassificationEngine:
         # Step 1: Add message to working memory
         self._add_to_working_memory(message)
         
-        # Step 2: Process message through plugins
+        # Step 2: Get or create tenant
+        tenant_id = context.get('tenant_id') if context else None
+        tenant = None
+        
+        if tenant_id:
+            tenant = self.tenant_manager.get_tenant(tenant_id)
+        
+        if not tenant:
+            # Create default tenant if not provided
+            tenant_id = tenant_id or 'default'
+            tenant = self.tenant_manager.create_tenant(
+                tenant_id,
+                f"Default Tenant {tenant_id}",
+                'personal',
+                user_id=tenant_id
+            )
+        
+        # Step 3: Process message through plugins
         plugin_results = self.plugin_manager.process_message(message, context)
         
-        # Step 3: Apply layers in order
+        # Step 4: Apply layers in order
         # Layer 1: Rule matching
         rule_matches = self.rule_matcher.match(message, context)
         
@@ -275,10 +296,10 @@ class MemoryClassificationEngine:
         # Layer 3: Semantic classification
         semantic_matches = self.semantic_classifier.classify(message, context)
         
-        # Step 3: Combine results
+        # Step 5: Combine results
         all_matches = rule_matches + pattern_matches + semantic_matches
         
-        # Step 4: Deduplicate and resolve conflicts
+        # Step 6: Deduplicate and resolve conflicts
         unique_matches = self._deduplicate_matches(all_matches)
         
         # If no matches found, add a default classification
@@ -287,7 +308,7 @@ class MemoryClassificationEngine:
             if default_match:
                 unique_matches.append(default_match)
         
-        # Step 5: Store memories
+        # Step 7: Store memories
         stored_memories = []
         for match in unique_matches:
             # Generate memory ID
@@ -297,6 +318,9 @@ class MemoryClassificationEngine:
             # Add context if provided
             if context:
                 match['context'] = context.get('conversation_id', '')
+            
+            # Add tenant information
+            match['tenant_id'] = tenant.tenant_id
             
             # Rename memory_type to type for storage compatibility
             if 'memory_type' in match:
@@ -315,6 +339,9 @@ class MemoryClassificationEngine:
                 self.tier3_storage.store_memory(processed_match)
             elif processed_match.get('tier') == 4:
                 self.tier4_storage.store_memory(processed_match)
+            
+            # Add to tenant's memory list
+            tenant.add_memory(processed_match)
             
             # Add to distributed sync queue
             if self.distributed_manager:
@@ -342,15 +369,17 @@ class MemoryClassificationEngine:
             'matches': stored_memories,
             'plugin_results': plugin_results,
             'working_memory_size': len(self.working_memory),
-            'processing_time': duration
+            'processing_time': duration,
+            'tenant_id': tenant.tenant_id
         }
     
-    def retrieve_memories(self, query: str = None, limit: int = 5) -> List[Dict[str, Any]]:
+    def retrieve_memories(self, query: str = None, limit: int = 5, tenant_id: str = None) -> List[Dict[str, Any]]:
         """Retrieve memories based on query.
         
         Args:
             query: Optional query string to filter memories.
             limit: Maximum number of memories to return.
+            tenant_id: Optional tenant ID to filter memories by tenant.
             
         Returns:
             A list of matching memories.
@@ -362,7 +391,7 @@ class MemoryClassificationEngine:
             query = PerformanceOptimizer.optimize_query(query)
         
         # Generate cache key
-        cache_key = PerformanceOptimizer.cache_key_generator('retrieve', query=query, limit=limit)
+        cache_key = PerformanceOptimizer.cache_key_generator('retrieve', query=query, limit=limit, tenant_id=tenant_id)
         
         # Check if result is in cache
         cached_result = self._get_from_cache(cache_key)
@@ -374,8 +403,14 @@ class MemoryClassificationEngine:
         tier3_memories = self.tier3_storage.retrieve_memories(query, limit)
         tier4_memories = self.tier4_storage.retrieve_memories(query, limit)
         
-        # Combine and sort by confidence
+        # Combine and filter by tenant if specified
         all_memories = tier2_memories + tier3_memories + tier4_memories
+        
+        # Filter by tenant if specified
+        if tenant_id:
+            all_memories = [memory for memory in all_memories if memory.get('tenant_id') == tenant_id]
+        
+        # Sort by confidence
         all_memories.sort(key=lambda x: x.get('confidence', 0), reverse=True)
         
         # Limit the result
@@ -909,3 +944,160 @@ class MemoryClassificationEngine:
         llm_enabled = self.config.get('llm.enabled', False)
         api_key = self.config.get('llm.api_key', '')
         self.semantic_classifier = SemanticClassifier(llm_enabled, api_key)
+    
+    def create_tenant(self, tenant_id: str, name: str, tenant_type: str, **kwargs) -> Dict[str, Any]:
+        """Create a new tenant.
+        
+        Args:
+            tenant_id: Unique tenant identifier.
+            name: Tenant name.
+            tenant_type: Tenant type ('personal' or 'enterprise').
+            **kwargs: Additional parameters.
+            
+        Returns:
+            A dictionary containing the created tenant information.
+        """
+        tenant = self.tenant_manager.create_tenant(tenant_id, name, tenant_type, **kwargs)
+        if tenant:
+            return {
+                'success': True,
+                'tenant_id': tenant.tenant_id,
+                'name': tenant.name,
+                'type': tenant.tenant_type,
+                'created_at': tenant.created_at
+            }
+        else:
+            return {'success': False, 'message': 'Failed to create tenant'}
+    
+    def get_tenant(self, tenant_id: str) -> Dict[str, Any]:
+        """Get tenant information.
+        
+        Args:
+            tenant_id: Tenant ID.
+            
+        Returns:
+            A dictionary containing the tenant information.
+        """
+        tenant = self.tenant_manager.get_tenant(tenant_id)
+        if tenant:
+            return {
+                'success': True,
+                'tenant_id': tenant.tenant_id,
+                'name': tenant.name,
+                'type': tenant.tenant_type,
+                'created_at': tenant.created_at,
+                'memory_count': len(tenant.memories)
+            }
+        else:
+            return {'success': False, 'message': 'Tenant not found'}
+    
+    def list_tenants(self) -> List[Dict[str, Any]]:
+        """List all tenants.
+        
+        Returns:
+            A list of tenant information dictionaries.
+        """
+        tenants = self.tenant_manager.list_tenants()
+        return [
+            {
+                'tenant_id': tenant.tenant_id,
+                'name': tenant.name,
+                'type': tenant.tenant_type,
+                'created_at': tenant.created_at,
+                'memory_count': len(tenant.memories)
+            }
+            for tenant in tenants
+        ]
+    
+    def delete_tenant(self, tenant_id: str) -> Dict[str, Any]:
+        """Delete a tenant.
+        
+        Args:
+            tenant_id: Tenant ID.
+            
+        Returns:
+            A dictionary containing the result.
+        """
+        success = self.tenant_manager.delete_tenant(tenant_id)
+        return {'success': success, 'message': 'Tenant deleted' if success else 'Failed to delete tenant'}
+    
+    def update_tenant(self, tenant_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+        """Update tenant information.
+        
+        Args:
+            tenant_id: Tenant ID.
+            updates: Dictionary of updates.
+            
+        Returns:
+            A dictionary containing the updated tenant information.
+        """
+        tenant = self.tenant_manager.update_tenant(tenant_id, updates)
+        if tenant:
+            return {
+                'success': True,
+                'tenant_id': tenant.tenant_id,
+                'name': tenant.name,
+                'type': tenant.tenant_type,
+                'updated_at': tenant.updated_at
+            }
+        else:
+            return {'success': False, 'message': 'Tenant not found'}
+    
+    def add_tenant_role(self, tenant_id: str, role_name: str, permissions: List[str]) -> Dict[str, Any]:
+        """Add a role to an enterprise tenant.
+        
+        Args:
+            tenant_id: Tenant ID.
+            role_name: Role name.
+            permissions: List of permissions.
+            
+        Returns:
+            A dictionary containing the result.
+        """
+        tenant = self.tenant_manager.get_tenant(tenant_id)
+        if not tenant:
+            return {'success': False, 'message': 'Tenant not found'}
+        
+        if tenant.tenant_type != 'enterprise':
+            return {'success': False, 'message': 'Only enterprise tenants can have roles'}
+        
+        tenant.add_role(role_name, permissions)
+        return {'success': True, 'message': 'Role added successfully'}
+    
+    def check_tenant_permission(self, tenant_id: str, role_name: str, permission: str) -> Dict[str, Any]:
+        """Check if a role has a specific permission.
+        
+        Args:
+            tenant_id: Tenant ID.
+            role_name: Role name.
+            permission: Permission to check.
+            
+        Returns:
+            A dictionary containing the result.
+        """
+        tenant = self.tenant_manager.get_tenant(tenant_id)
+        if not tenant:
+            return {'success': False, 'message': 'Tenant not found'}
+        
+        if tenant.tenant_type != 'enterprise':
+            return {'success': False, 'message': 'Only enterprise tenants have roles'}
+        
+        has_permission = tenant.has_permission(role_name, permission)
+        return {'success': True, 'has_permission': has_permission}
+    
+    def get_tenant_memories(self, tenant_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get memories for a specific tenant.
+        
+        Args:
+            tenant_id: Tenant ID.
+            limit: Maximum number of memories to return.
+            
+        Returns:
+            A list of memories for the tenant.
+        """
+        tenant = self.tenant_manager.get_tenant(tenant_id)
+        if not tenant:
+            return []
+        
+        memories = tenant.get_memories()
+        return memories[:limit]
