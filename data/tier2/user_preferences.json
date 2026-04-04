@@ -1,0 +1,1554 @@
+[
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "记住，我不喜欢在代码中使用破折号",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775308520953_8968",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:15:20Z",
+    "updated_at": "2026-04-04T13:15:20Z",
+    "last_accessed": "2026-04-04T13:15:20Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "在代码中使用驼峰命名法",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775308521021_6244",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:15:21Z",
+    "updated_at": "2026-04-04T13:15:21Z",
+    "last_accessed": "2026-04-04T13:15:21Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢在代码中使用驼峰命名法",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775308521022_6436",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:15:21Z",
+    "updated_at": "2026-04-04T13:15:21Z",
+    "last_accessed": "2026-04-04T13:15:21Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775308521023_9524",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:15:21Z",
+    "updated_at": "2026-04-04T13:15:21Z",
+    "last_accessed": "2026-04-04T13:15:21Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "Python编程语言",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775308521038_2224",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:15:21Z",
+    "updated_at": "2026-04-04T13:15:21Z",
+    "last_accessed": "2026-04-04T13:15:21Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢Python编程语言",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775308521039_3175",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:15:21Z",
+    "updated_at": "2026-04-04T13:15:21Z",
+    "last_accessed": "2026-04-04T13:15:21Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775308521040_9984",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:15:21Z",
+    "updated_at": "2026-04-04T13:15:21Z",
+    "last_accessed": "2026-04-04T13:15:21Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "在代码中使用驼峰命名法",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775309076256_5326",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:24:36Z",
+    "updated_at": "2026-04-04T13:24:36Z",
+    "last_accessed": "2026-04-04T13:24:36Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢在代码中使用驼峰命名法",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775309076258_2823",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:24:36Z",
+    "updated_at": "2026-04-04T13:24:36Z",
+    "last_accessed": "2026-04-04T13:24:36Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775309076259_8866",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:24:36Z",
+    "updated_at": "2026-04-04T13:24:36Z",
+    "last_accessed": "2026-04-04T13:24:36Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我不喜欢在代码中使用分号",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775309076263_1326",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:24:36Z",
+    "updated_at": "2026-04-04T13:24:36Z",
+    "last_accessed": "2026-04-04T13:24:36Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775309076265_2881",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:24:36Z",
+    "updated_at": "2026-04-04T13:24:36Z",
+    "last_accessed": "2026-04-04T13:24:36Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "在代码中使用驼峰命名法",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775309076276_4196",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:24:36Z",
+    "updated_at": "2026-04-04T13:24:36Z",
+    "last_accessed": "2026-04-04T13:24:36Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢在代码中使用驼峰命名法",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775309076278_6686",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:24:36Z",
+    "updated_at": "2026-04-04T13:24:36Z",
+    "last_accessed": "2026-04-04T13:24:36Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775309076279_1706",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:24:36Z",
+    "updated_at": "2026-04-04T13:24:36Z",
+    "last_accessed": "2026-04-04T13:24:36Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "巧克力",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775310137996_8082",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:42:17Z",
+    "updated_at": "2026-04-04T13:42:17Z",
+    "last_accessed": "2026-04-04T13:42:17Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢巧克力",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310137999_5091",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:42:17Z",
+    "updated_at": "2026-04-04T13:42:17Z",
+    "last_accessed": "2026-04-04T13:42:17Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310138001_3557",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:42:18Z",
+    "updated_at": "2026-04-04T13:42:18Z",
+    "last_accessed": "2026-04-04T13:42:18Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我不喜欢咖啡",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310138003_5024",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:42:18Z",
+    "updated_at": "2026-04-04T13:42:18Z",
+    "last_accessed": "2026-04-04T13:42:18Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310138004_7397",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:42:18Z",
+    "updated_at": "2026-04-04T13:42:18Z",
+    "last_accessed": "2026-04-04T13:42:18Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "狗",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775310138005_5274",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:42:18Z",
+    "updated_at": "2026-04-04T13:42:18Z",
+    "last_accessed": "2026-04-04T13:42:18Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢狗",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310138007_3348",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:42:18Z",
+    "updated_at": "2026-04-04T13:42:18Z",
+    "last_accessed": "2026-04-04T13:42:18Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310138009_5259",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:42:18Z",
+    "updated_at": "2026-04-04T13:42:18Z",
+    "last_accessed": "2026-04-04T13:42:18Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "编程",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775310138056_4100",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:42:18Z",
+    "updated_at": "2026-04-04T13:42:18Z",
+    "last_accessed": "2026-04-04T13:42:18Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢编程",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310138058_9430",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:42:18Z",
+    "updated_at": "2026-04-04T13:42:18Z",
+    "last_accessed": "2026-04-04T13:42:18Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310138064_2533",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:42:18Z",
+    "updated_at": "2026-04-04T13:42:18Z",
+    "last_accessed": "2026-04-04T13:42:18Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我不喜欢加班",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310143323_4703",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:42:23Z",
+    "updated_at": "2026-04-04T13:42:23Z",
+    "last_accessed": "2026-04-04T13:42:23Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310148574_1544",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:42:28Z",
+    "updated_at": "2026-04-04T13:42:28Z",
+    "last_accessed": "2026-04-04T13:42:28Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "编程",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775310148600_9318",
+    "context": "test_conv_123",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:42:28Z",
+    "updated_at": "2026-04-04T13:42:28Z",
+    "last_accessed": "2026-04-04T13:42:28Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢编程",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310148603_7759",
+    "context": "test_conv_123",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:42:28Z",
+    "updated_at": "2026-04-04T13:42:28Z",
+    "last_accessed": "2026-04-04T13:42:28Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310148604_6346",
+    "context": "test_conv_123",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:42:28Z",
+    "updated_at": "2026-04-04T13:42:28Z",
+    "last_accessed": "2026-04-04T13:42:28Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "在代码中使用驼峰命名法",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775310181298_7331",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:43:01Z",
+    "updated_at": "2026-04-04T13:43:01Z",
+    "last_accessed": "2026-04-04T13:43:01Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢在代码中使用驼峰命名法",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310181301_1831",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:43:01Z",
+    "updated_at": "2026-04-04T13:43:01Z",
+    "last_accessed": "2026-04-04T13:43:01Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310181303_6138",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:43:01Z",
+    "updated_at": "2026-04-04T13:43:01Z",
+    "last_accessed": "2026-04-04T13:43:01Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我不喜欢在代码中使用分号",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310181310_9398",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:43:01Z",
+    "updated_at": "2026-04-04T13:43:01Z",
+    "last_accessed": "2026-04-04T13:43:01Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310181311_4979",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:43:01Z",
+    "updated_at": "2026-04-04T13:43:01Z",
+    "last_accessed": "2026-04-04T13:43:01Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "在代码中使用驼峰命名法",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775310181326_1338",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:43:01Z",
+    "updated_at": "2026-04-04T13:43:01Z",
+    "last_accessed": "2026-04-04T13:43:01Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢在代码中使用驼峰命名法",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310181329_6538",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:43:01Z",
+    "updated_at": "2026-04-04T13:43:01Z",
+    "last_accessed": "2026-04-04T13:43:01Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310181331_7084",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:43:01Z",
+    "updated_at": "2026-04-04T13:43:01Z",
+    "last_accessed": "2026-04-04T13:43:01Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "巧克力",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775310295482_6944",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:44:55Z",
+    "updated_at": "2026-04-04T13:44:55Z",
+    "last_accessed": "2026-04-04T13:44:55Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢巧克力",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310295484_9530",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:44:55Z",
+    "updated_at": "2026-04-04T13:44:55Z",
+    "last_accessed": "2026-04-04T13:44:55Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310295486_6105",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:44:55Z",
+    "updated_at": "2026-04-04T13:44:55Z",
+    "last_accessed": "2026-04-04T13:44:55Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我不喜欢咖啡",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310295488_2491",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:44:55Z",
+    "updated_at": "2026-04-04T13:44:55Z",
+    "last_accessed": "2026-04-04T13:44:55Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310295490_1054",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:44:55Z",
+    "updated_at": "2026-04-04T13:44:55Z",
+    "last_accessed": "2026-04-04T13:44:55Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "狗",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775310295491_1290",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:44:55Z",
+    "updated_at": "2026-04-04T13:44:55Z",
+    "last_accessed": "2026-04-04T13:44:55Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢狗",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310295493_5596",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:44:55Z",
+    "updated_at": "2026-04-04T13:44:55Z",
+    "last_accessed": "2026-04-04T13:44:55Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310295496_8633",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:44:55Z",
+    "updated_at": "2026-04-04T13:44:55Z",
+    "last_accessed": "2026-04-04T13:44:55Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "编程",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775310295535_5252",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:44:55Z",
+    "updated_at": "2026-04-04T13:44:55Z",
+    "last_accessed": "2026-04-04T13:44:55Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢编程",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310295537_6656",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:44:55Z",
+    "updated_at": "2026-04-04T13:44:55Z",
+    "last_accessed": "2026-04-04T13:44:55Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310295539_5611",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:44:55Z",
+    "updated_at": "2026-04-04T13:44:55Z",
+    "last_accessed": "2026-04-04T13:44:55Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我不喜欢加班",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310300793_2541",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:45:00Z",
+    "updated_at": "2026-04-04T13:45:00Z",
+    "last_accessed": "2026-04-04T13:45:00Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310306056_5871",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:45:06Z",
+    "updated_at": "2026-04-04T13:45:06Z",
+    "last_accessed": "2026-04-04T13:45:06Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "编程",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775310306096_7616",
+    "context": "test_conv_123",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:45:06Z",
+    "updated_at": "2026-04-04T13:45:06Z",
+    "last_accessed": "2026-04-04T13:45:06Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢编程",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310306102_6707",
+    "context": "test_conv_123",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:45:06Z",
+    "updated_at": "2026-04-04T13:45:06Z",
+    "last_accessed": "2026-04-04T13:45:06Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310306113_7483",
+    "context": "test_conv_123",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:45:06Z",
+    "updated_at": "2026-04-04T13:45:06Z",
+    "last_accessed": "2026-04-04T13:45:06Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "在代码中使用驼峰命名法",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775310332931_5380",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:45:32Z",
+    "updated_at": "2026-04-04T13:45:32Z",
+    "last_accessed": "2026-04-04T13:45:32Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢在代码中使用驼峰命名法",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310332933_5529",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:45:32Z",
+    "updated_at": "2026-04-04T13:45:32Z",
+    "last_accessed": "2026-04-04T13:45:32Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310332935_2030",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:45:32Z",
+    "updated_at": "2026-04-04T13:45:32Z",
+    "last_accessed": "2026-04-04T13:45:32Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我不喜欢在代码中使用分号",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310332941_7713",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:45:32Z",
+    "updated_at": "2026-04-04T13:45:32Z",
+    "last_accessed": "2026-04-04T13:45:32Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310332943_8181",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:45:32Z",
+    "updated_at": "2026-04-04T13:45:32Z",
+    "last_accessed": "2026-04-04T13:45:32Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "在代码中使用驼峰命名法",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775310332957_4419",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:45:32Z",
+    "updated_at": "2026-04-04T13:45:32Z",
+    "last_accessed": "2026-04-04T13:45:32Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢在代码中使用驼峰命名法",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310332962_4097",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:45:32Z",
+    "updated_at": "2026-04-04T13:45:32Z",
+    "last_accessed": "2026-04-04T13:45:32Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310332964_6788",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:45:32Z",
+    "updated_at": "2026-04-04T13:45:32Z",
+    "last_accessed": "2026-04-04T13:45:32Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "巧克力",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775310373484_9907",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:46:13Z",
+    "updated_at": "2026-04-04T13:46:13Z",
+    "last_accessed": "2026-04-04T13:46:13Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢巧克力",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310373490_6813",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:46:13Z",
+    "updated_at": "2026-04-04T13:46:13Z",
+    "last_accessed": "2026-04-04T13:46:13Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310373492_7326",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:46:13Z",
+    "updated_at": "2026-04-04T13:46:13Z",
+    "last_accessed": "2026-04-04T13:46:13Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我不喜欢咖啡",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310373494_2067",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:46:13Z",
+    "updated_at": "2026-04-04T13:46:13Z",
+    "last_accessed": "2026-04-04T13:46:13Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310373499_9373",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:46:13Z",
+    "updated_at": "2026-04-04T13:46:13Z",
+    "last_accessed": "2026-04-04T13:46:13Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "狗",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775310373501_5157",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:46:13Z",
+    "updated_at": "2026-04-04T13:46:13Z",
+    "last_accessed": "2026-04-04T13:46:13Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢狗",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310373503_8484",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:46:13Z",
+    "updated_at": "2026-04-04T13:46:13Z",
+    "last_accessed": "2026-04-04T13:46:13Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310373505_4131",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:46:13Z",
+    "updated_at": "2026-04-04T13:46:13Z",
+    "last_accessed": "2026-04-04T13:46:13Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "编程",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775310373538_1128",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:46:13Z",
+    "updated_at": "2026-04-04T13:46:13Z",
+    "last_accessed": "2026-04-04T13:46:13Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我喜欢编程",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310373540_2769",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:46:13Z",
+    "updated_at": "2026-04-04T13:46:13Z",
+    "last_accessed": "2026-04-04T13:46:13Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310373543_8957",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:46:13Z",
+    "updated_at": "2026-04-04T13:46:13Z",
+    "last_accessed": "2026-04-04T13:46:13Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "我不喜欢加班",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310378808_9021",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:46:18Z",
+    "updated_at": "2026-04-04T13:46:18Z",
+    "last_accessed": "2026-04-04T13:46:18Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310384087_4849",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:46:24Z",
+    "updated_at": "2026-04-04T13:46:24Z",
+    "last_accessed": "2026-04-04T13:46:24Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "gAAAAABp0RYw3APNYhZlFkY5o6JfzKnFAY59EXMEXJ7qWHem4gjFOc_hwzv3x4K0NfWUgfIvTJijCVhOT91FYW3Bfx8bFWKOKQ==",
+    "confidence": 1.0,
+    "source": "rule:我(喜欢|偏好|希望|想要)",
+    "description": "提取用户表达的偏好",
+    "id": "mem_1775310384106_1179",
+    "context": "test_conv_123",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:46:24Z",
+    "updated_at": "2026-04-04T13:46:24Z",
+    "last_accessed": "2026-04-04T13:46:24Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "tier": 2,
+    "content": "gAAAAABp0RYwcCN49ivi4M3bbf512WFljCGd3GdA89uajVNu-D_KQoxk3qZ8nb5_fiKRc_OWUXmRSnAYSRBPDOpDoyTTjyFnng==",
+    "confidence": 0.6,
+    "source": "pattern:preference",
+    "description": "偏好模式",
+    "id": "mem_1775310384109_7264",
+    "context": "test_conv_123",
+    "type": "user_preference",
+    "sentiment": {
+      "sentiment": "positive",
+      "confidence": 0.6,
+      "positive_indicators": 1,
+      "negative_indicators": 0
+    },
+    "created_at": "2026-04-04T13:46:24Z",
+    "updated_at": "2026-04-04T13:46:24Z",
+    "last_accessed": "2026-04-04T13:46:24Z",
+    "access_count": 1,
+    "status": "active"
+  },
+  {
+    "memory_type": "user_preference",
+    "confidence": 0.7,
+    "source": "semantic:keyword",
+    "description": "User preferences and likes/dislikes",
+    "matched_keywords": [
+      "喜欢"
+    ],
+    "tier": 2,
+    "id": "mem_1775310384111_2540",
+    "context": "test_conv_123",
+    "type": "user_preference",
+    "created_at": "2026-04-04T13:46:24Z",
+    "updated_at": "2026-04-04T13:46:24Z",
+    "last_accessed": "2026-04-04T13:46:24Z",
+    "access_count": 1,
+    "status": "active"
+  }
+]
