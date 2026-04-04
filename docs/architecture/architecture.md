@@ -72,14 +72,14 @@ Memory Classification Engine 采用分层架构设计，主要包括以下层次
 | Tier 1 | 工作记忆 | 内存 | 临时存储，快速访问 |
 | Tier 2 | 程序性记忆 | JSON文件 | 结构化存储，用户偏好 |
 | Tier 3 | 情节记忆 | SQLite + FTS5 + 向量存储 | 大容量存储，全文搜索，向量检索 |
-| Tier 4 | 语义记忆 | SQLite | 长期存储，语义关联 |
+| Tier 4 | 语义记忆 | SQLite + 知识图谱 | 长期存储，语义关联，知识推理 |
 
 #### 2.2.2 存储实现
 
 - **Tier 1**：使用Python内存字典
 - **Tier 2**：使用JSON文件存储
 - **Tier 3**：使用SQLite+FTS5+向量存储（FAISS/TF-IDF）
-- **Tier 4**：使用SQLite
+- **Tier 4**：使用SQLite+知识图谱（NetworkX）
 
 ### 2.3 工具层
 

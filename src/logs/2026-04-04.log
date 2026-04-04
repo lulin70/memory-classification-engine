@@ -35,3 +35,150 @@ Traceback (most recent call last):
     cursor.execute('''
 sqlite3.OperationalError: database is locked
 2026-04-04 11:16:50,079 - memory-classification-engine - WARNING - Vector search dependencies not available: No module named 'sklearn'
+2026-04-04 11:30:32,727 - memory-classification-engine - WARNING - sentence-transformers not available, using fallback semantic analysis
+2026-04-04 11:30:32,845 - memory-classification-engine - WARNING - Vector search dependencies not available: No module named 'sklearn'
+2026-04-04 11:30:32,851 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:30:32,879 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:30:32,880 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:30:32,885 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:30:32,886 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:30:32,887 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:30:32,888 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:30:32,889 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:30:32,890 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:30:32,891 - memory-classification-engine - INFO - Saved knowledge graph with 1 nodes
+2026-04-04 11:30:32,891 - memory-classification-engine - INFO - Loaded knowledge graph with 1 nodes
+2026-04-04 11:30:32,891 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:30:32,892 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:30:32,896 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:30:32,898 - memory-classification-engine - INFO - Saved knowledge graph with 1 nodes
+2026-04-04 11:30:32,900 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:30:32,902 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:30:32,903 - memory-classification-engine - INFO - Saved knowledge graph with 3 nodes
+2026-04-04 11:30:32,904 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:30:32,906 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:30:32,907 - memory-classification-engine - INFO - Saved knowledge graph with 1 nodes
+2026-04-04 11:30:32,907 - memory-classification-engine - INFO - Saved knowledge graph with 2 nodes
+2026-04-04 11:30:32,908 - memory-classification-engine - INFO - Saved knowledge graph with 3 nodes
+2026-04-04 11:30:32,910 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:30:32,911 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:30:32,912 - memory-classification-engine - INFO - Saved knowledge graph with 2 nodes
+2026-04-04 11:30:32,913 - memory-classification-engine - INFO - Saved knowledge graph with 3 nodes
+2026-04-04 11:30:32,914 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:30:32,916 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:30:32,917 - memory-classification-engine - INFO - Saved knowledge graph with 1 nodes
+2026-04-04 11:31:25,035 - memory-classification-engine - WARNING - sentence-transformers not available, using fallback semantic analysis
+2026-04-04 11:31:25,127 - memory-classification-engine - WARNING - Vector search dependencies not available: No module named 'sklearn'
+2026-04-04 11:31:25,130 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:25,131 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:25,132 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:25,133 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:25,134 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:25,135 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:25,136 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:25,137 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:25,138 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:25,138 - memory-classification-engine - INFO - Saved knowledge graph with 1 nodes
+2026-04-04 11:31:25,138 - memory-classification-engine - INFO - Loaded knowledge graph with 1 nodes
+2026-04-04 11:31:25,138 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:25,139 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:25,144 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:25,145 - memory-classification-engine - INFO - Saved knowledge graph with 1 nodes
+2026-04-04 11:31:25,147 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:25,148 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:25,151 - memory-classification-engine - INFO - Saved knowledge graph with 3 nodes
+2026-04-04 11:31:25,153 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:25,155 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:25,157 - memory-classification-engine - INFO - Saved knowledge graph with 1 nodes
+2026-04-04 11:31:25,160 - memory-classification-engine - INFO - Saved knowledge graph with 2 nodes
+2026-04-04 11:31:25,161 - memory-classification-engine - INFO - Saved knowledge graph with 3 nodes
+2026-04-04 11:31:25,162 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:25,164 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:25,165 - memory-classification-engine - INFO - Saved knowledge graph with 2 nodes
+2026-04-04 11:31:25,167 - memory-classification-engine - INFO - Saved knowledge graph with 3 nodes
+2026-04-04 11:31:25,168 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:25,169 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:25,170 - memory-classification-engine - INFO - Saved knowledge graph with 1 nodes
+2026-04-04 11:31:29,823 - memory-classification-engine - WARNING - sentence-transformers not available, using fallback semantic analysis
+2026-04-04 11:31:29,874 - memory-classification-engine - WARNING - Vector search dependencies not available: No module named 'sklearn'
+2026-04-04 11:31:29,889 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:29,891 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:29,897 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:29,910 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:29,911 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:29,917 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:29,932 - memory-classification-engine - ERROR - Error storing memory: UNIQUE constraint failed: episodic_memories.id
+Traceback (most recent call last):
+  File "/Users/lin/Documents/trae_projects/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 187, in store_memory
+    cursor.execute('''
+sqlite3.IntegrityError: UNIQUE constraint failed: episodic_memories.id
+2026-04-04 11:31:35,171 - memory-classification-engine - ERROR - Error storing memory: database is locked
+Traceback (most recent call last):
+  File "/Users/lin/Documents/trae_projects/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 187, in store_memory
+    cursor.execute('''
+sqlite3.OperationalError: database is locked
+2026-04-04 11:31:40,416 - memory-classification-engine - ERROR - Error storing memory: database is locked
+Traceback (most recent call last):
+  File "/Users/lin/Documents/trae_projects/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 187, in store_memory
+    cursor.execute('''
+sqlite3.OperationalError: database is locked
+2026-04-04 11:31:40,434 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,438 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:40,449 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:40,461 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,463 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:40,471 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:40,485 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,487 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:40,493 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:40,504 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,505 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:40,510 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:40,512 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,512 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:40,518 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:40,525 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,526 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:40,531 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:40,542 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,544 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:40,549 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:40,559 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,561 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:40,566 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:40,578 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,580 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:40,585 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:40,596 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,598 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:40,603 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:40,656 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:40,656 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:40,657 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:40,658 - memory-classification-engine - INFO - SemanticClassifier initialized
+2026-04-04 11:31:40,659 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,660 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,660 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,661 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,662 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,663 - memory-classification-engine - INFO - Saved knowledge graph with 1 nodes
+2026-04-04 11:31:40,663 - memory-classification-engine - INFO - Loaded knowledge graph with 1 nodes
+2026-04-04 11:31:40,663 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,664 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,666 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:40,667 - memory-classification-engine - INFO - Saved knowledge graph with 1 nodes
+2026-04-04 11:31:40,668 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,670 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:40,671 - memory-classification-engine - INFO - Saved knowledge graph with 3 nodes
+2026-04-04 11:31:40,672 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,673 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:40,674 - memory-classification-engine - INFO - Saved knowledge graph with 1 nodes
+2026-04-04 11:31:40,675 - memory-classification-engine - INFO - Saved knowledge graph with 2 nodes
+2026-04-04 11:31:40,676 - memory-classification-engine - INFO - Saved knowledge graph with 3 nodes
+2026-04-04 11:31:40,678 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,679 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:40,681 - memory-classification-engine - INFO - Saved knowledge graph with 2 nodes
+2026-04-04 11:31:40,687 - memory-classification-engine - INFO - Saved knowledge graph with 3 nodes
+2026-04-04 11:31:40,688 - memory-classification-engine - INFO - KnowledgeGraph initialized
+2026-04-04 11:31:40,690 - memory-classification-engine - INFO - Tier4Storage initialized
+2026-04-04 11:31:40,691 - memory-classification-engine - INFO - Saved knowledge graph with 1 nodes
