@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Dict, List, Optional, Any
 from memory_classification_engine.utils.config import ConfigManager
 from memory_classification_engine.utils.helpers import generate_memory_id, get_current_time
@@ -9,6 +10,9 @@ from memory_classification_engine.layers.semantic_classifier import SemanticClas
 from memory_classification_engine.storage.tier2 import Tier2Storage
 from memory_classification_engine.storage.tier3 import Tier3Storage
 from memory_classification_engine.storage.tier4 import Tier4Storage
+from memory_classification_engine.plugins import PluginManager
+from memory_classification_engine.utils.performance import PerformanceMonitor, PerformanceOptimizer
+from memory_classification_engine.utils.distributed import DistributedManager, DataSynchronizer
 
 class MemoryClassificationEngine:
     """Memory Classification Engine."""
@@ -53,6 +57,30 @@ class MemoryClassificationEngine:
         self.similarity_threshold = self.config.get('memory.deduplication.similarity_threshold', 0.8)
         
         self.conflict_resolution_strategy = self.config.get('memory.conflict_resolution.strategy', 'latest')
+        
+        # Initialize plugin manager
+        plugins_dir = self.config.get('plugins.dir', None)
+        self.plugin_manager = PluginManager(plugins_dir)
+        self.plugin_manager.load_plugins()
+        plugin_config = self.config.get('plugins', {})
+        self.plugin_manager.initialize_plugins(plugin_config)
+        
+        # Initialize performance monitor
+        perf_enabled = self.config.get('performance.enabled', True)
+        log_interval = self.config.get('performance.log_interval', 60)
+        self.performance_monitor = PerformanceMonitor(enabled=perf_enabled, log_interval=log_interval)
+        self.performance_monitor.start()
+        
+        # Initialize distributed manager
+        distributed_enabled = self.config.get('distributed.enabled', False)
+        if distributed_enabled:
+            node_id = self.config.get('distributed.node_id', None)
+            port = self.config.get('distributed.port', 5000)
+            discovery_interval = self.config.get('distributed.discovery_interval', 30)
+            self.distributed_manager = DistributedManager(node_id, port, discovery_interval)
+            self.distributed_manager.start()
+        else:
+            self.distributed_manager = None
         
         # Initialize last archive time
         self.last_archive_time = get_current_time()
@@ -226,13 +254,18 @@ class MemoryClassificationEngine:
         Returns:
             A dictionary containing the classification results.
         """
+        start_time = time.time()
+        
         # Check if it's time to run archive
         self._check_archive_time()
         
         # Step 1: Add message to working memory
         self._add_to_working_memory(message)
         
-        # Step 2: Apply layers in order
+        # Step 2: Process message through plugins
+        plugin_results = self.plugin_manager.process_message(message, context)
+        
+        # Step 3: Apply layers in order
         # Layer 1: Rule matching
         rule_matches = self.rule_matcher.match(message, context)
         
@@ -272,23 +305,44 @@ class MemoryClassificationEngine:
             if 'type' in match and 'memory_type' not in match:
                 match['memory_type'] = match['type']
             
-            # Store based on tier
-            if match.get('tier') == 2:
-                self.tier2_storage.store_memory(match)
-            elif match.get('tier') == 3:
-                self.tier3_storage.store_memory(match)
-            elif match.get('tier') == 4:
-                self.tier4_storage.store_memory(match)
+            # Process memory through plugins
+            processed_match = self.plugin_manager.process_memory(match)
             
-            stored_memories.append(match)
+            # Store based on tier
+            if processed_match.get('tier') == 2:
+                self.tier2_storage.store_memory(processed_match)
+            elif processed_match.get('tier') == 3:
+                self.tier3_storage.store_memory(processed_match)
+            elif processed_match.get('tier') == 4:
+                self.tier4_storage.store_memory(processed_match)
+            
+            # Add to distributed sync queue
+            if self.distributed_manager:
+                sync_item = {
+                    'type': 'memory_add',
+                    'memory': processed_match,
+                    'timestamp': get_current_time()
+                }
+                self.distributed_manager.add_sync_item(sync_item)
+            
+            stored_memories.append(processed_match)
         
         # Clear cache since new memories were added
         self._clear_cache()
         
+        # Record performance metrics
+        duration = time.time() - start_time
+        self.performance_monitor.record_response_time('process_message', duration)
+        self.performance_monitor.increment_throughput('messages_processed')
+        self.performance_monitor.increment_throughput('memories_stored')
+        self.performance_monitor.log_metrics()
+        
         return {
             'message': message,
             'matches': stored_memories,
-            'working_memory_size': len(self.working_memory)
+            'plugin_results': plugin_results,
+            'working_memory_size': len(self.working_memory),
+            'processing_time': duration
         }
     
     def retrieve_memories(self, query: str = None, limit: int = 5) -> List[Dict[str, Any]]:
@@ -301,8 +355,14 @@ class MemoryClassificationEngine:
         Returns:
             A list of matching memories.
         """
+        start_time = time.time()
+        
+        # Optimize query
+        if query:
+            query = PerformanceOptimizer.optimize_query(query)
+        
         # Generate cache key
-        cache_key = f"retrieve:{query}:{limit}"
+        cache_key = PerformanceOptimizer.cache_key_generator('retrieve', query=query, limit=limit)
         
         # Check if result is in cache
         cached_result = self._get_from_cache(cache_key)
@@ -323,6 +383,12 @@ class MemoryClassificationEngine:
         
         # Store in cache
         self._add_to_cache(cache_key, result)
+        
+        # Record performance metrics
+        duration = time.time() - start_time
+        self.performance_monitor.record_response_time('retrieve_memories', duration)
+        self.performance_monitor.increment_throughput('queries_processed')
+        self.performance_monitor.log_metrics()
         
         return result
     

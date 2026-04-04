@@ -1,0 +1,32 @@
+# Development dependencies
+
+# Testing
+pytest
+pytest-cov
+pytest-benchmark
+
+# Code quality
+flake8
+black
+isort
+mypy
+
+# Security
+safety
+
+# Build
+build
+twine
+
+# Documentation
+sphinx
+sphinx-rtd-theme
+
+# Optional dependencies for testing
+scikit-learn
+faiss-cpu
+sentence-transformers
+
+# Web API
+Flask
+requests
