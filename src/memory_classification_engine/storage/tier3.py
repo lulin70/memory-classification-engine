@@ -5,10 +5,20 @@ from typing import Dict, List, Optional, Any
 from memory_classification_engine.utils.helpers import get_current_time
 from memory_classification_engine.utils.logger import logger
 
+# Try to import vector search dependencies
+try:
+    import numpy as np
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    import faiss
+    VECTOR_SEARCH_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Vector search dependencies not available: {e}")
+    VECTOR_SEARCH_AVAILABLE = False
+
 class Tier3Storage:
     """Storage for episodic memory (tier 3)."""
     
-    def __init__(self, storage_path: str = "./data/tier3", enable_cache: bool = True, cache_size: int = 1000, cache_ttl: int = 3600):
+    def __init__(self, storage_path: str = "./data/tier3", enable_cache: bool = True, cache_size: int = 1000, cache_ttl: int = 3600, enable_vector_search: bool = True):
         """Initialize tier 3 storage.
         
         Args:
@@ -16,6 +26,7 @@ class Tier3Storage:
             enable_cache: Whether to enable cache.
             cache_size: Maximum cache size.
             cache_ttl: Cache time-to-live in seconds.
+            enable_vector_search: Whether to enable vector search.
         """
         self.storage_path = storage_path
         os.makedirs(self.storage_path, exist_ok=True)
@@ -28,6 +39,16 @@ class Tier3Storage:
         if enable_cache:
             from memory_classification_engine.utils.cache import MemoryCache
             self.cache = MemoryCache(max_size=cache_size, ttl=cache_ttl)
+        
+        # Vector search settings
+        self.enable_vector_search = enable_vector_search and VECTOR_SEARCH_AVAILABLE
+        if self.enable_vector_search:
+            # Initialize TF-IDF vectorizer
+            self.vectorizer = TfidfVectorizer(stop_words='english', max_features=1000)
+            # Initialize FAISS index
+            self.index = None
+            self.memory_ids = []
+            self._init_vector_index()
         
         # Initialize database
         self._init_db()
@@ -98,6 +119,43 @@ class Tier3Storage:
         except Exception as e:
             logger.error(f"Error initializing database: {e}", exc_info=True)
     
+    def _init_vector_index(self):
+        """Initialize vector index from existing memories."""
+        if not self.enable_vector_search:
+            return
+        
+        try:
+            # Get all active memories
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, content FROM episodic_memories WHERE status = ?', ('active',))
+            rows = cursor.fetchall()
+            conn.close()
+            
+            if not rows:
+                # No memories to index
+                self.index = None
+                self.memory_ids = []
+                return
+            
+            # Extract content and IDs
+            contents = [row['content'] for row in rows]
+            self.memory_ids = [row['id'] for row in rows]
+            
+            # Create TF-IDF vectors
+            vectors = self.vectorizer.fit_transform(contents).toarray().astype('float32')
+            
+            # Create FAISS index
+            dimension = vectors.shape[1]
+            self.index = faiss.IndexFlatL2(dimension)
+            self.index.add(vectors)
+            
+            logger.info(f"Vector index initialized with {len(self.memory_ids)} memories")
+        except Exception as e:
+            logger.error(f"Error initializing vector index: {e}", exc_info=True)
+            self.enable_vector_search = False
+    
     def store_memory(self, memory: Dict[str, Any]) -> bool:
         """Store a memory in tier 3.
         
@@ -152,17 +210,22 @@ class Tier3Storage:
             if self.enable_cache and hasattr(self, 'cache') and memory.get('id'):
                 self.cache.set(memory['id'], memory)
             
+            # Update vector index
+            if self.enable_vector_search and memory.get('id') and memory.get('content'):
+                self._update_vector_index(memory)
+            
             return True
         except Exception as e:
             logger.error(f"Error storing memory: {e}", exc_info=True)
             return False
     
-    def retrieve_memories(self, query: str = None, limit: int = 10) -> List[Dict[str, Any]]:
+    def retrieve_memories(self, query: str = None, limit: int = 10, use_vector_search: bool = False) -> List[Dict[str, Any]]:
         """Retrieve memories from tier 3.
         
         Args:
             query: Optional query string to filter memories.
             limit: Maximum number of memories to return.
+            use_vector_search: Whether to use vector search instead of FTS5.
             
         Returns:
             A list of matching memories.
@@ -172,10 +235,20 @@ class Tier3Storage:
                 return self._fallback_retrieve(query, limit)
             
             # Check cache
-            cache_key = f"search:{query}:{limit}"
+            cache_key = f"search:{query}:{limit}:{use_vector_search}"
             if self.enable_cache and hasattr(self, 'cache') and self.cache.exists(cache_key):
                 return self.cache.get(cache_key)
             
+            # Use vector search if requested and enabled
+            if use_vector_search and self.enable_vector_search:
+                vector_results = self._vector_search(query, limit)
+                if vector_results:
+                    # Update cache
+                    if self.enable_cache and hasattr(self, 'cache'):
+                        self.cache.set(cache_key, vector_results)
+                    return vector_results
+            
+            # Fall back to FTS5 or regular search
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
@@ -220,6 +293,71 @@ class Tier3Storage:
         except Exception as e:
             logger.error(f"Error retrieving memories: {e}", exc_info=True)
             return self._fallback_retrieve(query, limit)
+    
+    def _vector_search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Search memories using vector similarity.
+        
+        Args:
+            query: Query string to search for.
+            limit: Maximum number of memories to return.
+            
+        Returns:
+            A list of matching memories sorted by similarity.
+        """
+        if not self.enable_vector_search or self.index is None:
+            return []
+        
+        try:
+            # Create vector for the query
+            try:
+                query_vector = self.vectorizer.transform([query]).toarray().astype('float32')
+            except Exception as e:
+                # If vectorizer hasn't been fit yet, return empty list
+                logger.error(f"Error creating query vector: {e}")
+                return []
+            
+            # Search FAISS index
+            distances, indices = self.index.search(query_vector, limit)
+            
+            # Get memory IDs from indices
+            matched_memory_ids = []
+            for i in range(len(indices[0])):
+                idx = indices[0][i]
+                if idx < len(self.memory_ids):
+                    matched_memory_ids.append(self.memory_ids[idx])
+            
+            if not matched_memory_ids:
+                return []
+            
+            # Get memories from database
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            # Create placeholders for SQL query
+            placeholders = ','.join(['?'] * len(matched_memory_ids))
+            cursor.execute(f'''
+                SELECT * FROM episodic_memories 
+                WHERE status = 'active' AND id IN ({placeholders})
+                ORDER BY instr(',{','.join(matched_memory_ids)},', ',' || id || ',')
+            ''', matched_memory_ids)
+            
+            rows = cursor.fetchall()
+            conn.close()
+            
+            # Convert rows to dictionaries
+            memories = []
+            for row in rows:
+                memory = dict(row)
+                # Ensure memory_type field is present
+                if 'type' in memory and 'memory_type' not in memory:
+                    memory['memory_type'] = memory['type']
+                memories.append(memory)
+            
+            return memories
+        except Exception as e:
+            logger.error(f"Error in vector search: {e}", exc_info=True)
+            return []
     
     def _fallback_retrieve(self, query: str = None, limit: int = 10) -> List[Dict[str, Any]]:
         """Fallback retrieve method using regular SQL LIKE search.
@@ -281,6 +419,47 @@ class Tier3Storage:
         """
         return bool(re.match(r'^[a-zA-Z\s]+$', query))
     
+    def _update_vector_index(self, memory: Dict[str, Any]):
+        """Update vector index with a new memory.
+        
+        Args:
+            memory: The memory to add to the vector index.
+        """
+        if not self.enable_vector_search:
+            return
+        
+        try:
+            content = memory.get('content', '')
+            memory_id = memory.get('id', '')
+            
+            if not content or not memory_id:
+                return
+            
+            # Check if memory already exists in index
+            if memory_id in self.memory_ids:
+                return
+            
+            # Create vector for the new memory
+            try:
+                vector = self.vectorizer.transform([content]).toarray().astype('float32')
+            except Exception as e:
+                # If vectorizer hasn't been fit yet, fit it with this content
+                self.vectorizer.fit([content])
+                vector = self.vectorizer.transform([content]).toarray().astype('float32')
+            
+            # Create or update FAISS index
+            if self.index is None:
+                dimension = vector.shape[1]
+                self.index = faiss.IndexFlatL2(dimension)
+            
+            # Add vector to index
+            self.index.add(vector)
+            self.memory_ids.append(memory_id)
+            
+            logger.debug(f"Added memory {memory_id} to vector index")
+        except Exception as e:
+            logger.error(f"Error updating vector index: {e}", exc_info=True)
+    
     def update_memory(self, memory_id: str, updates: Dict[str, Any]) -> bool:
         """Update a memory in tier 3.
         
@@ -329,6 +508,11 @@ class Tier3Storage:
                 # Also invalidate search caches
                 self._invalidate_search_caches()
             
+            # Update vector index if content changed
+            if result and self.enable_vector_search and 'content' in updates:
+                # Rebuild vector index
+                self._init_vector_index()
+            
             return result
         except Exception as e:
             logger.error(f"Error updating memory: {e}", exc_info=True)
@@ -365,6 +549,11 @@ class Tier3Storage:
                 self.cache.delete(memory_id)
                 # Also invalidate search caches
                 self._invalidate_search_caches()
+            
+            # Update vector index
+            if result and self.enable_vector_search:
+                # Rebuild vector index
+                self._init_vector_index()
             
             return result
         except Exception as e:

@@ -71,14 +71,14 @@ Memory Classification Engine 采用分层架构设计，主要包括以下层次
 |------|------|----------|------|
 | Tier 1 | 工作记忆 | 内存 | 临时存储，快速访问 |
 | Tier 2 | 程序性记忆 | JSON文件 | 结构化存储，用户偏好 |
-| Tier 3 | 情节记忆 | SQLite | 大容量存储，全文搜索 |
+| Tier 3 | 情节记忆 | SQLite + FTS5 + 向量存储 | 大容量存储，全文搜索，向量检索 |
 | Tier 4 | 语义记忆 | SQLite | 长期存储，语义关联 |
 
 #### 2.2.2 存储实现
 
 - **Tier 1**：使用Python内存字典
 - **Tier 2**：使用JSON文件存储
-- **Tier 3**：使用SQLite+FTS5
+- **Tier 3**：使用SQLite+FTS5+向量存储（FAISS/TF-IDF）
 - **Tier 4**：使用SQLite
 
 ### 2.3 工具层
@@ -117,6 +117,8 @@ Memory Classification Engine 采用分层架构设计，主要包括以下层次
 | Python | 主要开发语言 | 3.9+ |
 | SQLite | 数据存储 | 3.35+ |
 | FTS5 | 全文搜索 | 内置 |
+| FAISS | 向量存储和检索 | 1.7.4+ |
+| scikit-learn | 文本向量化 | 1.3.0+ |
 | JSON | 配置和数据存储 | 标准库 |
 | Pytest | 测试框架 | 7.0+ |
 
@@ -167,8 +169,8 @@ Memory Classification Engine 采用分层架构设计，主要包括以下层次
 1. **输入**：搜索关键词
 2. **预处理**：关键词分析，查询优化
 3. **搜索**：
-   - 英文：FTS5全文搜索
-   - 中文：LIKE查询
+   - 英文：FTS5全文搜索 + 向量搜索
+   - 中文：LIKE查询 + 向量搜索
 4. **排序**：按相关性和置信度排序
 5. **返回**：搜索结果
 

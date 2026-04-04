@@ -1,0 +1,37 @@
+2026-04-04 00:12:20,346 - memory-classification-engine - WARNING - Vector search dependencies not available: No module named 'sklearn'
+2026-04-04 00:12:20,399 - memory-classification-engine - ERROR - Error storing memory: UNIQUE constraint failed: episodic_memories.id
+Traceback (most recent call last):
+  File "/Users/lin/Documents/trae_projects/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 187, in store_memory
+    cursor.execute('''
+sqlite3.IntegrityError: UNIQUE constraint failed: episodic_memories.id
+2026-04-04 00:12:25,518 - memory-classification-engine - ERROR - Error storing memory: database is locked
+Traceback (most recent call last):
+  File "/Users/lin/Documents/trae_projects/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 187, in store_memory
+    cursor.execute('''
+sqlite3.OperationalError: database is locked
+2026-04-04 00:12:30,654 - memory-classification-engine - ERROR - Error storing memory: database is locked
+Traceback (most recent call last):
+  File "/Users/lin/Documents/trae_projects/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 187, in store_memory
+    cursor.execute('''
+sqlite3.OperationalError: database is locked
+2026-04-04 00:14:06,185 - memory-classification-engine - WARNING - Vector search dependencies not available: No module named 'sklearn'
+2026-04-04 00:15:17,291 - memory-classification-engine - WARNING - Vector search dependencies not available: No module named 'sklearn'
+2026-04-04 00:17:48,837 - memory-classification-engine - WARNING - Vector search dependencies not available: No module named 'sklearn'
+2026-04-04 00:18:12,245 - memory-classification-engine - WARNING - Vector search dependencies not available: No module named 'sklearn'
+2026-04-04 00:18:22,968 - memory-classification-engine - WARNING - Vector search dependencies not available: No module named 'sklearn'
+2026-04-04 00:18:23,022 - memory-classification-engine - ERROR - Error storing memory: UNIQUE constraint failed: episodic_memories.id
+Traceback (most recent call last):
+  File "/Users/lin/Documents/trae_projects/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 187, in store_memory
+    cursor.execute('''
+sqlite3.IntegrityError: UNIQUE constraint failed: episodic_memories.id
+2026-04-04 00:18:28,354 - memory-classification-engine - ERROR - Error storing memory: database is locked
+Traceback (most recent call last):
+  File "/Users/lin/Documents/trae_projects/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 187, in store_memory
+    cursor.execute('''
+sqlite3.OperationalError: database is locked
+2026-04-04 00:18:33,487 - memory-classification-engine - ERROR - Error storing memory: database is locked
+Traceback (most recent call last):
+  File "/Users/lin/Documents/trae_projects/memory-classification-engine/src/memory_classification_engine/storage/tier3.py", line 187, in store_memory
+    cursor.execute('''
+sqlite3.OperationalError: database is locked
+2026-04-04 11:16:50,079 - memory-classification-engine - WARNING - Vector search dependencies not available: No module named 'sklearn'

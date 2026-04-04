@@ -70,7 +70,8 @@ result = engine.process_message(
 memories = engine.retrieve_memories(
     query="Python Web",
     memory_type="user_preference",
-    limit=10
+    limit=10,
+    use_vector_search=True
 )
 ```
 
@@ -78,6 +79,7 @@ memories = engine.retrieve_memories(
 - `query`：搜索关键词
 - `memory_type`：记忆类型，可选
 - `limit`：返回结果数量限制，默认10
+- `use_vector_search`：是否使用向量搜索，默认True
 
 **返回值**：
 - 记忆列表，格式与 `process_message` 返回的 `matches` 相同
@@ -479,6 +481,7 @@ print(f"搜索结果: {len(results)} 条")
 | 1.1.0 | 添加插件系统 |
 | 1.2.0 | 添加FTS5搜索 |
 | 1.3.0 | 添加缓存系统 |
+| 1.4.0 | 添加向量存储和检索功能 |
 
 ### 10.2 向后兼容
 
