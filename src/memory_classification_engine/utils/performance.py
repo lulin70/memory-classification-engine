@@ -47,6 +47,13 @@ class PerformanceMonitor:
                 'memories_stored': 0,
                 'queries_processed': 0
             },
+            'cache': {
+                'hit_count': 0,
+                'miss_count': 0,
+                'hit_rate': 0,
+                'size': 0,
+                'expired_count': 0
+            },
             'last_log_time': time.time()
         }
         
@@ -131,6 +138,11 @@ class PerformanceMonitor:
                 logger.info(f"Store Memory: {avg_time:.4f}s average")
             
             logger.info(f"Throughput: {self.metrics['throughput']['messages_processed']} messages, {self.metrics['throughput']['memories_stored']} memories, {self.metrics['throughput']['queries_processed']} queries")
+            
+            # Cache metrics
+            logger.info(f"Cache: Hit Rate {self.metrics['cache']['hit_rate']:.2f}%, {self.metrics['cache']['hit_count']} hits, {self.metrics['cache']['miss_count']} misses")
+            logger.info(f"Cache Size: {self.metrics['cache']['size']} items, {self.metrics['cache']['expired_count']} expired")
+            
             logger.info(f"=========================\n")
             
             self.metrics['last_log_time'] = current_time
@@ -178,6 +190,22 @@ class PerformanceMonitor:
         self.record_metrics()
         return self.metrics
     
+    def record_cache_metrics(self, cache_stats: Dict[str, Any]):
+        """Record cache performance metrics.
+        
+        Args:
+            cache_stats: Cache statistics from SmartCache.
+        """
+        if not self.enabled:
+            return
+        
+        # Update cache metrics
+        self.metrics['cache']['hit_count'] = cache_stats.get('hit_count', 0)
+        self.metrics['cache']['miss_count'] = cache_stats.get('miss_count', 0)
+        self.metrics['cache']['hit_rate'] = cache_stats.get('hit_rate', 0)
+        self.metrics['cache']['size'] = cache_stats.get('size', 0)
+        self.metrics['cache']['expired_count'] = cache_stats.get('expired_count', 0)
+    
     def get_summary(self) -> Dict[str, Any]:
         """Get performance summary.
         
@@ -202,7 +230,8 @@ class PerformanceMonitor:
                 'peak': self.metrics['disk']['peak'],
                 'average': sum(self.metrics['disk']['trend']) / len(self.metrics['disk']['trend']) if self.metrics['disk']['trend'] else 0
             },
-            'throughput': self.metrics['throughput']
+            'throughput': self.metrics['throughput'],
+            'cache': self.metrics['cache']
         }
         
         # Add response time averages

@@ -55,6 +55,121 @@ class TestDistributedManager:
         manager.add_sync_item(sync_item)
         # Queue should have one item
         assert not manager.sync_queue.empty()
+    
+    def test_update_node_metrics(self, manager):
+        """Test updating node metrics."""
+        metrics = {
+            'cpu_usage': 50.0,
+            'memory_usage': 60.0,
+            'disk_usage': 70.0
+        }
+        manager.update_node_metrics(metrics)
+        node_metrics = manager.get_node_metrics(manager.node_id)
+        assert node_metrics['cpu_usage'] == 50.0
+        assert node_metrics['memory_usage'] == 60.0
+    
+    def test_add_task(self, manager):
+        """Test adding a task."""
+        task = {
+            'id': 'task1',
+            'type': 'test',
+            'data': 'test data'
+        }
+        manager.add_task(task)
+        assert not manager.task_queue.empty()
+    
+    def test_assign_tasks(self, manager):
+        """Test task assignment."""
+        # Add a task
+        task = {
+            'id': 'task1',
+            'type': 'test',
+            'data': 'test data'
+        }
+        manager.add_task(task)
+        
+        # Assign tasks
+        manager.assign_tasks()
+        
+        # Check if task was assigned
+        assignments = manager.get_task_assignments()
+        assert manager.node_id in assignments
+        assert len(assignments[manager.node_id]) > 0
+    
+    def test_get_node_health(self, manager):
+        """Test node health check."""
+        # Test healthy status
+        metrics = {
+            'cpu_usage': 30.0,
+            'memory_usage': 40.0
+        }
+        manager.update_node_metrics(metrics)
+        health = manager.get_node_health(manager.node_id)
+        assert health == 'healthy'
+        
+        # Test warning status
+        metrics = {
+            'cpu_usage': 70.0,
+            'memory_usage': 50.0
+        }
+        manager.update_node_metrics(metrics)
+        health = manager.get_node_health(manager.node_id)
+        assert health == 'warning'
+        
+        # Test critical status
+        metrics = {
+            'cpu_usage': 90.0,
+            'memory_usage': 85.0
+        }
+        manager.update_node_metrics(metrics)
+        health = manager.get_node_health(manager.node_id)
+        assert health == 'critical'
+    
+    def test_get_cluster_health(self, manager):
+        """Test cluster health check."""
+        health_status = manager.get_cluster_health()
+        assert isinstance(health_status, dict)
+        assert manager.node_id in health_status
+    
+    def test_get_cluster_status(self, manager):
+        """Test getting cluster status."""
+        status = manager.get_cluster_status()
+        assert isinstance(status, dict)
+        assert 'cluster_size' in status
+        assert 'leader' in status
+        assert 'nodes' in status
+    
+    def test_get_performance_metrics(self, manager):
+        """Test getting performance metrics."""
+        metrics = manager.get_performance_metrics()
+        assert isinstance(metrics, dict)
+        assert 'node_count' in metrics
+        assert 'average_cpu_usage' in metrics
+    
+    def test_get_raft_status(self, manager):
+        """Test getting Raft status."""
+        raft_status = manager.get_raft_status()
+        assert isinstance(raft_status, dict)
+        assert 'current_term' in raft_status
+        assert 'state' in raft_status
+    
+    def test_generate_cluster_report(self, manager):
+        """Test generating cluster report."""
+        report = manager.generate_cluster_report()
+        assert isinstance(report, str)
+        assert 'Cluster Report' in report
+    
+    def test_message_compression(self, manager):
+        """Test message compression."""
+        message = {
+            'type': 'test',
+            'data': 'test data'
+        }
+        compressed = manager._compress_message(message)
+        assert isinstance(compressed, bytes)
+        decompressed = manager._decompress_message(compressed)
+        assert decompressed['type'] == 'test'
+        assert decompressed['data'] == 'test data'
 
 
 class TestDataSynchronizer:
@@ -128,3 +243,71 @@ class TestDataSynchronizer:
         assert 'modify' in change_types
         assert change_types.count('add') == 2
         assert change_types.count('remove') == 2
+    
+    def test_incremental_sync(self):
+        """Test incremental synchronization."""
+        source = {
+            'a': 1,
+            'b': {
+                'c': 2,
+                'd': 3
+            }
+        }
+        
+        target = {
+            'a': 0,
+            'b': {
+                'c': 2,
+                'f': 4
+            }
+        }
+        
+        result, changes = DataSynchronizer.incremental_sync(source, target)
+        assert result['a'] == 1
+        assert result['b']['d'] == 3
+        assert len(changes) > 0
+    
+    def test_resolve_conflicts(self):
+        """Test conflict resolution."""
+        conflicts = [
+            {
+                'type': 'modify',
+                'path': 'a',
+                'old_value': 0,
+                'new_value': 1
+            },
+            {
+                'type': 'add',
+                'path': 'b',
+                'value': 2
+            }
+        ]
+        
+        resolved = DataSynchronizer.resolve_conflicts(conflicts, 'latest')
+        assert resolved['a'] == 1
+        assert resolved['b'] == 2
+    
+    def test_calculate_merkle_tree(self):
+        """Test Merkle tree calculation."""
+        data = {
+            'a': 1,
+            'b': {
+                'c': 2,
+                'd': 3
+            }
+        }
+        
+        merkle_tree = DataSynchronizer.calculate_merkle_tree(data)
+        assert isinstance(merkle_tree, dict)
+        assert '' in merkle_tree  # Root hash
+    
+    def test_find_differences(self):
+        """Test finding differences between Merkle trees."""
+        data1 = {'a': 1, 'b': 2}
+        data2 = {'a': 1, 'b': 3}
+        
+        tree1 = DataSynchronizer.calculate_merkle_tree(data1)
+        tree2 = DataSynchronizer.calculate_merkle_tree(data2)
+        
+        differences = DataSynchronizer.find_differences(tree1, tree2)
+        assert len(differences) > 0

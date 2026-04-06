@@ -14,6 +14,7 @@ class TestSemanticClassifier:
     @pytest.fixture
     def classifier(self):
         """Create a semantic classifier for testing."""
+        # Create a new instance for each test to avoid state sharing
         return SemanticClassifier(use_local_model=False)
     
     def test_keyword_classification(self, classifier):

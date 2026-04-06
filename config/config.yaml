@@ -1,54 +1,134 @@
-# Memory Classification Engine - Configuration
+# 内存分类引擎配置文件
 
-# General settings
-general:
-  name: "Memory Classification Engine"
-  version: "0.1.0"
-  debug: false
-
-# Storage settings
+# 存储配置
 storage:
+  # 数据存储路径
   data_path: "./data"
+  # 各层级存储路径
   tier2_path: "./data/tier2"
   tier3_path: "./data/tier3"
   tier4_path: "./data/tier4"
-  max_work_memory_size: 100  # Maximum number of items in working memory
+  # 工作记忆大小限制
+  max_work_memory_size: 50
 
-# Rules settings
-rules:
-  config_path: "./config/rules.yaml"
-  reload_interval: 3600  # In seconds
-
-# LLM settings (optional)
-llm:
-  enabled: false
-  api_key: ""
-  model: "glm-4-plus"
-  temperature: 0.3
-  max_tokens: 500
-  timeout: 30  # In seconds
-
-# API settings (optional)
-api:
-  enabled: false
-  host: "0.0.0.0"
-  port: 5000
-  debug: false
-
-# Memory settings
+# 内存管理配置
 memory:
-  # Forgetting mechanism
-  forgetting:
-    enabled: true
-    decay_factor: 0.9  # Exponential decay factor
-    min_weight: 0.1  # Minimum weight before memory is archived
-    archive_interval: 86400  # In seconds (daily)
-    
-  # Deduplication
+  # 去重配置
   deduplication:
     enabled: true
-    similarity_threshold: 0.8
-    
-  # Conflict resolution
+    # 相似度阈值
+    similarity_threshold: 0.85
+  # 冲突解决策略: latest, highest_confidence, best_source, merge
   conflict_resolution:
-    strategy: "latest"  # Options: "latest", "highest_confidence", "user_preference"
+    strategy: "latest"
+  # 遗忘机制
+  forgetting:
+    enabled: true
+    # 衰减因子
+    decay_factor: 0.9
+    # 最小权重
+    min_weight: 0.1
+    # 归档间隔（秒）
+    archive_interval: 86400
+  # 内存限制
+  limits:
+    # 缓存大小
+    cache: 2000
+  # 缓存配置
+  cache:
+    # 缓存过期时间（秒）
+    ttl: 7200
+
+# 性能配置
+performance:
+  # 是否启用性能监控
+  enabled: true
+  # 日志间隔（秒）- 优化：从 30 秒改为 300 秒，减少日志频率
+  log_interval: 300
+  # 批处理大小
+  batch_size: 10
+  # 并发限制
+  concurrency_limit: 10
+  # 日志轮转配置 - 新增
+  logging:
+    # 日志保留天数
+    retention_days: 7
+    # 单个日志最大大小（MB）
+    max_size_mb: 10
+    # 是否启用压缩
+    compress: true
+
+# LLM配置（可选）
+llm:
+  # 是否启用LLM
+  enabled: false
+  # API Key（建议通过环境变量设置）
+  api_key: ""
+  # 模型名称
+  model: "glm-4-plus"
+  # 温度
+  temperature: 0.3
+  # 最大 tokens
+  max_tokens: 500
+  # 超时时间（秒）
+  timeout: 30
+
+# Neo4j配置（可选）
+neo4j:
+  # 是否启用Neo4j
+  enabled: true
+  # 连接URI
+  uri: "bolt://localhost:7687"
+  # 用户名
+  user: "neo4j"
+  # 密码
+  password: "password"
+  # 数据库
+  database: "neo4j"
+  # 连接池大小
+  connection_pool_size: 5
+  # 最大事务重试时间
+  max_transaction_retry_time: 30
+
+# 分布式配置（可选）
+distributed:
+  # 是否启用分布式
+  enabled: false
+  # 节点ID
+  node_id: null
+  # 端口
+  port: 5000
+  # 发现间隔（秒）
+  discovery_interval: 30
+
+# 插件配置
+plugins:
+  # 插件目录
+  dir: null
+  # 内置插件配置
+  builtin:
+    # 实体提取器
+    entity_extractor:
+      enabled: true
+    # 情感分析器
+    sentiment_analyzer:
+      enabled: true
+
+# 安全配置
+security:
+  # 加密密钥路径
+  encryption_key_path: "./src/data/encryption.key"
+  # 访问控制
+  access_control:
+    enabled: false
+
+# 语义配置
+semantic:
+  # 模型名称
+  model_name: "all-MiniLM-L6-v2"
+  # 缓存大小
+  cache_size: 2000
+  # 缓存过期时间（秒）
+  cache_ttl: 7200
+  # 批处理大小
+  batch_size: 10

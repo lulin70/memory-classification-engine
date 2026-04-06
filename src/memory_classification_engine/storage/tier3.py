@@ -2,8 +2,67 @@ import os
 import sqlite3
 import re
 from typing import Dict, List, Optional, Any
+from collections import deque
+import threading
 from memory_classification_engine.utils.helpers import get_current_time
 from memory_classification_engine.utils.logger import logger
+
+class ConnectionPool:
+    """Database connection pool for SQLite."""
+    
+    def __init__(self, db_path: str, max_connections: int = 5):
+        """Initialize the connection pool.
+        
+        Args:
+            db_path: Path to the SQLite database.
+            max_connections: Maximum number of connections in the pool.
+        """
+        self.db_path = db_path
+        self.max_connections = max_connections
+        self.connections = deque()
+        self.lock = threading.Lock()
+        
+    def get_connection(self):
+        """Get a connection from the pool.
+        
+        Returns:
+            sqlite3.Connection: A database connection.
+        """
+        with self.lock:
+            if self.connections:
+                return self.connections.popleft()
+            else:
+                # Create a new connection
+                conn = sqlite3.connect(self.db_path, timeout=30)
+                # Enable WAL mode for better concurrency
+                conn.execute('PRAGMA journal_mode=WAL')
+                # Enable foreign keys
+                conn.execute('PRAGMA foreign_keys=ON')
+                # Set busy timeout
+                conn.execute('PRAGMA busy_timeout=30000')
+                return conn
+    
+    def return_connection(self, conn):
+        """Return a connection to the pool.
+        
+        Args:
+            conn: The database connection to return.
+        """
+        with self.lock:
+            if len(self.connections) < self.max_connections:
+                self.connections.append(conn)
+            else:
+                conn.close()
+    
+    def close_all(self):
+        """Close all connections in the pool."""
+        with self.lock:
+            while self.connections:
+                conn = self.connections.popleft()
+                try:
+                    conn.close()
+                except:
+                    pass
 
 # Try to import vector search dependencies
 try:
@@ -18,7 +77,7 @@ except ImportError as e:
 class Tier3Storage:
     """Storage for episodic memory (tier 3)."""
     
-    def __init__(self, storage_path: str = "./data/tier3", enable_cache: bool = True, cache_size: int = 1000, cache_ttl: int = 3600, enable_vector_search: bool = True):
+    def __init__(self, storage_path: str = "./data/tier3", enable_cache: bool = True, cache_size: int = 1000, cache_ttl: int = 3600, enable_vector_search: bool = True, enable_in_memory_cache: bool = True):
         """Initialize tier 3 storage.
         
         Args:
@@ -27,12 +86,21 @@ class Tier3Storage:
             cache_size: Maximum cache size.
             cache_ttl: Cache time-to-live in seconds.
             enable_vector_search: Whether to enable vector search.
+            enable_in_memory_cache: Whether to enable in-memory database cache.
         """
         self.storage_path = storage_path
         os.makedirs(self.storage_path, exist_ok=True)
         
         # Database path
         self.db_path = os.path.join(self.storage_path, "episodic_memories.db")
+        
+        # Database connection pool
+        self.connection_pool = ConnectionPool(self.db_path)
+        
+        # In-memory database cache
+        self.enable_in_memory_cache = enable_in_memory_cache
+        if enable_in_memory_cache:
+            self._init_in_memory_cache()
         
         # Cache settings
         self.enable_cache = enable_cache
@@ -52,11 +120,97 @@ class Tier3Storage:
         
         # Initialize database
         self._init_db()
+        
+        # Load data into in-memory cache if enabled
+        if self.enable_in_memory_cache:
+            self._load_data_to_in_memory_cache()
+    
+    def __del__(self):
+        """Clean up resources."""
+        if hasattr(self, 'connection_pool'):
+            self.connection_pool.close_all()
+        if hasattr(self, 'in_memory_conn'):
+            try:
+                self.in_memory_conn.close()
+            except:
+                pass
+    
+    def _init_in_memory_cache(self):
+        """Initialize in-memory database cache."""
+        try:
+            # Create in-memory SQLite database
+            self.in_memory_conn = sqlite3.connect(':memory:')
+            cursor = self.in_memory_conn.cursor()
+            
+            # Create the same table structure as the main database
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS episodic_memories (
+                    id TEXT PRIMARY KEY,
+                    type TEXT NOT NULL,
+                    memory_type TEXT,
+                    content TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    last_accessed TEXT NOT NULL,
+                    access_count INTEGER DEFAULT 0,
+                    confidence REAL NOT NULL,
+                    source TEXT NOT NULL,
+                    context TEXT,
+                    status TEXT DEFAULT 'active',
+                    version INTEGER DEFAULT 1,
+                    weight REAL DEFAULT 1.0,
+                    conflict_status TEXT DEFAULT "none"
+                )
+            ''')
+            
+            # Create indexes for faster querying
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_type_status ON episodic_memories (type, status)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_last_accessed ON episodic_memories (last_accessed)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_id ON episodic_memories (id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_memory_type ON episodic_memories (memory_type)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_confidence ON episodic_memories (confidence)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_source ON episodic_memories (source)')
+            
+            self.in_memory_conn.commit()
+            logger.info("In-memory database cache initialized")
+        except Exception as e:
+            logger.error(f"Error initializing in-memory cache: {e}")
+            self.enable_in_memory_cache = False
+    
+    def _load_data_to_in_memory_cache(self):
+        """Load data from main database to in-memory cache."""
+        if not self.enable_in_memory_cache:
+            return
+        
+        try:
+            # Get active memories from main database
+            conn = self.connection_pool.get_connection()
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM episodic_memories WHERE status = ?', ('active',))
+            rows = cursor.fetchall()
+            self.connection_pool.return_connection(conn)
+            
+            if not rows:
+                return
+            
+            # Insert data into in-memory database
+            in_memory_cursor = self.in_memory_conn.cursor()
+            for row in rows:
+                in_memory_cursor.execute('''
+                    INSERT OR REPLACE INTO episodic_memories 
+                    (id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status, version, weight, conflict_status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', row)
+            
+            self.in_memory_conn.commit()
+            logger.info(f"Loaded {len(rows)} memories into in-memory cache")
+        except Exception as e:
+            logger.error(f"Error loading data to in-memory cache: {e}")
     
     def _init_db(self):
         """Initialize the database."""
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self.connection_pool.get_connection()
             cursor = conn.cursor()
             
             # Create episodic memories table if it doesn't exist
@@ -99,6 +253,18 @@ class Tier3Storage:
             # Create index on last_accessed
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_last_accessed ON episodic_memories (last_accessed)')
             
+            # Create index on id for faster lookups
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_id ON episodic_memories (id)')
+            
+            # Create index on memory_type
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_memory_type ON episodic_memories (memory_type)')
+            
+            # Create index on confidence
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_confidence ON episodic_memories (confidence)')
+            
+            # Create index on source
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_source ON episodic_memories (source)')
+            
             # Create FTS5 virtual table for full-text search
             try:
                 cursor.execute('''
@@ -131,7 +297,7 @@ class Tier3Storage:
                 logger.warning(f"FTS5 initialization failed (using regular search): {e}")
             
             conn.commit()
-            conn.close()
+            self.connection_pool.return_connection(conn)
         except Exception as e:
             logger.error(f"Error initializing database: {e}", exc_info=True)
     
@@ -142,12 +308,12 @@ class Tier3Storage:
         
         try:
             # Get all active memories
-            conn = sqlite3.connect(self.db_path)
+            conn = self.connection_pool.get_connection()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute('SELECT id, content FROM episodic_memories WHERE status = ?', ('active',))
             rows = cursor.fetchall()
-            conn.close()
+            self.connection_pool.return_connection(conn)
             
             if not rows:
                 # No memories to index
@@ -159,12 +325,34 @@ class Tier3Storage:
             contents = [row['content'] for row in rows]
             self.memory_ids = [row['id'] for row in rows]
             
-            # Create TF-IDF vectors
-            vectors = self.vectorizer.fit_transform(contents).toarray().astype('float32')
+            # Use semantic utility for vectorization
+            from memory_classification_engine.utils.semantic import semantic_utility
             
-            # Create FAISS index
+            # Batch encode texts
+            embeddings = semantic_utility.batch_encode_texts(contents)
+            
+            # Filter out None embeddings
+            valid_embeddings = []
+            valid_memory_ids = []
+            for i, emb in enumerate(embeddings):
+                if emb is not None:
+                    valid_embeddings.append(emb)
+                    valid_memory_ids.append(self.memory_ids[i])
+            
+            if not valid_embeddings:
+                self.index = None
+                self.memory_ids = []
+                return
+            
+            # Convert to numpy array
+            vectors = np.array(valid_embeddings, dtype='float32')
+            self.memory_ids = valid_memory_ids
+            
+            # Create FAISS index with IVF for better performance
             dimension = vectors.shape[1]
-            self.index = faiss.IndexFlatL2(dimension)
+            nlist = min(100, len(valid_embeddings))  # Number of clusters
+            self.index = faiss.IndexIVFFlat(faiss.IndexFlatL2(dimension), dimension, nlist, faiss.METRIC_L2)
+            self.index.train(vectors)
             self.index.add(vectors)
             
             logger.info(f"Vector index initialized with {len(self.memory_ids)} memories")
@@ -210,7 +398,7 @@ class Tier3Storage:
                 for conflict in conflicts:
                     self._mark_conflicting(conflict['id'])
             
-            conn = sqlite3.connect(self.db_path)
+            conn = self.connection_pool.get_connection()
             cursor = conn.cursor()
             
             # Check if new columns exist
@@ -255,11 +443,47 @@ class Tier3Storage:
             ''', insert_values)
             
             conn.commit()
-            conn.close()
+            self.connection_pool.return_connection(conn)
             
             # Update cache
             if self.enable_cache and hasattr(self, 'cache') and memory.get('id'):
                 self.cache.set(memory['id'], memory)
+            
+            # Update in-memory cache if enabled
+            if self.enable_in_memory_cache and memory.get('id'):
+                try:
+                    cursor = self.in_memory_conn.cursor()
+                    # Check if memory already exists
+                    cursor.execute('SELECT id FROM episodic_memories WHERE id = ?', (memory['id'],))
+                    if cursor.fetchone():
+                        # Update existing memory
+                        update_columns = ['type', 'memory_type', 'content', 'created_at', 'updated_at', 'last_accessed', 'access_count', 'confidence', 'source', 'context', 'status', 'version', 'weight', 'conflict_status']
+                        set_clause = []
+                        params = []
+                        for col in update_columns:
+                            set_clause.append(f"{col} = ?")
+                            params.append(memory.get(col, ''))
+                        params.append(memory['id'])
+                        cursor.execute(f'''
+                            UPDATE episodic_memories 
+                            SET {', '.join(set_clause)} 
+                            WHERE id = ?
+                        ''', params)
+                    else:
+                        # Insert new memory
+                        insert_columns = ['id', 'type', 'memory_type', 'content', 'created_at', 'updated_at', 'last_accessed', 'access_count', 'confidence', 'source', 'context', 'status', 'version', 'weight', 'conflict_status']
+                        insert_values = []
+                        for col in insert_columns:
+                            insert_values.append(memory.get(col, ''))
+                        placeholders = ','.join(['?'] * len(insert_columns))
+                        cursor.execute(f'''
+                            INSERT INTO episodic_memories 
+                            ({', '.join(insert_columns)})
+                            VALUES ({placeholders})
+                        ''', insert_values)
+                    self.in_memory_conn.commit()
+                except Exception as e:
+                    logger.warning(f"Error updating in-memory cache: {e}")
             
             # Update vector index
             if self.enable_vector_search and memory.get('id') and memory.get('content'):
@@ -299,8 +523,47 @@ class Tier3Storage:
                         self.cache.set(cache_key, vector_results)
                     return vector_results
             
+            # Try in-memory cache first if enabled
+            if self.enable_in_memory_cache:
+                try:
+                    cursor = self.in_memory_conn.cursor()
+                    if self._is_english_query(query):
+                        # Use in-memory database for English queries
+                        cursor.execute('''
+                            SELECT * FROM episodic_memories 
+                            WHERE status = 'active' AND content LIKE ? 
+                            ORDER BY last_accessed DESC 
+                            LIMIT ?
+                        ''', (f'%{query}%', limit))
+                    else:
+                        # Use in-memory database for non-English queries
+                        cursor.execute('''
+                            SELECT * FROM episodic_memories 
+                            WHERE status = 'active' AND content LIKE ? 
+                            ORDER BY last_accessed DESC 
+                            LIMIT ?
+                        ''', (f'%{query}%', limit))
+                    
+                    rows = cursor.fetchall()
+                    if rows:
+                        # Convert rows to dictionaries
+                        memories = []
+                        for row in rows:
+                            memory = dict(row)
+                            # Ensure memory_type field is present
+                            if 'type' in memory and 'memory_type' not in memory:
+                                memory['memory_type'] = memory['type']
+                            memories.append(memory)
+                        
+                        # Update cache
+                        if self.enable_cache and hasattr(self, 'cache'):
+                            self.cache.set(cache_key, memories)
+                        return memories
+                except Exception as e:
+                    logger.warning(f"In-memory cache search failed, falling back to main database: {e}")
+            
             # Fall back to FTS5 or regular search
-            conn = sqlite3.connect(self.db_path)
+            conn = self.connection_pool.get_connection()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
@@ -317,13 +580,15 @@ class Tier3Storage:
                     ''', (query, limit))
                 except Exception as e:
                     logger.warning(f"FTS5 search failed, falling back to regular search: {e}")
+                    self.connection_pool.return_connection(conn)
                     return self._fallback_retrieve(query, limit)
             else:
                 # Fallback to regular search for non-English queries
+                self.connection_pool.return_connection(conn)
                 return self._fallback_retrieve(query, limit)
             
             rows = cursor.fetchall()
-            conn.close()
+            self.connection_pool.return_connection(conn)
             
             # Convert rows to dictionaries
             memories = []
@@ -381,7 +646,7 @@ class Tier3Storage:
                 return []
             
             # Get memories from database
-            conn = sqlite3.connect(self.db_path)
+            conn = self.connection_pool.get_connection()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
@@ -394,7 +659,7 @@ class Tier3Storage:
             ''', matched_memory_ids)
             
             rows = cursor.fetchall()
-            conn.close()
+            self.connection_pool.return_connection(conn)
             
             # Convert rows to dictionaries
             memories = []
@@ -421,29 +686,69 @@ class Tier3Storage:
             A list of matching memories.
         """
         try:
-            conn = sqlite3.connect(self.db_path)
+            # Try in-memory cache first if enabled
+            if self.enable_in_memory_cache:
+                try:
+                    cursor = self.in_memory_conn.cursor()
+                    if query:
+                        # Search for query in content with optimized query
+                        cursor.execute('''
+                            SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
+                            FROM episodic_memories 
+                            WHERE status = 'active' AND content LIKE ? 
+                            ORDER BY last_accessed DESC 
+                            LIMIT ?
+                        ''', (f'%{query}%', limit))
+                    else:
+                        # Get all active memories with optimized query
+                        cursor.execute('''
+                            SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
+                            FROM episodic_memories 
+                            WHERE status = 'active' 
+                            ORDER BY last_accessed DESC 
+                            LIMIT ?
+                        ''', (limit,))
+                    
+                    rows = cursor.fetchall()
+                    if rows:
+                        # Convert rows to dictionaries
+                        memories = []
+                        for row in rows:
+                            memory = dict(row)
+                            # Ensure memory_type field is present
+                            if 'type' in memory and 'memory_type' not in memory:
+                                memory['memory_type'] = memory['type']
+                            memories.append(memory)
+                        return memories
+                except Exception as e:
+                    logger.warning(f"In-memory cache fallback search failed, falling back to main database: {e}")
+            
+            # Fall back to main database
+            conn = self.connection_pool.get_connection()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
             if query:
-                # Search for query in content
+                # Search for query in content with optimized query
                 cursor.execute('''
-                    SELECT * FROM episodic_memories 
+                    SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
+                    FROM episodic_memories 
                     WHERE status = 'active' AND content LIKE ? 
                     ORDER BY last_accessed DESC 
                     LIMIT ?
                 ''', (f'%{query}%', limit))
             else:
-                # Get all active memories
+                # Get all active memories with optimized query
                 cursor.execute('''
-                    SELECT * FROM episodic_memories 
+                    SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
+                    FROM episodic_memories 
                     WHERE status = 'active' 
                     ORDER BY last_accessed DESC 
                     LIMIT ?
                 ''', (limit,))
             
             rows = cursor.fetchall()
-            conn.close()
+            self.connection_pool.return_connection(conn)
             
             # Convert rows to dictionaries
             memories = []
@@ -642,21 +947,8 @@ class Tier3Storage:
         Returns:
             Similarity score between 0 and 1.
         """
-        # Simple bag-of-words similarity for now
-        def tokenize(text):
-            return set(word.lower() for word in text.split() if word.isalnum())
-        
-        tokens1 = tokenize(text1)
-        tokens2 = tokenize(text2)
-        
-        if not tokens1 and not tokens2:
-            return 1.0
-        
-        # Calculate Jaccard similarity
-        intersection = len(tokens1.intersection(tokens2))
-        union = len(tokens1.union(tokens2))
-        
-        return intersection / union if union > 0 else 0.0
+        from memory_classification_engine.utils.semantic import semantic_utility
+        return semantic_utility.calculate_similarity(text1, text2)
     
     def _mark_conflicting(self, memory_id: str) -> bool:
         """Mark a memory as conflicting.
@@ -668,7 +960,7 @@ class Tier3Storage:
             True if the memory was marked successfully, False otherwise.
         """
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self.connection_pool.get_connection()
             cursor = conn.cursor()
             
             # Check if conflict_status column exists
@@ -690,7 +982,7 @@ class Tier3Storage:
                 ''', (get_current_time(), memory_id))
             
             conn.commit()
-            conn.close()
+            self.connection_pool.return_connection(conn)
             
             # Update cache
             if self.enable_cache and hasattr(self, 'cache'):
@@ -721,18 +1013,30 @@ class Tier3Storage:
             if memory_id in self.memory_ids:
                 return
             
-            # Create vector for the new memory
-            try:
-                vector = self.vectorizer.transform([content]).toarray().astype('float32')
-            except Exception as e:
-                # If vectorizer hasn't been fit yet, fit it with this content
-                self.vectorizer.fit([content])
-                vector = self.vectorizer.transform([content]).toarray().astype('float32')
+            # Use semantic utility for vectorization
+            from memory_classification_engine.utils.semantic import semantic_utility
+            
+            # Encode the content
+            embedding = semantic_utility.encode_text(content)
+            if embedding is None:
+                return
+            
+            # Convert to numpy array
+            vector = np.array([embedding], dtype='float32')
             
             # Create or update FAISS index
             if self.index is None:
+                # Create new index with IVF
                 dimension = vector.shape[1]
-                self.index = faiss.IndexFlatL2(dimension)
+                nlist = 10  # Small number of clusters for initial index
+                self.index = faiss.IndexIVFFlat(faiss.IndexFlatL2(dimension), dimension, nlist, faiss.METRIC_L2)
+                self.index.train(vector)
+            elif isinstance(self.index, faiss.IndexIVFFlat):
+                # For IVF index, we need to check if we need to retrain
+                if len(self.memory_ids) % 100 == 0:  # Retrain every 100 additions
+                    # Get all memories and retrain
+                    self._init_vector_index()
+                    return
             
             # Add vector to index
             self.index.add(vector)
@@ -753,7 +1057,7 @@ class Tier3Storage:
             True if the memory was updated successfully, False otherwise.
         """
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self.connection_pool.get_connection()
             cursor = conn.cursor()
             
             # Build update query
@@ -779,7 +1083,7 @@ class Tier3Storage:
             ''', params)
             
             conn.commit()
-            conn.close()
+            self.connection_pool.return_connection(conn)
             
             result = cursor.rowcount > 0
             
@@ -789,6 +1093,35 @@ class Tier3Storage:
                 self.cache.delete(memory_id)
                 # Also invalidate search caches
                 self._invalidate_search_caches()
+            
+            # Update in-memory cache if enabled
+            if result and self.enable_in_memory_cache:
+                try:
+                    cursor = self.in_memory_conn.cursor()
+                    # Build update query
+                    set_clause = []
+                    params = []
+                    
+                    for key, value in updates.items():
+                        set_clause.append(f"{key} = ?")
+                        params.append(value)
+                    
+                    # Always update the updated_at timestamp
+                    set_clause.append("updated_at = ?")
+                    params.append(get_current_time())
+                    
+                    # Add memory_id to params
+                    params.append(memory_id)
+                    
+                    # Execute update
+                    cursor.execute(f'''
+                        UPDATE episodic_memories 
+                        SET {', '.join(set_clause)} 
+                        WHERE id = ?
+                    ''', params)
+                    self.in_memory_conn.commit()
+                except Exception as e:
+                    logger.warning(f"Error updating in-memory cache: {e}")
             
             # Update vector index if content changed
             if result and self.enable_vector_search and 'content' in updates:
@@ -810,7 +1143,7 @@ class Tier3Storage:
             True if the memory was deleted successfully, False otherwise.
         """
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self.connection_pool.get_connection()
             cursor = conn.cursor()
             
             # Soft delete by setting status to 'deleted'
@@ -821,7 +1154,7 @@ class Tier3Storage:
             ''', (get_current_time(), memory_id))
             
             conn.commit()
-            conn.close()
+            self.connection_pool.return_connection(conn)
             
             result = cursor.rowcount > 0
             
@@ -831,6 +1164,20 @@ class Tier3Storage:
                 self.cache.delete(memory_id)
                 # Also invalidate search caches
                 self._invalidate_search_caches()
+            
+            # Update in-memory cache if enabled
+            if result and self.enable_in_memory_cache:
+                try:
+                    cursor = self.in_memory_conn.cursor()
+                    # Soft delete by setting status to 'deleted'
+                    cursor.execute('''
+                        UPDATE episodic_memories 
+                        SET status = 'deleted', updated_at = ? 
+                        WHERE id = ?
+                    ''', (get_current_time(), memory_id))
+                    self.in_memory_conn.commit()
+                except Exception as e:
+                    logger.warning(f"Error updating in-memory cache: {e}")
             
             # Update vector index
             if result and self.enable_vector_search:
@@ -860,7 +1207,7 @@ class Tier3Storage:
             A dictionary with statistics.
         """
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self.connection_pool.get_connection()
             cursor = conn.cursor()
             
             # Get total memories
@@ -875,7 +1222,7 @@ class Tier3Storage:
             cursor.execute('SELECT type, COUNT(*) FROM episodic_memories WHERE status = ? GROUP BY type', ('active',))
             types = {row[0]: row[1] for row in cursor.fetchall()}
             
-            conn.close()
+            self.connection_pool.return_connection(conn)
             
             stats = {
                 'total_memories': total,
@@ -909,7 +1256,7 @@ class Tier3Storage:
             return 0
         
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self.connection_pool.get_connection()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
@@ -922,7 +1269,7 @@ class Tier3Storage:
             ''', (limit,))
             
             rows = cursor.fetchall()
-            conn.close()
+            self.connection_pool.return_connection(conn)
             
             count = 0
             for row in rows:

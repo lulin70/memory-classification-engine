@@ -1,81 +1,184 @@
 # Memory Classification Rules
 
 rules:
-  # 用户偏好规则
+  # 用户偏好规则 (中文)
   - pattern: "记住(这个|这点|这条)"
     memory_type: user_preference
     tier: 2
     action: extract_following_content
     description: 提取用户明确要求记住的内容
+    language: zh-cn
 
   - pattern: "(不要|别|以后不)(用|写|做|说)"
     memory_type: user_preference
     tier: 2
     action: extract_following_content
     description: 提取用户明确禁止的内容
+    language: zh-cn
 
   - pattern: "我(喜欢|偏好|希望|想要)"
     memory_type: user_preference
     tier: 2
     action: extract_following_content
     description: 提取用户表达的偏好
+    language: zh-cn
 
-  # 纠正信号规则
+  # 纠正信号规则 (中文)
   - pattern: "(不对|错了|不是|你搞错了|我说的是)"
     memory_type: correction
     tier: 3
     action: extract_surrounding_context
     description: 提取用户纠正的内容
+    language: zh-cn
 
   - pattern: "应该是|其实是|实际上是"
     memory_type: correction
     tier: 3
     action: extract_following_content
     description: 提取用户更正的内容
+    language: zh-cn
 
-  # 事实声明规则
+  # 事实声明规则 (中文)
   - pattern: "(我们|我)(公司|团队|部门)(有|是|在做|不做)"
     memory_type: fact_declaration
     tier: 4
     action: extract_entity_and_relation
     description: 提取关于公司/团队的事实
+    language: zh-cn
 
   - pattern: "(我|我们)是(.*)"
     memory_type: fact_declaration
     tier: 4
     action: extract_following_content
     description: 提取关于身份的事实
+    language: zh-cn
 
-  # 决策记录规则
+  # 决策记录规则 (中文)
   - pattern: "(好|行|就这|决定了|确认|定了)"
     memory_type: decision
     tier: 3
     action: extract_preceding_proposal
     description: 提取决策内容
+    language: zh-cn
 
   - pattern: "(选择|采用|使用)(.*)"
     memory_type: decision
     tier: 3
     action: extract_following_content
     description: 提取选择的内容
+    language: zh-cn
 
-  # 关系信息规则
+  # 关系信息规则 (中文)
   - pattern: "(负责|管理|属于|汇报给)"
     memory_type: relationship
     tier: 4
     action: extract_entity_and_relation
     description: 提取关系信息
+    language: zh-cn
 
-  # 任务模式规则
+  # 任务模式规则 (中文)
   - pattern: "(再次|又|还)需要"
     memory_type: task_pattern
     tier: 3
     action: extract_following_content
     description: 提取重复任务
+    language: zh-cn
 
-  # 情感标记规则
+  # 情感标记规则 (中文)
   - pattern: "(讨厌|不喜欢|反感|喜欢|爱|推荐)"
     memory_type: sentiment_marker
     tier: 3
     action: extract_following_content
     description: 提取情感倾向
+    language: zh-cn
+
+  # 用户偏好规则 (英文)
+  - pattern: "remember (this|that)"
+    memory_type: user_preference
+    tier: 2
+    action: extract_following_content
+    description: Extract user's explicit request to remember
+    language: en
+
+  - pattern: "(don't|do not|never) (use|write|do|say)"
+    memory_type: user_preference
+    tier: 2
+    action: extract_following_content
+    description: Extract user's explicit prohibition
+    language: en
+
+  - pattern: "I (like|prefer|want|hope)"
+    memory_type: user_preference
+    tier: 2
+    action: extract_following_content
+    description: Extract user's expressed preference
+    language: en
+
+  # 纠正信号规则 (英文)
+  - pattern: "(wrong|incorrect|no|that's not right|I meant)"
+    memory_type: correction
+    tier: 3
+    action: extract_surrounding_context
+    description: Extract user's correction
+    language: en
+
+  - pattern: "it should be|actually|in fact"
+    memory_type: correction
+    tier: 3
+    action: extract_following_content
+    description: Extract user's correction
+    language: en
+
+  # 事实声明规则 (英文)
+  - pattern: "(we|I) (have|am|is|are|do|don't)"
+    memory_type: fact_declaration
+    tier: 4
+    action: extract_entity_and_relation
+    description: Extract facts about company/team
+    language: en
+
+  - pattern: "(I|we) (am|is|are) (.*)"
+    memory_type: fact_declaration
+    tier: 4
+    action: extract_following_content
+    description: Extract identity facts
+    language: en
+
+  # 决策记录规则 (英文)
+  - pattern: "(okay|yes|alright|decided|confirmed|done)"
+    memory_type: decision
+    tier: 3
+    action: extract_preceding_proposal
+    description: Extract decision content
+    language: en
+
+  - pattern: "(choose|select|use|adopt) (.*)"
+    memory_type: decision
+    tier: 3
+    action: extract_following_content
+    description: Extract selection content
+    language: en
+
+  # 关系信息规则 (英文)
+  - pattern: "(responsible for|manage|belong to|report to)"
+    memory_type: relationship
+    tier: 4
+    action: extract_entity_and_relation
+    description: Extract relationship information
+    language: en
+
+  # 任务模式规则 (英文)
+  - pattern: "(again|once more|still) need"
+    memory_type: task_pattern
+    tier: 3
+    action: extract_following_content
+    description: Extract repeated tasks
+    language: en
+
+  # 情感标记规则 (英文)
+  - pattern: "(hate|dislike|like|love|recommend)"
+    memory_type: sentiment_marker
+    tier: 3
+    action: extract_following_content
+    description: Extract emotional倾向
+    language: en

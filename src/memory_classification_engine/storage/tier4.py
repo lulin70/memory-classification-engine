@@ -10,6 +10,7 @@ import threading
 
 from memory_classification_engine.utils.helpers import get_current_time
 from memory_classification_engine.utils.logger import logger
+from memory_classification_engine.storage.neo4j_knowledge_graph import Neo4jKnowledgeGraph
 
 
 class ConnectionPool:
@@ -336,7 +337,7 @@ class Tier4Storage:
         # Knowledge graph
         self.enable_graph = enable_graph
         if enable_graph:
-            self.knowledge_graph = KnowledgeGraph(storage_path)
+            self.knowledge_graph = Neo4jKnowledgeGraph(storage_path)
         
         # Initialize database
         self._init_db()
@@ -347,6 +348,8 @@ class Tier4Storage:
         """Clean up resources."""
         if hasattr(self, 'connection_pool'):
             self.connection_pool.close_all()
+        if hasattr(self, 'knowledge_graph') and hasattr(self.knowledge_graph, 'close'):
+            self.knowledge_graph.close()
     
     def _init_db(self):
         """Initialize the database."""
@@ -386,6 +389,15 @@ class Tier4Storage:
             
             # Create index on id for faster lookups
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_id ON semantic_memories (id)')
+            
+            # Create index on memory_type
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_memory_type ON semantic_memories (memory_type)')
+            
+            # Create index on confidence
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_confidence ON semantic_memories (confidence)')
+            
+            # Create index on source
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_source ON semantic_memories (source)')
             
             conn.commit()
             self.connection_pool.return_connection(conn)
@@ -517,6 +529,10 @@ class Tier4Storage:
             if not memory_id:
                 return
             
+            # 快速路径：如果知识图谱不可用，直接返回
+            if not hasattr(self, 'knowledge_graph') or self.knowledge_graph is None:
+                return
+            
             # Add memory node
             self.knowledge_graph.add_node(
                 memory_id,
@@ -551,8 +567,16 @@ class Tier4Storage:
                         entity.get('confidence', 0.5)
                     )
             
-            # Save graph
-            self.knowledge_graph.save_graph()
+            # 批量保存：每100个记忆保存一次，而不是每次都保存
+            # 这里使用一个简单的计数器来控制保存频率
+            if not hasattr(self, '_graph_save_counter'):
+                self._graph_save_counter = 0
+            
+            self._graph_save_counter += 1
+            if self._graph_save_counter % 100 == 0:
+                # Save graph
+                self.knowledge_graph.save_graph()
+                self._graph_save_counter = 0
             
         except Exception as e:
             logger.error(f"Error adding to knowledge graph: {e}")
@@ -583,17 +607,19 @@ class Tier4Storage:
             cursor = conn.cursor()
             
             if query:
-                # Search in content
+                # Search in content with optimized query
                 cursor.execute('''
-                    SELECT * FROM semantic_memories 
+                    SELECT id, type, memory_type, content, semantic_embedding, entities, relations, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
+                    FROM semantic_memories 
                     WHERE status = 'active' AND content LIKE ? 
                     ORDER BY last_accessed DESC 
                     LIMIT ?
                 ''', (f'%{query}%', limit))
             else:
-                # Get all active memories
+                # Get all active memories with optimized query
                 cursor.execute('''
-                    SELECT * FROM semantic_memories 
+                    SELECT id, type, memory_type, content, semantic_embedding, entities, relations, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
+                    FROM semantic_memories 
                     WHERE status = 'active' 
                     ORDER BY last_accessed DESC 
                     LIMIT ?

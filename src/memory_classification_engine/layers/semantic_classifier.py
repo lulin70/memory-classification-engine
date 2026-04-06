@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 
 from memory_classification_engine.utils.logger import logger
+from memory_classification_engine.utils.language import language_manager
 
 # Try to import AI/ML dependencies
 try:
@@ -23,37 +24,30 @@ class SemanticClassifier:
     MEMORY_TYPES = {
         'user_preference': {
             'description': 'User preferences and likes/dislikes',
-            'keywords': ['喜欢', 'prefer', 'love', 'hate', '讨厌', '想要', 'want'],
             'confidence_threshold': 0.7
         },
         'correction': {
             'description': 'Corrections to previous information',
-            'keywords': ['纠正', 'correction', '错了', 'wrong', '不对', 'incorrect'],
             'confidence_threshold': 0.8
         },
         'fact_declaration': {
             'description': 'Factual statements and declarations',
-            'keywords': ['是', 'is', 'are', '有', 'have', '位于', 'located'],
             'confidence_threshold': 0.6
         },
         'decision': {
             'description': 'Decisions and choices made',
-            'keywords': ['决定', 'decide', '选择', 'choose', '确定', 'confirm'],
             'confidence_threshold': 0.75
         },
         'relationship': {
             'description': 'Relationship information',
-            'keywords': ['负责', 'responsible', '管理', 'manage', '属于', 'belong'],
             'confidence_threshold': 0.7
         },
         'task_pattern': {
             'description': 'Task and workflow patterns',
-            'keywords': ['任务', 'task', '工作', 'work', '流程', 'process'],
             'confidence_threshold': 0.65
         },
         'sentiment_marker': {
             'description': 'Emotional and sentiment markers',
-            'keywords': ['开心', 'happy', '难过', 'sad', '兴奋', 'excited'],
             'confidence_threshold': 0.6
         }
     }
@@ -95,8 +89,11 @@ class SemanticClassifier:
         """
         results = []
         
-        # 1. Keyword-based classification (fast fallback)
-        keyword_results = self._keyword_classification(message)
+        # 0. Detect language
+        language, lang_confidence = language_manager.detect_language(message)
+        
+        # 1. Keyword-based classification (fast fallback) with language awareness
+        keyword_results = self._keyword_classification(message, language)
         results.extend(keyword_results)
         
         # 2. Semantic embedding analysis (if available)
@@ -106,23 +103,28 @@ class SemanticClassifier:
         
         # 3. Context-aware analysis
         if context:
-            context_results = self._context_analysis(message, context)
+            context_results = self._context_analysis(message, context, language)
             results.extend(context_results)
         
-        # 4. Intent analysis
-        intent_results = self._intent_analysis(message)
+        # 4. Intent analysis with language awareness
+        intent_results = self._intent_analysis(message, language)
         results.extend(intent_results)
+        
+        # 5. Language-specific memory type detection
+        lang_specific_results = self._language_specific_classification(message, language)
+        results.extend(lang_specific_results)
         
         # Deduplicate and sort by confidence
         results = self._deduplicate_and_sort(results)
         
         return results
     
-    def _keyword_classification(self, message: str) -> List[Dict[str, Any]]:
+    def _keyword_classification(self, message: str, language: str) -> List[Dict[str, Any]]:
         """Classify based on keywords.
         
         Args:
             message: The message to classify.
+            language: The detected language code.
             
         Returns:
             A list of classification results.
@@ -131,9 +133,12 @@ class SemanticClassifier:
         message_lower = message.lower()
         
         for memory_type, config in self.MEMORY_TYPES.items():
+            # Get language-specific keywords
+            keywords = language_manager.get_keywords(memory_type, language)
+            
             # Check for keywords
             matched_keywords = []
-            for keyword in config['keywords']:
+            for keyword in keywords:
                 if keyword.lower() in message_lower:
                     matched_keywords.append(keyword)
             
@@ -148,7 +153,8 @@ class SemanticClassifier:
                         'source': 'semantic:keyword',
                         'description': config['description'],
                         'matched_keywords': matched_keywords,
-                        'tier': self._get_tier_for_type(memory_type)
+                        'tier': self._get_tier_for_type(memory_type),
+                        'language': language
                     })
         
         return results
@@ -190,12 +196,13 @@ class SemanticClassifier:
         
         return results
     
-    def _context_analysis(self, message: str, context: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _context_analysis(self, message: str, context: Dict[str, Any], language: str) -> List[Dict[str, Any]]:
         """Analyze message in context.
         
         Args:
             message: The message to analyze.
             context: Context information.
+            language: The detected language code.
             
         Returns:
             A list of classification results.
@@ -214,7 +221,8 @@ class SemanticClassifier:
                         'confidence': 0.7,
                         'source': 'semantic:context',
                         'description': 'Conversation continuation',
-                        'tier': 3
+                        'tier': 3,
+                        'language': language
                     })
         
         # Check for user preferences in context
@@ -228,56 +236,167 @@ class SemanticClassifier:
                         'confidence': 0.75,
                         'source': 'semantic:context_preference',
                         'description': f'Related to user preference: {pref_type}',
-                        'tier': 2
+                        'tier': 2,
+                        'language': language
                     })
         
         return results
     
-    def _intent_analysis(self, message: str) -> List[Dict[str, Any]]:
+    def _intent_analysis(self, message: str, language: str) -> List[Dict[str, Any]]:
         """Analyze the intent of the message.
         
         Args:
             message: The message to analyze.
+            language: The detected language code.
             
         Returns:
             A list of intent analysis results.
         """
         results = []
         
-        # Define intent patterns
-        intents = {
-            'question': {
-                'patterns': ['?', '什么', 'what', '怎么', 'how', '为什么', 'why', '哪里', 'where'],
-                'memory_type': 'information_request'
+        # Define language-specific intent patterns
+        language_intents = {
+            'en': {
+                'question': {
+                    'patterns': ['?', 'what', 'how', 'why', 'where', 'when', 'who'],
+                    'memory_type': 'information_request'
+                },
+                'command': {
+                    'patterns': ['please', 'help me', 'need', 'do', 'can you', 'could you'],
+                    'memory_type': 'task_pattern'
+                },
+                'statement': {
+                    'patterns': ['is', 'are', 'have', 'has', 'i think', 'i believe', 'i feel'],
+                    'memory_type': 'fact_declaration'
+                },
+                'feedback': {
+                    'patterns': ['ok', 'good', 'thanks', 'great', 'excellent', 'perfect'],
+                    'memory_type': 'sentiment_marker'
+                }
             },
-            'command': {
-                'patterns': ['请', 'please', '帮我', 'help me', '需要', 'need', '做', 'do'],
-                'memory_type': 'task_pattern'
+            'zh-cn': {
+                'question': {
+                    'patterns': ['?', '什么', '怎么', '为什么', '哪里', '何时', '谁'],
+                    'memory_type': 'information_request'
+                },
+                'command': {
+                    'patterns': ['请', '帮我', '需要', '做', '能否', '可不可以'],
+                    'memory_type': 'task_pattern'
+                },
+                'statement': {
+                    'patterns': ['是', '有', '我觉得', '我认为', '我感觉', '应该'],
+                    'memory_type': 'fact_declaration'
+                },
+                'feedback': {
+                    'patterns': ['好的', '不错', '谢谢', '很好', '太棒了', '完美'],
+                    'memory_type': 'sentiment_marker'
+                }
             },
-            'statement': {
-                'patterns': ['是', 'is', '有', 'have', '我觉得', 'i think', '我认为', 'i believe'],
-                'memory_type': 'fact_declaration'
+            'es': {
+                'question': {
+                    'patterns': ['?', 'qué', 'cómo', 'por qué', 'dónde', 'cuándo', 'quién'],
+                    'memory_type': 'information_request'
+                },
+                'command': {
+                    'patterns': ['por favor', 'ayúdame', 'necesito', 'haz', 'puedes', 'podrías'],
+                    'memory_type': 'task_pattern'
+                },
+                'statement': {
+                    'patterns': ['es', 'está', 'tiene', 'creo', 'pienso', 'siento'],
+                    'memory_type': 'fact_declaration'
+                },
+                'feedback': {
+                    'patterns': ['ok', 'bueno', 'gracias', 'genial', 'excelente', 'perfecto'],
+                    'memory_type': 'sentiment_marker'
+                }
             },
-            'feedback': {
-                'patterns': ['好的', 'ok', '不错', 'good', '谢谢', 'thanks', '很好', 'great'],
-                'memory_type': 'sentiment_marker'
+            'fr': {
+                'question': {
+                    'patterns': ['?', 'quoi', 'comment', 'pourquoi', 'où', 'quand', 'qui'],
+                    'memory_type': 'information_request'
+                },
+                'command': {
+                    'patterns': ['sil vous plaît', 'aidez-moi', 'jai besoin', 'fais', 'peux-tu', 'pourrais-tu'],
+                    'memory_type': 'task_pattern'
+                },
+                'statement': {
+                    'patterns': ['est', 'est-ce que', 'a', 'je pense', 'je crois', 'je sens'],
+                    'memory_type': 'fact_declaration'
+                },
+                'feedback': {
+                    'patterns': ['ok', 'bon', 'merci', 'génial', 'excellent', 'parfait'],
+                    'memory_type': 'sentiment_marker'
+                }
+            },
+            'de': {
+                'question': {
+                    'patterns': ['?', 'was', 'wie', 'warum', 'wo', 'wann', 'wer'],
+                    'memory_type': 'information_request'
+                },
+                'command': {
+                    'patterns': ['bitte', 'hilf mir', 'brauche', 'mach', 'kannst du', 'könntest du'],
+                    'memory_type': 'task_pattern'
+                },
+                'statement': {
+                    'patterns': ['ist', 'hat', 'denke', 'glaube', 'fühle'],
+                    'memory_type': 'fact_declaration'
+                },
+                'feedback': {
+                    'patterns': ['ok', 'gut', 'danke', 'super', 'exzellent', 'perfekt'],
+                    'memory_type': 'sentiment_marker'
+                }
             }
         }
+        
+        # Get intents for the detected language, fallback to English
+        intents = language_intents.get(language, language_intents.get('en', {}))
         
         message_lower = message.lower()
         
         for intent_name, intent_config in intents.items():
             for pattern in intent_config['patterns']:
                 if pattern.lower() in message_lower:
+                    # Use higher confidence for intent analysis to ensure it's not overridden by keyword classification
                     results.append({
                         'memory_type': intent_config['memory_type'],
-                        'confidence': 0.6,
+                        'confidence': 0.75,
                         'source': f'semantic:intent:{intent_name}',
                         'description': f'Detected intent: {intent_name}',
                         'tier': 3,
-                        'intent': intent_name
+                        'intent': intent_name,
+                        'language': language
                     })
                     break  # Only add once per intent
+        
+        return results
+    
+    def _language_specific_classification(self, message: str, language: str) -> List[Dict[str, Any]]:
+        """Classify message based on language-specific patterns.
+        
+        Args:
+            message: The message to classify.
+            language: The detected language code.
+            
+        Returns:
+            A list of classification results.
+        """
+        results = []
+        
+        # Use LanguageManager to detect memory types based on language-specific keywords
+        memory_type_results = language_manager.detect_memory_type(message, language)
+        
+        for memory_type, confidence in memory_type_results:
+            if memory_type in self.MEMORY_TYPES:
+                config = self.MEMORY_TYPES[memory_type]
+                if confidence >= config['confidence_threshold']:
+                    results.append({
+                        'memory_type': memory_type,
+                        'confidence': confidence,
+                        'source': 'semantic:language_specific',
+                        'description': config['description'],
+                        'tier': self._get_tier_for_type(memory_type),
+                        'language': language
+                    })
         
         return results
     
@@ -367,6 +486,10 @@ class SemanticClassifier:
             memory_type = result['memory_type']
             if memory_type not in seen_types or result['confidence'] > seen_types[memory_type]['confidence']:
                 seen_types[memory_type] = result
+            # If confidence is the same, prefer the one with intent field
+            elif memory_type in seen_types and result['confidence'] == seen_types[memory_type]['confidence']:
+                if 'intent' in result and 'intent' not in seen_types[memory_type]:
+                    seen_types[memory_type] = result
         
         # Sort by confidence (descending)
         sorted_results = sorted(seen_types.values(), key=lambda x: x['confidence'], reverse=True)

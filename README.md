@@ -98,7 +98,7 @@
 | 规则引擎 | YAML配置 + 正则表达式 | JSON Schema |
 | 对话状态跟踪 | 内存状态机 | Redis |
 | 向量数据库（Tier 3） | ChromaDB（轻量本地） | Qdrant, Milvus |
-| 知识图谱（Tier 4） | Neo4j | NetworkX（轻量级，适合起步） |
+| 知识图谱（Tier 4） | Neo4j | 内存存储（轻量级，适合起步） |
 | 配置存储（Tier 2） | YAML/JSON文件 | SQLite |
 | 语义分类（Layer 3） | 小模型API调用 | 本地小模型（Ollama） |
 | Agent框架适配 | 设计为独立模块，提供SDK | 可扩展接口 |
@@ -162,6 +162,29 @@ cd memory-classification-engine
 pip install -r requirements.txt
 ```
 
+### Neo4j 配置（可选）
+
+如果你想使用Neo4j作为知识图谱存储后端，需要：
+
+1. **安装Neo4j**：
+   - 从 [Neo4j官网](https://neo4j.com/download/) 下载并安装Neo4j Desktop或Neo4j Community Server
+   - 或者使用Docker运行Neo4j：
+     ```bash
+     docker run --name neo4j -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j:latest
+     ```
+
+2. **启动Neo4j**：
+   - 启动Neo4j服务
+   - 在浏览器中访问 `http://localhost:7474`，使用默认用户名 `neo4j` 和密码 `password` 登录
+   - 首次登录时需要修改密码，确保与 `config/config.yaml` 中的配置一致
+
+3. **验证连接**：
+   - 确保Neo4j服务正在运行
+   - 确保 `config/config.yaml` 中的Neo4j配置正确
+
+4. **故障转移**：
+   - 如果Neo4j不可用，系统会自动回退到内存存储，确保系统正常运行
+
 ### 配置
 
 #### 环境变量配置
@@ -192,6 +215,16 @@ llm:
   temperature: 0.3
   max_tokens: 500
   timeout: 30  # In seconds
+
+# Neo4j settings (optional)
+neo4j:
+  enabled: true
+  uri: "bolt://localhost:7687"
+  user: "neo4j"
+  password: "password"
+  database: "neo4j"
+  connection_pool_size: 10
+  max_transaction_retry_time: 30
 ```
 
 ### 基本使用
@@ -226,9 +259,10 @@ memory-classification-engine/
 │   │   │   ├── pattern_analyzer.py # 结构分析层
 │   │   │   └── semantic_classifier.py # 语义推断层
 │   │   ├── storage/
-│   │   │   ├── tier2.py        # 程序性记忆存储
-│   │   │   ├── tier3.py        # 情节记忆存储
-│   │   │   └── tier4.py        # 语义记忆存储
+│   │   │   ├── tier2.py              # 程序性记忆存储
+│   │   │   ├── tier3.py              # 情节记忆存储
+│   │   │   ├── tier4.py              # 语义记忆存储
+│   │   │   └── neo4j_knowledge_graph.py  # Neo4j知识图谱存储适配器
 │   │   └── utils/
 │   │       ├── config.py       # 配置管理
 │   │       └── helpers.py      # 辅助函数

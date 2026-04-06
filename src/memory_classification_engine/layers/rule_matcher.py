@@ -1,6 +1,7 @@
 import re
 from typing import Dict, List, Optional, Any
 from memory_classification_engine.utils.helpers import extract_content
+from memory_classification_engine.utils.language import language_manager
 
 class RuleMatcher:
     """Rule-based memory matcher."""
@@ -25,12 +26,20 @@ class RuleMatcher:
         """
         matches = []
         
+        # Detect language of the message
+        language, _ = language_manager.detect_language(message)
+        
         for rule in self.rules:
             pattern = rule.get('pattern')
             memory_type = rule.get('memory_type')
             tier = rule.get('tier')
             action = rule.get('action')
             description = rule.get('description')
+            rule_language = rule.get('language')
+            
+            # Skip rules that are language-specific and don't match the detected language
+            if rule_language and rule_language != language:
+                continue
             
             # Check if the pattern matches the message
             if re.search(pattern, message):
@@ -44,7 +53,8 @@ class RuleMatcher:
                         'content': content,
                         'confidence': 1.0,  # Rule-based matches have high confidence
                         'source': f'rule:{pattern}',
-                        'description': description
+                        'description': description,
+                        'language': language
                     }
                     matches.append(match)
         
