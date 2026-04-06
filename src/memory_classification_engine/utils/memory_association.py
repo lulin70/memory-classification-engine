@@ -2,6 +2,7 @@
 
 import os
 import json
+import threading
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 from memory_classification_engine.utils.logger import logger
@@ -13,11 +14,14 @@ class MemoryAssociationManager:
     """Manager for memory associations based on semantic similarity."""
     
     _instance = None
+    _lock = threading.RLock()  # Thread-safe lock for concurrent operations
     
     def __new__(cls, *args, **kwargs):
         """Singleton pattern to ensure only one instance."""
         if cls._instance is None:
-            cls._instance = super(MemoryAssociationManager, cls).__new__(cls)
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super(MemoryAssociationManager, cls).__new__(cls)
         return cls._instance
     
     def __init__(self, storage_path: str = "./data/associations", cache_size: int = 1000, cache_ttl: int = 3600):
@@ -29,24 +33,27 @@ class MemoryAssociationManager:
             cache_ttl: Cache time-to-live in seconds.
         """
         if not hasattr(self, 'initialized'):
-            self.storage_path = storage_path
-            os.makedirs(self.storage_path, exist_ok=True)
-            self.associations_file = os.path.join(self.storage_path, "associations.json")
-            # Use SmartCache for better performance
-            from memory_classification_engine.utils.cache import SmartCache
-            cache_config = {
-                'tier1': {
-                    'max_size': cache_size,
-                    'ttl': cache_ttl
-                },
-                'tier2': {
-                    'cache_dir': ".cache/associations",
-                    'ttl': cache_ttl * 24  # Longer TTL for file cache
-                }
-            }
-            self.cache = SmartCache(cache_config)
-            self.associations = self._load_associations()
-            self.initialized = True
+            with self._lock:
+                if not hasattr(self, 'initialized'):
+                    self.storage_path = storage_path
+                    os.makedirs(self.storage_path, exist_ok=True)
+                    self.associations_file = os.path.join(self.storage_path, "associations.json")
+                    # Use SmartCache for better performance
+                    from memory_classification_engine.utils.cache import SmartCache
+                    cache_config = {
+                        'tier1': {
+                            'max_size': cache_size,
+                            'ttl': cache_ttl
+                        },
+                        'tier2': {
+                            'cache_dir': ".cache/associations",
+                            'ttl': cache_ttl * 24  # Longer TTL for file cache
+                        }
+                    }
+                    self.cache = SmartCache(cache_config)
+                    self.associations = self._load_associations()
+                    self.initialized = True
+                    self._save_pending = False  # Flag to indicate pending save
     
     def _load_associations(self) -> Dict[str, List[Dict[str, Any]]]:
         """Load associations from file.
@@ -68,8 +75,11 @@ class MemoryAssociationManager:
         try:
             # Ensure directory exists before saving
             os.makedirs(os.path.dirname(self.associations_file), exist_ok=True)
+            # Create a copy of the associations dictionary to avoid concurrent modification
+            with self._lock:
+                associations_copy = self.associations.copy()
             with open(self.associations_file, 'w', encoding='utf-8') as f:
-                json.dump(self.associations, f, ensure_ascii=False, indent=2)
+                json.dump(associations_copy, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.error(f"Error saving associations: {e}")
     
@@ -82,34 +92,35 @@ class MemoryAssociationManager:
             similarity: Semantic similarity score.
             metadata: Optional metadata about the association.
         """
-        # Ensure both directions have associations
-        for source_id, target_id in [(memory_id1, memory_id2), (memory_id2, memory_id1)]:
-            if source_id not in self.associations:
-                self.associations[source_id] = []
-            
-            # Check if association already exists
-            existing = False
-            for assoc in self.associations[source_id]:
-                if assoc['target_id'] == target_id:
-                    # Update existing association
-                    assoc['similarity'] = similarity
-                    assoc['updated_at'] = datetime.utcnow().isoformat() + 'Z'
+        with self._lock:
+            # Ensure both directions have associations
+            for source_id, target_id in [(memory_id1, memory_id2), (memory_id2, memory_id1)]:
+                if source_id not in self.associations:
+                    self.associations[source_id] = []
+                
+                # Check if association already exists
+                existing = False
+                for assoc in self.associations[source_id]:
+                    if assoc['target_id'] == target_id:
+                        # Update existing association
+                        assoc['similarity'] = similarity
+                        assoc['updated_at'] = datetime.utcnow().isoformat() + 'Z'
+                        if metadata:
+                            assoc['metadata'] = metadata
+                        existing = True
+                        break
+                
+                if not existing:
+                    # Create new association
+                    association = {
+                        'target_id': target_id,
+                        'similarity': similarity,
+                        'created_at': datetime.utcnow().isoformat() + 'Z',
+                        'updated_at': datetime.utcnow().isoformat() + 'Z'
+                    }
                     if metadata:
-                        assoc['metadata'] = metadata
-                    existing = True
-                    break
-            
-            if not existing:
-                # Create new association
-                association = {
-                    'target_id': target_id,
-                    'similarity': similarity,
-                    'created_at': datetime.utcnow().isoformat() + 'Z',
-                    'updated_at': datetime.utcnow().isoformat() + 'Z'
-                }
-                if metadata:
-                    association['metadata'] = metadata
-                self.associations[source_id].append(association)
+                        association['metadata'] = metadata
+                    self.associations[source_id].append(association)
         
         # Save associations
         self._save_associations()
@@ -136,13 +147,14 @@ class MemoryAssociationManager:
             return cached_result
         
         associations = []
-        if memory_id in self.associations:
-            # Filter by minimum similarity
-            filtered = [assoc for assoc in self.associations[memory_id] if assoc['similarity'] >= min_similarity]
-            # Sort by similarity
-            filtered.sort(key=lambda x: x['similarity'], reverse=True)
-            # Limit results
-            associations = filtered[:limit]
+        with self._lock:
+            if memory_id in self.associations:
+                # Filter by minimum similarity
+                filtered = [assoc for assoc in self.associations[memory_id] if assoc['similarity'] >= min_similarity]
+                # Sort by similarity
+                filtered.sort(key=lambda x: x['similarity'], reverse=True)
+                # Limit results
+                associations = filtered[:limit]
         
         # Store in cache
         self.cache.set(cache_key, associations)
@@ -236,16 +248,17 @@ class MemoryAssociationManager:
             memory_id1: First memory ID.
             memory_id2: Second memory ID.
         """
-        # Remove from both directions
-        for source_id, target_id in [(memory_id1, memory_id2), (memory_id2, memory_id1)]:
-            if source_id in self.associations:
-                self.associations[source_id] = [
-                    assoc for assoc in self.associations[source_id] 
-                    if assoc['target_id'] != target_id
-                ]
-                # Remove empty association lists
-                if not self.associations[source_id]:
-                    del self.associations[source_id]
+        with self._lock:
+            # Remove from both directions
+            for source_id, target_id in [(memory_id1, memory_id2), (memory_id2, memory_id1)]:
+                if source_id in self.associations:
+                    self.associations[source_id] = [
+                        assoc for assoc in self.associations[source_id] 
+                        if assoc['target_id'] != target_id
+                    ]
+                    # Remove empty association lists
+                    if not self.associations[source_id]:
+                        del self.associations[source_id]
         
         # Save associations
         self._save_associations()
@@ -258,19 +271,20 @@ class MemoryAssociationManager:
         Args:
             memory_id: Memory ID to remove associations for.
         """
-        # Remove as source
-        if memory_id in self.associations:
-            del self.associations[memory_id]
-        
-        # Remove as target
-        for source_id in list(self.associations.keys()):
-            self.associations[source_id] = [
-                assoc for assoc in self.associations[source_id] 
-                if assoc['target_id'] != memory_id
-            ]
-            # Remove empty association lists
-            if not self.associations[source_id]:
-                del self.associations[source_id]
+        with self._lock:
+            # Remove as source
+            if memory_id in self.associations:
+                del self.associations[memory_id]
+            
+            # Remove as target
+            for source_id in list(self.associations.keys()):
+                self.associations[source_id] = [
+                    assoc for assoc in self.associations[source_id] 
+                    if assoc['target_id'] != memory_id
+                ]
+                # Remove empty association lists
+                if not self.associations[source_id]:
+                    del self.associations[source_id]
         
         # Save associations
         self._save_associations()

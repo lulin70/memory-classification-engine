@@ -12,53 +12,78 @@ from memory_classification_engine.utils.logger import logger
 class PerformanceMonitor:
     """Performance monitoring system for Memory Classification Engine."""
     
-    def __init__(self, enabled: bool = True, log_interval: int = 60):
+    def __init__(self, enabled: bool = True, log_interval: int = 60, alert_thresholds: Optional[Dict[str, Any]] = None):
         """Initialize the performance monitor.
         
         Args:
             enabled: Whether performance monitoring is enabled.
             log_interval: Logging interval in seconds.
+            alert_thresholds: Thresholds for performance alerts.
         """
         self.enabled = enabled
         self.log_interval = log_interval
+        self.alert_thresholds = alert_thresholds or {
+            'memory': 80,  # Percentage
+            'cpu': 90,     # Percentage
+            'response_time': 1.0,  # Seconds
+            'cache_hit_rate': 70   # Percentage
+        }
         self.metrics = {
             'memory': {
                 'usage': 0,
                 'peak': 0,
-                'trend': []
+                'trend': [],
+                'alerts': []
             },
             'cpu': {
                 'usage': 0,
                 'peak': 0,
-                'trend': []
+                'trend': [],
+                'alerts': []
             },
             'disk': {
                 'usage': 0,
                 'peak': 0,
-                'trend': []
+                'trend': [],
+                'alerts': []
             },
             'response_times': {
                 'process_message': [],
                 'retrieve_memories': [],
-                'store_memory': []
+                'store_memory': [],
+                'alerts': []
             },
             'throughput': {
                 'messages_processed': 0,
                 'memories_stored': 0,
-                'queries_processed': 0
+                'queries_processed': 0,
+                'rate': 0  # Messages per second
             },
             'cache': {
                 'hit_count': 0,
                 'miss_count': 0,
                 'hit_rate': 0,
                 'size': 0,
-                'expired_count': 0
+                'expired_count': 0,
+                'alerts': []
             },
-            'last_log_time': time.time()
+            'storage': {
+                'read_operations': 0,
+                'write_operations': 0,
+                'read_time': 0,
+                'write_time': 0
+            },
+            'last_log_time': time.time(),
+            'last_throughput_time': time.time(),
+            'last_throughput_count': 0
         }
         
         # Process info
         self.process = psutil.Process(os.getpid())
+        
+        # Start monitoring thread
+        self.monitoring_thread = None
+        self.running = False
         
         logger.info("PerformanceMonitor initialized")
     
@@ -66,11 +91,101 @@ class PerformanceMonitor:
         """Start performance monitoring."""
         if self.enabled:
             logger.info("Starting performance monitoring")
+            self.running = True
+            # Start monitoring thread
+            import threading
+            self.monitoring_thread = threading.Thread(target=self._monitoring_loop, daemon=True)
+            self.monitoring_thread.start()
     
     def stop(self):
         """Stop performance monitoring."""
         if self.enabled:
             logger.info("Stopping performance monitoring")
+            self.running = False
+            if self.monitoring_thread:
+                self.monitoring_thread.join(timeout=5)
+    
+    def _monitoring_loop(self):
+        """Background monitoring loop."""
+        while self.running:
+            try:
+                self.record_metrics()
+                self._check_alerts()
+                self.log_metrics()
+                # Sleep for log interval
+                time.sleep(self.log_interval)
+            except Exception as e:
+                logger.error(f"Error in monitoring loop: {e}")
+                time.sleep(1)  # Sleep briefly before retrying
+    
+    def _check_alerts(self):
+        """Check for performance alerts."""
+        if not self.enabled:
+            return
+        
+        alerts = []
+        
+        # Check memory usage
+        memory_usage_percent = psutil.virtual_memory().percent
+        if memory_usage_percent > self.alert_thresholds['memory']:
+            alert = {
+                'timestamp': datetime.now().isoformat(),
+                'type': 'memory',
+                'message': f"Memory usage high: {memory_usage_percent:.2f}%",
+                'severity': 'warning' if memory_usage_percent < 90 else 'critical'
+            }
+            self.metrics['memory']['alerts'].append(alert)
+            alerts.append(alert)
+        
+        # Check CPU usage
+        cpu_usage = psutil.cpu_percent(interval=0.1)
+        if cpu_usage > self.alert_thresholds['cpu']:
+            alert = {
+                'timestamp': datetime.now().isoformat(),
+                'type': 'cpu',
+                'message': f"CPU usage high: {cpu_usage:.2f}%",
+                'severity': 'warning' if cpu_usage < 95 else 'critical'
+            }
+            self.metrics['cpu']['alerts'].append(alert)
+            alerts.append(alert)
+        
+        # Check response times
+        for operation, times in self.metrics['response_times'].items():
+            if times:
+                avg_time = sum(times) / len(times)
+                if avg_time > self.alert_thresholds['response_time']:
+                    alert = {
+                        'timestamp': datetime.now().isoformat(),
+                        'type': 'response_time',
+                        'message': f"{operation} response time high: {avg_time:.4f}s",
+                        'severity': 'warning'
+                    }
+                    self.metrics['response_times']['alerts'].append(alert)
+                    alerts.append(alert)
+        
+        # Check cache hit rate
+        if self.metrics['cache']['hit_rate'] < self.alert_thresholds['cache_hit_rate']:
+            alert = {
+                'timestamp': datetime.now().isoformat(),
+                'type': 'cache',
+                'message': f"Cache hit rate low: {self.metrics['cache']['hit_rate']:.2f}%",
+                'severity': 'warning'
+            }
+            self.metrics['cache']['alerts'].append(alert)
+            alerts.append(alert)
+        
+        # Log alerts
+        for alert in alerts:
+            if alert['severity'] == 'critical':
+                logger.critical(f"[PERFORMANCE ALERT] {alert['message']}")
+            else:
+                logger.warning(f"[PERFORMANCE ALERT] {alert['message']}")
+        
+        # Keep alerts to last 50 entries
+        for key in ['memory', 'cpu', 'disk', 'response_times', 'cache']:
+            if 'alerts' in self.metrics[key]:
+                if len(self.metrics[key]['alerts']) > 50:
+                    self.metrics[key]['alerts'] = self.metrics[key]['alerts'][-50:]
     
     def record_metrics(self):
         """Record current performance metrics."""
@@ -81,6 +196,7 @@ class PerformanceMonitor:
             # Memory usage
             memory_info = self.process.memory_info()
             memory_usage = memory_info.rss / 1024 / 1024  # MB
+            memory_usage_percent = psutil.virtual_memory().percent
             
             # CPU usage
             cpu_usage = self.process.cpu_percent(interval=0.1)
@@ -101,6 +217,16 @@ class PerformanceMonitor:
             self.metrics['disk']['usage'] = disk_usage_percent
             self.metrics['disk']['peak'] = max(self.metrics['disk']['peak'], disk_usage_percent)
             self.metrics['disk']['trend'].append(disk_usage_percent)
+            
+            # Calculate throughput rate
+            current_time = time.time()
+            elapsed_time = current_time - self.metrics['last_throughput_time']
+            if elapsed_time > 0:
+                current_count = self.metrics['throughput']['messages_processed']
+                message_rate = (current_count - self.metrics['last_throughput_count']) / elapsed_time
+                self.metrics['throughput']['rate'] = message_rate
+                self.metrics['last_throughput_time'] = current_time
+                self.metrics['last_throughput_count'] = current_count
             
             # Keep trends to last 100 entries
             for key in ['memory', 'cpu', 'disk']:
@@ -125,23 +251,36 @@ class PerformanceMonitor:
             logger.info(f"Disk: {self.metrics['disk']['usage']:.2f}% (Peak: {self.metrics['disk']['peak']:.2f}%)")
             
             # Calculate response time averages
-            if self.metrics['response_times']['process_message']:
-                avg_time = sum(self.metrics['response_times']['process_message']) / len(self.metrics['response_times']['process_message'])
-                logger.info(f"Process Message: {avg_time:.4f}s average")
+            for operation, times in self.metrics['response_times'].items():
+                if times and operation != 'alerts':
+                    avg_time = sum(times) / len(times)
+                    logger.info(f"{operation}: {avg_time:.4f}s average")
             
-            if self.metrics['response_times']['retrieve_memories']:
-                avg_time = sum(self.metrics['response_times']['retrieve_memories']) / len(self.metrics['response_times']['retrieve_memories'])
-                logger.info(f"Retrieve Memories: {avg_time:.4f}s average")
-            
-            if self.metrics['response_times']['store_memory']:
-                avg_time = sum(self.metrics['response_times']['store_memory']) / len(self.metrics['response_times']['store_memory'])
-                logger.info(f"Store Memory: {avg_time:.4f}s average")
-            
+            # Throughput metrics
             logger.info(f"Throughput: {self.metrics['throughput']['messages_processed']} messages, {self.metrics['throughput']['memories_stored']} memories, {self.metrics['throughput']['queries_processed']} queries")
+            logger.info(f"Throughput Rate: {self.metrics['throughput']['rate']:.2f} messages/second")
             
             # Cache metrics
             logger.info(f"Cache: Hit Rate {self.metrics['cache']['hit_rate']:.2f}%, {self.metrics['cache']['hit_count']} hits, {self.metrics['cache']['miss_count']} misses")
             logger.info(f"Cache Size: {self.metrics['cache']['size']} items, {self.metrics['cache']['expired_count']} expired")
+            
+            # Storage metrics
+            storage = self.metrics['storage']
+            logger.info(f"Storage: {storage['read_operations']} reads, {storage['write_operations']} writes")
+            if storage['read_operations'] > 0:
+                avg_read_time = storage['read_time'] / storage['read_operations']
+                logger.info(f"Average Read Time: {avg_read_time:.4f}s")
+            if storage['write_operations'] > 0:
+                avg_write_time = storage['write_time'] / storage['write_operations']
+                logger.info(f"Average Write Time: {avg_write_time:.4f}s")
+            
+            # Alerts summary
+            total_alerts = 0
+            for key in ['memory', 'cpu', 'disk', 'response_times', 'cache']:
+                if 'alerts' in self.metrics[key]:
+                    total_alerts += len(self.metrics[key]['alerts'])
+            if total_alerts > 0:
+                logger.warning(f"Performance Alerts: {total_alerts} recent alerts")
             
             logger.info(f"=========================\n")
             
@@ -206,6 +345,23 @@ class PerformanceMonitor:
         self.metrics['cache']['size'] = cache_stats.get('size', 0)
         self.metrics['cache']['expired_count'] = cache_stats.get('expired_count', 0)
     
+    def record_storage_operation(self, operation_type: str, duration: float):
+        """Record storage operation metrics.
+        
+        Args:
+            operation_type: Type of storage operation ('read' or 'write').
+            duration: Duration in seconds.
+        """
+        if not self.enabled:
+            return
+        
+        if operation_type == 'read':
+            self.metrics['storage']['read_operations'] += 1
+            self.metrics['storage']['read_time'] += duration
+        elif operation_type == 'write':
+            self.metrics['storage']['write_operations'] += 1
+            self.metrics['storage']['write_time'] += duration
+    
     def get_summary(self) -> Dict[str, Any]:
         """Get performance summary.
         
@@ -218,30 +374,41 @@ class PerformanceMonitor:
             'memory': {
                 'current': self.metrics['memory']['usage'],
                 'peak': self.metrics['memory']['peak'],
-                'average': sum(self.metrics['memory']['trend']) / len(self.metrics['memory']['trend']) if self.metrics['memory']['trend'] else 0
+                'average': sum(self.metrics['memory']['trend']) / len(self.metrics['memory']['trend']) if self.metrics['memory']['trend'] else 0,
+                'alerts': len(self.metrics['memory'].get('alerts', []))
             },
             'cpu': {
                 'current': self.metrics['cpu']['usage'],
                 'peak': self.metrics['cpu']['peak'],
-                'average': sum(self.metrics['cpu']['trend']) / len(self.metrics['cpu']['trend']) if self.metrics['cpu']['trend'] else 0
+                'average': sum(self.metrics['cpu']['trend']) / len(self.metrics['cpu']['trend']) if self.metrics['cpu']['trend'] else 0,
+                'alerts': len(self.metrics['cpu'].get('alerts', []))
             },
             'disk': {
                 'current': self.metrics['disk']['usage'],
                 'peak': self.metrics['disk']['peak'],
-                'average': sum(self.metrics['disk']['trend']) / len(self.metrics['disk']['trend']) if self.metrics['disk']['trend'] else 0
+                'average': sum(self.metrics['disk']['trend']) / len(self.metrics['disk']['trend']) if self.metrics['disk']['trend'] else 0,
+                'alerts': len(self.metrics['disk'].get('alerts', []))
             },
             'throughput': self.metrics['throughput'],
-            'cache': self.metrics['cache']
+            'cache': self.metrics['cache'],
+            'storage': self.metrics['storage']
         }
         
         # Add response time averages
         for operation, times in self.metrics['response_times'].items():
-            if times:
+            if times and operation != 'alerts':
                 summary['response_times'] = summary.get('response_times', {})
                 summary['response_times'][operation] = {
                     'average': sum(times) / len(times),
                     'count': len(times)
                 }
+        
+        # Add alerts summary
+        total_alerts = 0
+        for key in ['memory', 'cpu', 'disk', 'response_times', 'cache']:
+            if 'alerts' in self.metrics[key]:
+                total_alerts += len(self.metrics[key]['alerts'])
+        summary['alerts'] = total_alerts
         
         return summary
     

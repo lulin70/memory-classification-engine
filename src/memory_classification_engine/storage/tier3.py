@@ -10,17 +10,20 @@ from memory_classification_engine.utils.logger import logger
 class ConnectionPool:
     """Database connection pool for SQLite."""
     
-    def __init__(self, db_path: str, max_connections: int = 5):
+    def __init__(self, db_path: str, max_connections: int = 10, timeout: int = 30):
         """Initialize the connection pool.
         
         Args:
             db_path: Path to the SQLite database.
             max_connections: Maximum number of connections in the pool.
+            timeout: Connection timeout in seconds.
         """
         self.db_path = db_path
         self.max_connections = max_connections
+        self.timeout = timeout
         self.connections = deque()
         self.lock = threading.Lock()
+        self.active_connections = 0
         
     def get_connection(self):
         """Get a connection from the pool.
@@ -30,16 +33,25 @@ class ConnectionPool:
         """
         with self.lock:
             if self.connections:
-                return self.connections.popleft()
+                conn = self.connections.popleft()
+                self.active_connections += 1
+                return conn
             else:
                 # Create a new connection
-                conn = sqlite3.connect(self.db_path, timeout=30)
+                conn = sqlite3.connect(self.db_path, timeout=self.timeout)
                 # Enable WAL mode for better concurrency
                 conn.execute('PRAGMA journal_mode=WAL')
                 # Enable foreign keys
                 conn.execute('PRAGMA foreign_keys=ON')
                 # Set busy timeout
-                conn.execute('PRAGMA busy_timeout=30000')
+                conn.execute(f'PRAGMA busy_timeout={self.timeout * 1000}')
+                # Set page size for better performance
+                conn.execute('PRAGMA page_size=4096')
+                # Set cache size
+                conn.execute('PRAGMA cache_size=10000')
+                # Enable synchronous=NORMAL for better performance
+                conn.execute('PRAGMA synchronous=NORMAL')
+                self.active_connections += 1
                 return conn
     
     def return_connection(self, conn):
@@ -52,7 +64,11 @@ class ConnectionPool:
             if len(self.connections) < self.max_connections:
                 self.connections.append(conn)
             else:
-                conn.close()
+                try:
+                    conn.close()
+                except:
+                    pass
+            self.active_connections = max(0, self.active_connections - 1)
     
     def close_all(self):
         """Close all connections in the pool."""
@@ -63,6 +79,20 @@ class ConnectionPool:
                     conn.close()
                 except:
                     pass
+            self.active_connections = 0
+    
+    def get_stats(self):
+        """Get connection pool statistics.
+        
+        Returns:
+            dict: Connection pool statistics.
+        """
+        with self.lock:
+            return {
+                'active_connections': self.active_connections,
+                'idle_connections': len(self.connections),
+                'max_connections': self.max_connections
+            }
 
 # Try to import vector search dependencies
 try:
@@ -77,7 +107,7 @@ except ImportError as e:
 class Tier3Storage:
     """Storage for episodic memory (tier 3)."""
     
-    def __init__(self, storage_path: str = "./data/tier3", enable_cache: bool = True, cache_size: int = 1000, cache_ttl: int = 3600, enable_vector_search: bool = True, enable_in_memory_cache: bool = True):
+    def __init__(self, storage_path: str = "./data/tier3", enable_cache: bool = True, cache_size: int = 1000, cache_ttl: int = 3600, enable_vector_search: bool = True, enable_in_memory_cache: bool = True, enable_memory_compression: bool = True, compression_threshold_days: int = 30, super_compression_threshold_days: int = 90):
         """Initialize tier 3 storage.
         
         Args:
@@ -87,6 +117,9 @@ class Tier3Storage:
             cache_ttl: Cache time-to-live in seconds.
             enable_vector_search: Whether to enable vector search.
             enable_in_memory_cache: Whether to enable in-memory database cache.
+            enable_memory_compression: Whether to enable memory compression.
+            compression_threshold_days: Number of days after which memories are compressed.
+            super_compression_threshold_days: Number of days after which memories are super compressed.
         """
         self.storage_path = storage_path
         os.makedirs(self.storage_path, exist_ok=True)
@@ -94,8 +127,8 @@ class Tier3Storage:
         # Database path
         self.db_path = os.path.join(self.storage_path, "episodic_memories.db")
         
-        # Database connection pool
-        self.connection_pool = ConnectionPool(self.db_path)
+        # Database connection pool with increased max connections
+        self.connection_pool = ConnectionPool(self.db_path, max_connections=10)
         
         # In-memory database cache
         self.enable_in_memory_cache = enable_in_memory_cache
@@ -118,12 +151,22 @@ class Tier3Storage:
             self.memory_ids = []
             self._init_vector_index()
         
+        # Memory compression settings
+        self.enable_memory_compression = enable_memory_compression
+        self.compression_threshold_days = compression_threshold_days
+        self.super_compression_threshold_days = super_compression_threshold_days
+        
         # Initialize database
         self._init_db()
         
         # Load data into in-memory cache if enabled
         if self.enable_in_memory_cache:
             self._load_data_to_in_memory_cache()
+        
+        # Run memory compression if enabled
+        if self.enable_memory_compression:
+            import threading
+            threading.Thread(target=self._compress_old_memories).start()
     
     def __del__(self):
         """Clean up resources."""
@@ -369,35 +412,114 @@ class Tier3Storage:
         Returns:
             True if the memory was stored successfully, False otherwise.
         """
+        return self.store_memories_batch([memory])
+    
+    def _compress_memory(self, memory: Dict[str, Any]) -> Dict[str, Any]:
+        """Compress memory content based on its age and importance.
+        
+        Args:
+            memory: The memory to compress.
+            
+        Returns:
+            The compressed memory.
+        """
+        if not self.enable_memory_compression:
+            return memory
+        
         try:
+            # Get memory age
+            from datetime import datetime, timedelta, timezone
+            created_at = memory.get('created_at')
+            if not created_at:
+                return memory
+            
+            # Get current time with timezone
+            current_time = datetime.now(timezone.utc)
+            
+            # Parse created_at with timezone
+            if created_at.endswith('Z'):
+                created_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            else:
+                created_dt = datetime.fromisoformat(created_at)
+            
+            # Ensure created_dt is timezone-aware
+            if created_dt.tzinfo is None:
+                created_dt = created_dt.replace(tzinfo=timezone.utc)
+            
+            age_days = (current_time - created_dt).days
+            
+            # Compress based on age
+            if age_days >= self.super_compression_threshold_days:
+                # Super compress old memories
+                if 'content' in memory:
+                    memory['content'] = self._super_compress_content(memory['content'])
+                memory['status'] = 'super_compressed'
+            elif age_days >= self.compression_threshold_days:
+                # Compress moderately old memories
+                if 'content' in memory:
+                    memory['content'] = self._compress_content(memory['content'])
+                memory['status'] = 'compressed'
+            
+            # Update compression metadata
+            memory['compressed_at'] = get_current_time()
+            memory['compression_level'] = 'super' if age_days >= self.super_compression_threshold_days else 'normal'
+            
+            return memory
+        except Exception as e:
+            logger.warning(f"Error compressing memory: {e}")
+            return memory
+    
+    def store_memories_batch(self, memories: List[Dict[str, Any]]) -> bool:
+        """Store multiple memories in batch to reduce database operations.
+        
+        Args:
+            memories: List of memories to store.
+            
+        Returns:
+            True if all memories were stored successfully, False otherwise.
+        """
+        try:
+            if not memories:
+                return True
+            
             current_time = get_current_time()
+            processed_memories = []
             
-            # Add timestamps if not present
-            if 'created_at' not in memory:
-                memory['created_at'] = current_time
-            memory['updated_at'] = current_time
-            memory['last_accessed'] = current_time
-            memory['access_count'] = 1
-            memory['status'] = 'active'
-            memory['version'] = 1
-            memory['conflict_status'] = 'none'
+            # Process all memories first
+            for memory in memories:
+                # Add timestamps if not present
+                if 'created_at' not in memory:
+                    memory['created_at'] = current_time
+                memory['updated_at'] = current_time
+                memory['last_accessed'] = current_time
+                memory['access_count'] = 1
+                memory['status'] = 'active'
+                memory['version'] = 1
+                memory['conflict_status'] = 'none'
+                
+                # Calculate weight
+                memory['weight'] = self._calculate_memory_weight(memory)
+                
+                # Ensure memory_type field is present
+                if 'memory_type' not in memory and 'type' in memory:
+                    memory['memory_type'] = memory['type']
+                
+                # Detect conflicts
+                conflicts = self._detect_conflicts(memory)
+                if conflicts:
+                    # Mark current memory as conflicting
+                    memory['conflict_status'] = 'conflicting'
+                    # Update conflicting memories
+                    for conflict in conflicts:
+                        self._mark_conflicting(conflict['id'])
+                
+                # Compress memory if enabled
+                if self.enable_memory_compression:
+                    memory = self._compress_memory(memory)
+                
+                processed_memories.append(memory)
             
-            # Calculate weight
-            memory['weight'] = self._calculate_memory_weight(memory)
-            
-            # Ensure memory_type field is present
-            if 'memory_type' not in memory and 'type' in memory:
-                memory['memory_type'] = memory['type']
-            
-            # Detect conflicts
-            conflicts = self._detect_conflicts(memory)
-            if conflicts:
-                # Mark current memory as conflicting
-                memory['conflict_status'] = 'conflicting'
-                # Update conflicting memories
-                for conflict in conflicts:
-                    self._mark_conflicting(conflict['id'])
-            
+            # Store in main database using transaction
             conn = self.connection_pool.get_connection()
             cursor = conn.cursor()
             
@@ -405,93 +527,114 @@ class Tier3Storage:
             cursor.execute('PRAGMA table_info(episodic_memories)')
             columns = [column[1] for column in cursor.fetchall()]
             
-            # Build insert statement based on existing columns
-            insert_columns = ['id', 'type', 'memory_type', 'content', 'created_at', 'updated_at', 'last_accessed', 'access_count', 'confidence', 'source', 'context', 'status']
-            insert_values = [
-                memory.get('id'),
-                memory.get('type'),
-                memory.get('memory_type'),
-                memory.get('content'),
-                memory.get('created_at'),
-                memory.get('updated_at'),
-                memory.get('last_accessed'),
-                memory.get('access_count'),
-                memory.get('confidence'),
-                memory.get('source'),
-                memory.get('context'),
-                memory.get('status')
-            ]
+            # Start transaction
+            cursor.execute('BEGIN TRANSACTION')
             
-            # Add new columns if they exist
-            if 'version' in columns:
-                insert_columns.append('version')
-                insert_values.append(memory.get('version', 1))
-            if 'weight' in columns:
-                insert_columns.append('weight')
-                insert_values.append(memory.get('weight', 1.0))
-            if 'conflict_status' in columns:
-                insert_columns.append('conflict_status')
-                insert_values.append(memory.get('conflict_status', 'none'))
-            
-            # Build and execute insert statement
-            placeholders = ','.join(['?'] * len(insert_columns))
-            columns_str = ','.join(insert_columns)
-            cursor.execute(f'''
-                INSERT INTO episodic_memories 
-                ({columns_str})
-                VALUES ({placeholders})
-            ''', insert_values)
-            
-            conn.commit()
-            self.connection_pool.return_connection(conn)
+            try:
+                # Batch insert
+                for memory in processed_memories:
+                    # Build insert statement based on existing columns
+                    insert_columns = ['id', 'type', 'memory_type', 'content', 'created_at', 'updated_at', 'last_accessed', 'access_count', 'confidence', 'source', 'context', 'status']
+                    insert_values = [
+                        memory.get('id'),
+                        memory.get('type'),
+                        memory.get('memory_type'),
+                        memory.get('content'),
+                        memory.get('created_at'),
+                        memory.get('updated_at'),
+                        memory.get('last_accessed'),
+                        memory.get('access_count'),
+                        memory.get('confidence'),
+                        memory.get('source'),
+                        memory.get('context'),
+                        memory.get('status')
+                    ]
+                    
+                    # Add new columns if they exist
+                    if 'version' in columns:
+                        insert_columns.append('version')
+                        insert_values.append(memory.get('version', 1))
+                    if 'weight' in columns:
+                        insert_columns.append('weight')
+                        insert_values.append(memory.get('weight', 1.0))
+                    if 'conflict_status' in columns:
+                        insert_columns.append('conflict_status')
+                        insert_values.append(memory.get('conflict_status', 'none'))
+                    
+                    # Build and execute insert statement
+                    placeholders = ','.join(['?'] * len(insert_columns))
+                    columns_str = ','.join(insert_columns)
+                    cursor.execute(f'''
+                        INSERT INTO episodic_memories 
+                        ({columns_str})
+                        VALUES ({placeholders})
+                    ''', insert_values)
+                
+                # Commit transaction
+                conn.commit()
+            except Exception as e:
+                # Rollback on error
+                conn.rollback()
+                raise e
+            finally:
+                self.connection_pool.return_connection(conn)
             
             # Update cache
-            if self.enable_cache and hasattr(self, 'cache') and memory.get('id'):
-                self.cache.set(memory['id'], memory)
+            if self.enable_cache and hasattr(self, 'cache'):
+                for memory in processed_memories:
+                    if memory.get('id'):
+                        self.cache.set(memory['id'], memory)
             
             # Update in-memory cache if enabled
-            if self.enable_in_memory_cache and memory.get('id'):
+            if self.enable_in_memory_cache:
                 try:
                     cursor = self.in_memory_conn.cursor()
-                    # Check if memory already exists
-                    cursor.execute('SELECT id FROM episodic_memories WHERE id = ?', (memory['id'],))
-                    if cursor.fetchone():
-                        # Update existing memory
-                        update_columns = ['type', 'memory_type', 'content', 'created_at', 'updated_at', 'last_accessed', 'access_count', 'confidence', 'source', 'context', 'status', 'version', 'weight', 'conflict_status']
-                        set_clause = []
-                        params = []
-                        for col in update_columns:
-                            set_clause.append(f"{col} = ?")
-                            params.append(memory.get(col, ''))
-                        params.append(memory['id'])
-                        cursor.execute(f'''
-                            UPDATE episodic_memories 
-                            SET {', '.join(set_clause)} 
-                            WHERE id = ?
-                        ''', params)
-                    else:
-                        # Insert new memory
-                        insert_columns = ['id', 'type', 'memory_type', 'content', 'created_at', 'updated_at', 'last_accessed', 'access_count', 'confidence', 'source', 'context', 'status', 'version', 'weight', 'conflict_status']
-                        insert_values = []
-                        for col in insert_columns:
-                            insert_values.append(memory.get(col, ''))
-                        placeholders = ','.join(['?'] * len(insert_columns))
-                        cursor.execute(f'''
-                            INSERT INTO episodic_memories 
-                            ({', '.join(insert_columns)})
-                            VALUES ({placeholders})
-                        ''', insert_values)
+                    cursor.execute('BEGIN TRANSACTION')
+                    
+                    for memory in processed_memories:
+                        if memory.get('id'):
+                            # Check if memory already exists
+                            cursor.execute('SELECT id FROM episodic_memories WHERE id = ?', (memory['id'],))
+                            if cursor.fetchone():
+                                # Update existing memory
+                                update_columns = ['type', 'memory_type', 'content', 'created_at', 'updated_at', 'last_accessed', 'access_count', 'confidence', 'source', 'context', 'status', 'version', 'weight', 'conflict_status']
+                                set_clause = []
+                                params = []
+                                for col in update_columns:
+                                    set_clause.append(f"{col} = ?")
+                                    params.append(memory.get(col, ''))
+                                params.append(memory['id'])
+                                cursor.execute(f'''
+                                    UPDATE episodic_memories 
+                                    SET {', '.join(set_clause)} 
+                                    WHERE id = ?
+                                ''', params)
+                            else:
+                                # Insert new memory
+                                insert_columns = ['id', 'type', 'memory_type', 'content', 'created_at', 'updated_at', 'last_accessed', 'access_count', 'confidence', 'source', 'context', 'status', 'version', 'weight', 'conflict_status']
+                                insert_values = []
+                                for col in insert_columns:
+                                    insert_values.append(memory.get(col, ''))
+                                placeholders = ','.join(['?'] * len(insert_columns))
+                                cursor.execute(f'''
+                                    INSERT INTO episodic_memories 
+                                    ({', '.join(insert_columns)})
+                                    VALUES ({placeholders})
+                                ''', insert_values)
+                    
                     self.in_memory_conn.commit()
                 except Exception as e:
                     logger.warning(f"Error updating in-memory cache: {e}")
             
             # Update vector index
-            if self.enable_vector_search and memory.get('id') and memory.get('content'):
-                self._update_vector_index(memory)
+            if self.enable_vector_search:
+                for memory in processed_memories:
+                    if memory.get('id') and memory.get('content'):
+                        self._update_vector_index(memory)
             
             return True
         except Exception as e:
-            logger.error(f"Error storing memory: {e}", exc_info=True)
+            logger.error(f"Error storing memories in batch: {e}", exc_info=True)
             return False
     
     def retrieve_memories(self, query: str = None, limit: int = 10, use_vector_search: bool = False) -> List[Dict[str, Any]]:
@@ -1199,6 +1342,102 @@ class Tier3Storage:
                     keys_to_delete.append(key)
             for key in keys_to_delete:
                 self.cache.delete(key)
+    
+    def _compress_old_memories(self):
+        """Compress old memories based on age."""
+        try:
+            from datetime import datetime, timezone, timedelta
+            import sqlite3
+            
+            current_time = datetime.now(timezone.utc)
+            compression_threshold = current_time - timedelta(days=self.compression_threshold_days)
+            super_compression_threshold = current_time - timedelta(days=self.super_compression_threshold_days)
+            
+            # Create a new database connection in this thread
+            conn = sqlite3.connect(self.db_path, timeout=30)
+            conn.execute('PRAGMA journal_mode=WAL')
+            conn.execute('PRAGMA foreign_keys=ON')
+            conn.execute('PRAGMA busy_timeout=30000')
+            cursor = conn.cursor()
+            
+            # Get memories older than compression threshold
+            cursor.execute('''
+                SELECT id, content, created_at 
+                FROM episodic_memories 
+                WHERE status = 'active' 
+                AND datetime(created_at) < ?
+            ''', (compression_threshold.isoformat(),))
+            
+            memories_to_compress = cursor.fetchall()
+            
+            for memory in memories_to_compress:
+                memory_id, content, created_at = memory
+                created_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                
+                if created_dt < super_compression_threshold:
+                    # Super compression: keep only key information
+                    compressed_content = self._super_compress_content(content)
+                    status = 'super_compressed'
+                else:
+                    # Regular compression: summarize content
+                    compressed_content = self._compress_content(content)
+                    status = 'compressed'
+                
+                # Update memory
+                cursor.execute('''
+                    UPDATE episodic_memories 
+                    SET content = ?, status = ?, updated_at = ? 
+                    WHERE id = ?
+                ''', (compressed_content, status, get_current_time(), memory_id))
+            
+            conn.commit()
+            conn.close()
+            
+            logger.info(f"Compressed {len(memories_to_compress)} old memories")
+        except Exception as e:
+            logger.error(f"Error compressing old memories: {e}", exc_info=True)
+    
+    def _compress_content(self, content: str) -> str:
+        """Compress memory content by summarizing it.
+        
+        Args:
+            content: Original content.
+            
+        Returns:
+            Compressed content.
+        """
+        # Simple compression: keep first and last sentences, remove redundant information
+        sentences = content.split('. ')
+        if len(sentences) <= 2:
+            return content
+        
+        # Keep first sentence and last sentence
+        compressed = '. '.join([sentences[0], sentences[-1]])
+        if compressed:
+            compressed += '.'
+        
+        # Add compression marker
+        return f"[COMPRESSED] {compressed}"
+    
+    def _super_compress_content(self, content: str) -> str:
+        """Super compress memory content by keeping only key information.
+        
+        Args:
+            content: Original content.
+            
+        Returns:
+            Super compressed content.
+        """
+        # Super compression: extract key information
+        # For simplicity, we'll keep only the first 100 characters
+        if len(content) <= 100:
+            return content
+        
+        # Extract key information
+        key_info = content[:100].strip()
+        
+        # Add super compression marker
+        return f"[SUPER_COMPRESSED] {key_info}..."
     
     def get_stats(self) -> Dict[str, Any]:
         """Get statistics about tier 3 storage.

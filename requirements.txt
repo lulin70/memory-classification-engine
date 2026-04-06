@@ -2,6 +2,12 @@
 
 # Core dependencies
 PyYAML
+sentence-transformers  # For pre-trained word embeddings
+numpy  # For numerical operations
+neo4j  # For Neo4j graph database connection
+langdetect  # For language detection
+polyglot  # For multilingual NLP
+pycld2  # For more accurate language detection
 
 # Optional dependencies
 Flask  # For REST API
