@@ -158,6 +158,29 @@ cd memory-classification-engine
 pip install -r requirements.txt
 ```
 
+### Neo4j Configuration (Optional)
+
+If you want to use Neo4j as the knowledge graph storage backend, you need to:
+
+1. **Install Neo4j**:
+   - Download and install Neo4j Desktop or Neo4j Community Server from [Neo4j website](https://neo4j.com/download/)
+   - Or run Neo4j using Docker:
+     ```bash
+     docker run --name neo4j -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j:latest
+     ```
+
+2. **Start Neo4j**:
+   - Start the Neo4j service
+   - Access `http://localhost:7474` in your browser, log in with the default username `neo4j` and password `password`
+   - You need to change the password when logging in for the first time, ensure it matches the configuration in `config/config.yaml`
+
+3. **Verify Connection**:
+   - Ensure the Neo4j service is running
+   - Ensure the Neo4j configuration in `config/config.yaml` is correct
+
+4. **Failover**:
+   - If Neo4j is unavailable, the system will automatically fall back to in-memory storage to ensure normal operation
+
 ### Configuration
 
 #### Environment Variables
@@ -188,6 +211,16 @@ llm:
   temperature: 0.3
   max_tokens: 500
   timeout: 30  # In seconds
+
+# Neo4j settings (optional)
+neo4j:
+  enabled: true
+  uri: "bolt://localhost:7687"
+  user: "neo4j"
+  password: "password"
+  database: "neo4j"
+  connection_pool_size: 10
+  max_transaction_retry_time: 30
 ```
 
 ### Basic Usage
@@ -239,9 +272,10 @@ memory-classification-engine/
 │   │   │   ├── pattern_analyzer.py # Structure analysis layer
 │   │   │   └── semantic_classifier.py # Semantic inference layer
 │   │   ├── storage/
-│   │   │   ├── tier2.py        # Procedural memory storage
-│   │   │   ├── tier3.py        # Episodic memory storage
-│   │   │   └── tier4.py        # Semantic memory storage
+│   │   │   ├── tier2.py              # Procedural memory storage
+│   │   │   ├── tier3.py              # Episodic memory storage
+│   │   │   ├── tier4.py              # Semantic memory storage
+│   │   │   └── neo4j_knowledge_graph.py  # Neo4j knowledge graph storage adapter
 │   │   ├── utils/
 │   │   │   ├── config.py       # Configuration management
 │   │   │   └── helpers.py      # Helper functions

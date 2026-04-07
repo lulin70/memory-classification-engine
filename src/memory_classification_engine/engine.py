@@ -457,12 +457,19 @@ class MemoryClassificationEngine:
         
         # Generate cache key
         from memory_classification_engine.utils.performance import PerformanceOptimizer
-        cache_key = PerformanceOptimizer.cache_key_generator('retrieve', query=query, limit=limit, tenant_id=tenant_id, include_associations=include_associations)
+        try:
+            cache_key = PerformanceOptimizer.cache_key_generator('retrieve', query=query, limit=limit, tenant_id=tenant_id, include_associations=include_associations)
+        except Exception as e:
+            logger.error(f"Cache key generation failed: {e}, query={query}, limit={limit}, tenant_id={tenant_id}")
+            cache_key = f"retrieve:query:{query}:limit:{limit}"
         
         # Check if result is in cache
-        cached_result = self.cache.get(cache_key)
-        if cached_result:
-            return cached_result
+        try:
+            cached_result = self.cache.get(cache_key)
+            if cached_result:
+                return cached_result
+        except Exception as e:
+            logger.warning(f"Cache get failed: {e}, cache_key={cache_key}")
         
         # Retrieve from all tiers (delegated to StorageCoordinator)
         # Use tier-specific retrieval for better performance
@@ -530,7 +537,10 @@ class MemoryClassificationEngine:
             result = top_memories
         
         # Store in cache
-        self.cache.set(cache_key, result)
+        try:
+            self.cache.set(cache_key, result)
+        except Exception as e:
+            logger.warning(f"Cache set failed: {e}, cache_key type: {type(cache_key)}")
         
         # Record user behavior for recommendation
         if tenant_id:

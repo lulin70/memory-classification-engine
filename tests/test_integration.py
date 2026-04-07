@@ -59,12 +59,14 @@ class TestIntegration:
         # 存储一些记忆
         engine.process_message("Test 1")
         engine.process_message("Test 2")
-        
+    
         stats = engine.get_stats()
         assert "working_memory_size" in stats
-        assert "tier2" in stats
-        assert "tier3" in stats
-        assert "total_memories" in stats
+        assert "storage" in stats
+        assert "tier2" in stats['storage']
+        assert "tier3" in stats['storage']
+        assert "tier4" in stats['storage']
+        assert "total_memories" in stats['storage']
     
     def test_fts_search(self):
         # 清理测试数据

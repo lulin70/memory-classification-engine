@@ -91,10 +91,11 @@ llm:
         """Test statistics retrieval."""
         stats = self.engine.get_stats()
         self.assertIn('working_memory_size', stats)
-        self.assertIn('tier2', stats)
-        self.assertIn('tier3', stats)
-        self.assertIn('tier4', stats)
-        self.assertIn('total_memories', stats)
+        self.assertIn('storage', stats)
+        self.assertIn('tier2', stats['storage'])
+        self.assertIn('tier3', stats['storage'])
+        self.assertIn('tier4', stats['storage'])
+        self.assertIn('total_memories', stats['storage'])
     
     def test_export_import(self):
         """Test memory export and import."""

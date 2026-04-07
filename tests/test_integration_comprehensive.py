@@ -45,7 +45,7 @@ class TestIntegrationComprehensive:
         
         # 检查是否生成了程序性记忆
         stats = engine.get_stats()
-        assert stats['tier2']['total_memories'] > 0
+        assert stats['storage']['tier2']['total_memories'] > 0
     
     def test_search_relevance(self, engine):
         """测试搜索相关性"""
@@ -110,7 +110,7 @@ class TestIntegrationComprehensive:
         
         # 获取统计信息
         stats = engine.get_stats()
-        assert stats['total_memories'] >= 3
+        assert stats['storage']['total_memories'] >= 3
         
         # 检索记忆
         memories = engine.retrieve_memories("喜欢")

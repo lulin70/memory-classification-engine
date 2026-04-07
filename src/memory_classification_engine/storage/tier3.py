@@ -34,25 +34,36 @@ class ConnectionPool:
         with self.lock:
             if self.connections:
                 conn = self.connections.popleft()
-                self.active_connections += 1
-                return conn
-            else:
-                # Create a new connection
-                conn = sqlite3.connect(self.db_path, timeout=self.timeout)
-                # Enable WAL mode for better concurrency
-                conn.execute('PRAGMA journal_mode=WAL')
-                # Enable foreign keys
-                conn.execute('PRAGMA foreign_keys=ON')
-                # Set busy timeout
-                conn.execute(f'PRAGMA busy_timeout={self.timeout * 1000}')
-                # Set page size for better performance
-                conn.execute('PRAGMA page_size=4096')
-                # Set cache size
-                conn.execute('PRAGMA cache_size=10000')
-                # Enable synchronous=NORMAL for better performance
-                conn.execute('PRAGMA synchronous=NORMAL')
-                self.active_connections += 1
-                return conn
+                # Check if connection is still valid
+                try:
+                    conn.execute('SELECT 1')
+                    self.active_connections += 1
+                    return conn
+                except sqlite3.ProgrammingError:
+                    # Connection is invalid, create new one
+                    pass
+            
+            # Create a new connection with thread-safe settings
+            conn = sqlite3.connect(
+                self.db_path, 
+                timeout=self.timeout,
+                check_same_thread=False,  # Allow cross-thread usage
+                isolation_level=None       # Enable autocommit
+            )
+            # Enable WAL mode for better concurrency
+            conn.execute('PRAGMA journal_mode=WAL')
+            # Enable foreign keys
+            conn.execute('PRAGMA foreign_keys=ON')
+            # Set busy timeout
+            conn.execute(f'PRAGMA busy_timeout={self.timeout * 1000}')
+            # Set page size for better performance
+            conn.execute('PRAGMA page_size=4096')
+            # Set cache size
+            conn.execute('PRAGMA cache_size=10000')
+            # Enable synchronous=NORMAL for better performance
+            conn.execute('PRAGMA synchronous=NORMAL')
+            self.active_connections += 1
+            return conn
     
     def return_connection(self, conn):
         """Return a connection to the pool.
@@ -215,6 +226,8 @@ class Tier3Storage:
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_source ON episodic_memories (source)')
             
             self.in_memory_conn.commit()
+            # Add thread lock for in-memory cache access
+            self.in_memory_lock = threading.Lock()
             logger.info("In-memory database cache initialized")
         except Exception as e:
             logger.error(f"Error initializing in-memory cache: {e}")
@@ -236,16 +249,17 @@ class Tier3Storage:
             if not rows:
                 return
             
-            # Insert data into in-memory database
-            in_memory_cursor = self.in_memory_conn.cursor()
-            for row in rows:
-                in_memory_cursor.execute('''
-                    INSERT OR REPLACE INTO episodic_memories 
-                    (id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status, version, weight, conflict_status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', row)
-            
-            self.in_memory_conn.commit()
+            # Insert data into in-memory database with thread lock
+            with self.in_memory_lock:
+                in_memory_cursor = self.in_memory_conn.cursor()
+                for row in rows:
+                    in_memory_cursor.execute('''
+                        INSERT OR REPLACE INTO episodic_memories 
+                        (id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status, version, weight, conflict_status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', row)
+                
+                self.in_memory_conn.commit()
             logger.info(f"Loaded {len(rows)} memories into in-memory cache")
         except Exception as e:
             logger.error(f"Error loading data to in-memory cache: {e}")
@@ -588,41 +602,42 @@ class Tier3Storage:
             # Update in-memory cache if enabled
             if self.enable_in_memory_cache:
                 try:
-                    cursor = self.in_memory_conn.cursor()
-                    cursor.execute('BEGIN TRANSACTION')
-                    
-                    for memory in processed_memories:
-                        if memory.get('id'):
-                            # Check if memory already exists
-                            cursor.execute('SELECT id FROM episodic_memories WHERE id = ?', (memory['id'],))
-                            if cursor.fetchone():
-                                # Update existing memory
-                                update_columns = ['type', 'memory_type', 'content', 'created_at', 'updated_at', 'last_accessed', 'access_count', 'confidence', 'source', 'context', 'status', 'version', 'weight', 'conflict_status']
-                                set_clause = []
-                                params = []
-                                for col in update_columns:
-                                    set_clause.append(f"{col} = ?")
-                                    params.append(memory.get(col, ''))
-                                params.append(memory['id'])
-                                cursor.execute(f'''
-                                    UPDATE episodic_memories 
-                                    SET {', '.join(set_clause)} 
-                                    WHERE id = ?
-                                ''', params)
-                            else:
-                                # Insert new memory
-                                insert_columns = ['id', 'type', 'memory_type', 'content', 'created_at', 'updated_at', 'last_accessed', 'access_count', 'confidence', 'source', 'context', 'status', 'version', 'weight', 'conflict_status']
-                                insert_values = []
-                                for col in insert_columns:
-                                    insert_values.append(memory.get(col, ''))
-                                placeholders = ','.join(['?'] * len(insert_columns))
-                                cursor.execute(f'''
-                                    INSERT INTO episodic_memories 
-                                    ({', '.join(insert_columns)})
-                                    VALUES ({placeholders})
-                                ''', insert_values)
-                    
-                    self.in_memory_conn.commit()
+                    with self.in_memory_lock:
+                        cursor = self.in_memory_conn.cursor()
+                        cursor.execute('BEGIN TRANSACTION')
+                        
+                        for memory in processed_memories:
+                            if memory.get('id'):
+                                # Check if memory already exists
+                                cursor.execute('SELECT id FROM episodic_memories WHERE id = ?', (memory['id'],))
+                                if cursor.fetchone():
+                                    # Update existing memory
+                                    update_columns = ['type', 'memory_type', 'content', 'created_at', 'updated_at', 'last_accessed', 'access_count', 'confidence', 'source', 'context', 'status', 'version', 'weight', 'conflict_status']
+                                    set_clause = []
+                                    params = []
+                                    for col in update_columns:
+                                        set_clause.append(f"{col} = ?")
+                                        params.append(memory.get(col, ''))
+                                    params.append(memory['id'])
+                                    cursor.execute(f'''
+                                        UPDATE episodic_memories 
+                                        SET {', '.join(set_clause)} 
+                                        WHERE id = ?
+                                    ''', params)
+                                else:
+                                    # Insert new memory
+                                    insert_columns = ['id', 'type', 'memory_type', 'content', 'created_at', 'updated_at', 'last_accessed', 'access_count', 'confidence', 'source', 'context', 'status', 'version', 'weight', 'conflict_status']
+                                    insert_values = []
+                                    for col in insert_columns:
+                                        insert_values.append(memory.get(col, ''))
+                                    placeholders = ','.join(['?'] * len(insert_columns))
+                                    cursor.execute(f'''
+                                        INSERT INTO episodic_memories 
+                                        ({', '.join(insert_columns)})
+                                        VALUES ({placeholders})
+                                    ''', insert_values)
+                        
+                        self.in_memory_conn.commit()
                 except Exception as e:
                     logger.warning(f"Error updating in-memory cache: {e}")
             
@@ -669,39 +684,49 @@ class Tier3Storage:
             # Try in-memory cache first if enabled
             if self.enable_in_memory_cache:
                 try:
-                    cursor = self.in_memory_conn.cursor()
-                    if self._is_english_query(query):
-                        # Use in-memory database for English queries
-                        cursor.execute('''
-                            SELECT * FROM episodic_memories 
-                            WHERE status = 'active' AND content LIKE ? 
-                            ORDER BY last_accessed DESC 
-                            LIMIT ?
-                        ''', (f'%{query}%', limit))
+                    # SQLite connections are not thread-safe, so we need to check if we're in the same thread
+                    # If not, skip the in-memory cache and fall back to the main database
+                    if hasattr(self, '_in_memory_thread_id') and self._in_memory_thread_id != threading.get_ident():
+                        logger.debug("Skipping in-memory cache: thread mismatch")
                     else:
-                        # Use in-memory database for non-English queries
-                        cursor.execute('''
-                            SELECT * FROM episodic_memories 
-                            WHERE status = 'active' AND content LIKE ? 
-                            ORDER BY last_accessed DESC 
-                            LIMIT ?
-                        ''', (f'%{query}%', limit))
-                    
-                    rows = cursor.fetchall()
-                    if rows:
-                        # Convert rows to dictionaries
-                        memories = []
-                        for row in rows:
-                            memory = dict(row)
-                            # Ensure memory_type field is present
-                            if 'type' in memory and 'memory_type' not in memory:
-                                memory['memory_type'] = memory['type']
-                            memories.append(memory)
-                        
-                        # Update cache
-                        if self.enable_cache and hasattr(self, 'cache'):
-                            self.cache.set(cache_key, memories)
-                        return memories
+                        # Set the thread ID when first using the in-memory cache
+                        if not hasattr(self, '_in_memory_thread_id'):
+                            self._in_memory_thread_id = threading.get_ident()
+                            
+                        with self.in_memory_lock:
+                            cursor = self.in_memory_conn.cursor()
+                            if self._is_english_query(query):
+                                # Use in-memory database for English queries
+                                cursor.execute('''
+                                    SELECT * FROM episodic_memories 
+                                    WHERE status = 'active' AND content LIKE ? 
+                                    ORDER BY last_accessed DESC 
+                                    LIMIT ?
+                                ''', (f'%{query}%', limit))
+                            else:
+                                # Use in-memory database for non-English queries
+                                cursor.execute('''
+                                    SELECT * FROM episodic_memories 
+                                    WHERE status = 'active' AND content LIKE ? 
+                                    ORDER BY last_accessed DESC 
+                                    LIMIT ?
+                                ''', (f'%{query}%', limit))
+                            
+                            rows = cursor.fetchall()
+                            if rows:
+                                # Convert rows to dictionaries
+                                memories = []
+                                for row in rows:
+                                    memory = dict(row)
+                                    # Ensure memory_type field is present
+                                    if 'type' in memory and 'memory_type' not in memory:
+                                        memory['memory_type'] = memory['type']
+                                    memories.append(memory)
+                                
+                                # Update cache
+                                if self.enable_cache and hasattr(self, 'cache'):
+                                    self.cache.set(cache_key, memories)
+                                return memories
                 except Exception as e:
                     logger.warning(f"In-memory cache search failed, falling back to main database: {e}")
             
@@ -832,39 +857,51 @@ class Tier3Storage:
             # Try in-memory cache first if enabled
             if self.enable_in_memory_cache:
                 try:
-                    cursor = self.in_memory_conn.cursor()
-                    if query:
-                        # Search for query in content with optimized query
-                        cursor.execute('''
-                            SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
-                            FROM episodic_memories 
-                            WHERE status = 'active' AND content LIKE ? 
-                            ORDER BY last_accessed DESC 
-                            LIMIT ?
-                        ''', (f'%{query}%', limit))
+                    # SQLite connections are not thread-safe, so we need to check if we're in the same thread
+                    # If not, skip the in-memory cache and fall back to the main database
+                    if hasattr(self, '_in_memory_thread_id') and self._in_memory_thread_id != threading.get_ident():
+                        logger.debug("Skipping in-memory cache: thread mismatch")
                     else:
-                        # Get all active memories with optimized query
-                        cursor.execute('''
-                            SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
-                            FROM episodic_memories 
-                            WHERE status = 'active' 
-                            ORDER BY last_accessed DESC 
-                            LIMIT ?
-                        ''', (limit,))
-                    
-                    rows = cursor.fetchall()
-                    if rows:
-                        # Convert rows to dictionaries
-                        memories = []
-                        for row in rows:
-                            memory = dict(row)
-                            # Ensure memory_type field is present
-                            if 'type' in memory and 'memory_type' not in memory:
-                                memory['memory_type'] = memory['type']
-                            memories.append(memory)
-                        return memories
+                        # Set the thread ID when first using the in-memory cache
+                        if not hasattr(self, '_in_memory_thread_id'):
+                            self._in_memory_thread_id = threading.get_ident()
+                            
+                        with self.in_memory_lock:
+                            cursor = self.in_memory_conn.cursor()
+                            # Set row factory to return dictionaries
+                            self.in_memory_conn.row_factory = sqlite3.Row
+                            if query:
+                                # Search for query in content with optimized query
+                                cursor.execute('''
+                                    SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
+                                    FROM episodic_memories 
+                                    WHERE status = 'active' AND content LIKE ? 
+                                    ORDER BY last_accessed DESC 
+                                    LIMIT ?
+                                ''', (f'%{query}%', limit))
+                            else:
+                                # Get all active memories with optimized query
+                                cursor.execute('''
+                                    SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
+                                    FROM episodic_memories 
+                                    WHERE status = 'active' 
+                                    ORDER BY last_accessed DESC 
+                                    LIMIT ?
+                                ''', (limit,))
+                            
+                            rows = cursor.fetchall()
+                            if rows:
+                                # Convert rows to dictionaries
+                                memories = []
+                                for row in rows:
+                                    memory = dict(row)
+                                    # Ensure memory_type field is present
+                                    if 'type' in memory and 'memory_type' not in memory:
+                                        memory['memory_type'] = memory['type']
+                                    memories.append(memory)
+                                return memories
                 except Exception as e:
-                    logger.warning(f"In-memory cache fallback search failed, falling back to main database: {e}")
+                    logger.warning(f"In-memory cache fallback search failed: {e}, falling back to main database")
             
             # Fall back to main database
             conn = self.connection_pool.get_connection()
@@ -1311,14 +1348,15 @@ class Tier3Storage:
             # Update in-memory cache if enabled
             if result and self.enable_in_memory_cache:
                 try:
-                    cursor = self.in_memory_conn.cursor()
-                    # Soft delete by setting status to 'deleted'
-                    cursor.execute('''
-                        UPDATE episodic_memories 
-                        SET status = 'deleted', updated_at = ? 
-                        WHERE id = ?
-                    ''', (get_current_time(), memory_id))
-                    self.in_memory_conn.commit()
+                    with self.in_memory_lock:
+                        cursor = self.in_memory_conn.cursor()
+                        # Soft delete by setting status to 'deleted'
+                        cursor.execute('''
+                            UPDATE episodic_memories 
+                            SET status = 'deleted', updated_at = ? 
+                            WHERE id = ?
+                        ''', (get_current_time(), memory_id))
+                        self.in_memory_conn.commit()
                 except Exception as e:
                     logger.warning(f"Error updating in-memory cache: {e}")
             

@@ -36,17 +36,29 @@ class ConnectionPool:
         """
         with self.lock:
             if self.connections:
-                return self.connections.popleft()
-            else:
-                # Create a new connection
-                conn = sqlite3.connect(self.db_path, timeout=30)
-                # Enable WAL mode for better concurrency
-                conn.execute('PRAGMA journal_mode=WAL')
-                # Enable foreign keys
-                conn.execute('PRAGMA foreign_keys=ON')
-                # Set busy timeout
-                conn.execute('PRAGMA busy_timeout=30000')
-                return conn
+                conn = self.connections.popleft()
+                # Check if connection is still valid
+                try:
+                    conn.execute('SELECT 1')
+                    return conn
+                except sqlite3.ProgrammingError:
+                    # Connection is invalid, create new one
+                    pass
+            
+            # Create a new connection with thread-safe settings
+            conn = sqlite3.connect(
+                self.db_path, 
+                timeout=30,
+                check_same_thread=False,  # Allow cross-thread usage
+                isolation_level=None       # Enable autocommit
+            )
+            # Enable WAL mode for better concurrency
+            conn.execute('PRAGMA journal_mode=WAL')
+            # Enable foreign keys
+            conn.execute('PRAGMA foreign_keys=ON')
+            # Set busy timeout
+            conn.execute('PRAGMA busy_timeout=30000')
+            return conn
     
     def return_connection(self, conn):
         """Return a connection to the pool.
