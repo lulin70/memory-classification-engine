@@ -43,3 +43,14 @@ profile.out
 
 # Trae files
 .trae/
+
+# Benchmarks
+.benchmarks/
+
+# Test cache
+.pytest_cache/
+.test_cache/
+.test_smart_cache/
+
+# Backup
+backup/
