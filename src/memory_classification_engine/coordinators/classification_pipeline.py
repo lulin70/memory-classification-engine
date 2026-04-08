@@ -23,9 +23,7 @@ class ClassificationPipeline:
         self.rule_matcher = RuleMatcher(rules)
         self.pattern_analyzer = PatternAnalyzer()
         
-        llm_enabled = config.get('llm.enabled', False)
-        api_key = config.get('llm.api_key', '')
-        self.semantic_classifier = SemanticClassifier(llm_enabled, api_key)
+        self.semantic_classifier = SemanticClassifier(self.config)
     
     def classify(self, message: str, context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Classify a message through the pipeline.

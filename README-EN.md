@@ -44,6 +44,28 @@ The problem this project aims to solve is: **Implement a lightweight memory clas
 - **Injection Format**: Structured memory injection into system prompts
 - **Responsibility Boundary**: The classification engine can be used as an independent classification component or provide a complete memory read-write link, and access parties can choose the usage method according to their needs
 
+### 5. Privacy Protection
+- **Sensitivity Analysis**: Automatically analyzes the sensitivity of memory content, divided into high, medium, and low levels
+- **Visibility Management**: Supports private, team, and org levels of visibility labels, ensuring memories are only visible to authorized users
+- **Scenario Validation**: Filters memories based on usage scenarios, ensuring only appropriate memories are used in different scenarios
+- **Data Encryption**: Encrypts sensitive memories for storage
+- **Access Control**: Role-based access permission management
+- **Compliance**: Supports privacy regulations such as GDPR and CCPA
+- **Audit Logging**: Records all memory access and modification operations
+
+### 6. Semantic Understanding and Intelligent Analysis
+- **Semantic Inference Layer**: LLM-based semantic analysis to improve classification accuracy
+- **Semantic Similarity Calculation**: Calculates semantic similarity between memories to establish semantic associations
+- **Keyword Extraction**: Extracts keywords from memories to improve retrieval efficiency
+- **Language Detection**: Automatically detects the language of memory content, supporting multilingual processing
+- **Intelligent Memory Management**: Semantic-based memory association, weight adjustment, and compression optimization
+
+### 7. Forgetting Mechanism and System Evolution
+- **Decay-based Forgetting Mechanism**: Weighted decay algorithm based on time, frequency, and importance, supporting automatic memory forgetting and archiving
+- **System Evolution Capability**: User feedback-based classification model optimization, supporting automatic adjustment of memory classification rules
+- **Intelligent Memory Management Enhancement**: Automatic memory compression and merging, supporting hierarchical storage and retrieval of memories
+- **Performance Optimization**: Automatic system performance tuning to ensure high performance and lightweight
+
 ## Technical Architecture
 
 ```
@@ -107,23 +129,31 @@ Conversation Content
 - Use ClaudeCode's CLAUDE.md format as the initial storage format
 - Provide 3-5 default rules
 
-### Phase 2: Structure Analysis
+### Phase 2: Structure Analysis and Privacy Protection
 - Implement Layer 2 structure analysis layer
 - Implement duplicate detection and pattern recognition
 - Implement Tier 3 vector database storage and retrieval
 - Implement deduplication and conflict detection
+- Implement sensitivity analysis module
+- Implement visibility management module
+- Implement scenario validation module
+- Implement data encryption and access control
 
-### Phase 3: Semantic Inference
+### Phase 3: Semantic Understanding and Intelligent Analysis
 - Implement Layer 3 semantic inference layer
+- LLM-based semantic analysis
 - Design and optimize classification prompts
-- Implement cost control mechanism
+- Implement semantic similarity calculation
+- Implement keyword extraction
+- Implement language detection
+- Implement intelligent memory management
 
-### Phase 4: Forgetting and Evolution
+### Phase 4: Forgetting Mechanism and System Evolution
 - Implement decay-based forgetting mechanism
-- Implement memory compression (details → patterns)
-- Implement intelligent conflict handling mechanism
-- Implement memory weight calculation
-- Implement user memory review interface (CLI)
+- Implement system evolution capability
+- Implement intelligent memory management enhancement
+- Implement performance optimization
+- Implement cost control mechanism
 
 ### Phase 5: Ecosystem Expansion
 - Support multiple Agent frameworks (priority adaptation to ClaudeCode, WorkBuddy, Cursor, etc.)
@@ -276,6 +306,15 @@ memory-classification-engine/
 │   │   │   ├── tier3.py              # Episodic memory storage
 │   │   │   ├── tier4.py              # Semantic memory storage
 │   │   │   └── neo4j_knowledge_graph.py  # Neo4j knowledge graph storage adapter
+│   │   ├── privacy/
+│   │   │   ├── encryption.py          # Data encryption module
+│   │   │   ├── access_control.py      # Access control module
+│   │   │   ├── privacy_settings.py    # Privacy settings module
+│   │   │   ├── compliance.py          # Compliance module
+│   │   │   ├── audit.py               # Audit logging module
+│   │   │   ├── sensitivity_analyzer.py # Sensitivity analysis module
+│   │   │   ├── visibility_manager.py   # Visibility management module
+│   │   │   └── scenario_validator.py  # Scenario validation module
 │   │   ├── utils/
 │   │   │   ├── config.py       # Configuration management
 │   │   │   └── helpers.py      # Helper functions

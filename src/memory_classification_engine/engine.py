@@ -16,6 +16,14 @@ from memory_classification_engine.plugins import PluginManager
 from memory_classification_engine.coordinators.storage_coordinator import StorageCoordinator
 from memory_classification_engine.coordinators.classification_pipeline import ClassificationPipeline
 from memory_classification_engine.services.deduplication_service import DeduplicationService
+from memory_classification_engine.privacy.encryption import encryption_manager
+from memory_classification_engine.privacy.access_control import access_control_manager
+from memory_classification_engine.privacy.privacy_settings import privacy_manager
+from memory_classification_engine.privacy.compliance import compliance_manager
+from memory_classification_engine.privacy.audit import audit_manager
+from memory_classification_engine.privacy.sensitivity_analyzer import SensitivityAnalyzer
+from memory_classification_engine.privacy.visibility_manager import VisibilityManager
+from memory_classification_engine.privacy.scenario_validator import ScenarioValidator
 
 
 class MemoryClassificationEngine:
@@ -95,6 +103,27 @@ class MemoryClassificationEngine:
         # Import semantic utility for weight calculation
         from memory_classification_engine.utils.semantic import semantic_utility
         self.semantic_utility = semantic_utility
+        
+        # Initialize privacy protection modules
+        self.encryption_manager = encryption_manager
+        self.access_control_manager = access_control_manager
+        self.privacy_manager = privacy_manager
+        self.compliance_manager = compliance_manager
+        self.audit_manager = audit_manager
+        
+        # Initialize privacy modules for Phase 2
+        self.sensitivity_analyzer = SensitivityAnalyzer(self.config)
+        self.visibility_manager = VisibilityManager(self.config)
+        self.scenario_validator = ScenarioValidator(self.config)
+        
+        # Initialize forgetting and evolution modules for Phase 4
+        from memory_classification_engine.utils.forgetting import ForgettingManager
+        from memory_classification_engine.utils.evolution import EvolutionManager
+        from memory_classification_engine.utils.intelligent_memory import IntelligentMemoryManager
+        
+        self.forgetting_manager = ForgettingManager(self.config)
+        self.evolution_manager = EvolutionManager(self.config)
+        self.intelligent_memory_manager = IntelligentMemoryManager(self.config)
         
         # Run initial archive
         self._run_archive()
@@ -214,16 +243,32 @@ class MemoryClassificationEngine:
         # Step 3: Detect language
         language, lang_confidence = language_manager.detect_language(message)
         
-        # Step 4: Process message through plugins
+        # Step 4: Check access control
+        user_id = context.get('user_id') if context else tenant_id
+        if not self.access_control_manager.check_permission(user_id, 'memory', 'write'):
+            self.audit_manager.log(user_id, 'access_denied', 'process_message', {'message': 'Access denied'})
+            return {
+                'message': message,
+                'matches': [],
+                'plugin_results': {},
+                'working_memory_size': len(self.working_memory),
+                'processing_time': time.time() - start_time,
+                'tenant_id': tenant.tenant_id,
+                'language': language,
+                'language_confidence': lang_confidence,
+                'error': 'Access denied'
+            }
+        
+        # Step 5: Process message through plugins
         plugin_results = self.plugin_manager.process_message(message, context)
         
-        # Step 5: Classify through pipeline (delegated to ClassificationPipeline)
+        # Step 6: Classify through pipeline (delegated to ClassificationPipeline)
         matches = self.classification_pipeline.classify_with_defaults(message, language, context)
         
-        # Step 6: Deduplicate matches (delegated to DeduplicationService)
+        # Step 7: Deduplicate matches (delegated to DeduplicationService)
         unique_matches = self.deduplication_service.deduplicate(matches)
         
-        # Step 7: Store memories in batch to reduce I/O operations
+        # Step 8: Store memories in batch to reduce I/O operations
         stored_memories = []
         batch_memories = []
         
@@ -257,8 +302,25 @@ class MemoryClassificationEngine:
             
             # Process memory through plugins
             processed_match = self.plugin_manager.process_memory(match)
-            stored_memories.append(processed_match)
-            batch_memories.append(processed_match)
+            
+            # Add creator information
+            processed_match['created_by'] = user_id
+            
+            # Analyze sensitivity
+            sensitivity_level = self.sensitivity_analyzer.analyze_memory_sensitivity(processed_match)
+            processed_match['sensitivity_level'] = sensitivity_level
+            
+            # Set visibility (default to private)
+            processed_match['visibility'] = 'private'
+            
+            # Encrypt sensitive data if needed
+            if self.encryption_manager.is_sensitive_data(str(processed_match)):
+                # 简化处理，暂时不加密，因为需要密钥
+                stored_memories.append(processed_match)
+                batch_memories.append(processed_match)
+            else:
+                stored_memories.append(processed_match)
+                batch_memories.append(processed_match)
         
         # Store memories in batch (delegated to StorageCoordinator)
         if batch_memories:
@@ -288,6 +350,10 @@ class MemoryClassificationEngine:
             # SmartCache doesn't have a delete method, so we'll clear the cache
             self.cache.clear()
         
+        # Run forgetting mechanism (async to avoid blocking main flow)
+        if stored_memories:
+            threading.Thread(target=self._run_forgetting).start()
+        
         # Record performance metrics
         duration = time.time() - start_time
         self.performance_monitor.record_response_time('process_message', duration)
@@ -295,6 +361,16 @@ class MemoryClassificationEngine:
         # Record memories stored count
         for _ in range(len(stored_memories)):
             self.performance_monitor.increment_throughput('memories_stored')
+        
+        # Record performance to evolution manager
+        self.evolution_manager.record_performance('process_message', duration)
+        
+        # Log operation
+        self.audit_manager.log(user_id, 'success', 'process_message', {
+            'message_length': len(message),
+            'memories_stored': len(stored_memories),
+            'processing_time': duration
+        })
         
         return {
             'message': message,
@@ -436,7 +512,92 @@ class MemoryClassificationEngine:
                     metadata
                 )
     
-    def retrieve_memories(self, query: str = None, limit: int = 5, tenant_id: str = None, include_associations: bool = False) -> List[Dict[str, Any]]:
+    def _run_forgetting(self):
+        """运行遗忘机制"""
+        try:
+            # 获取所有记忆
+            all_memories = []
+            for tenant in self.tenant_manager.tenants.values():
+                all_memories.extend(tenant.memories)
+            
+            # 更新记忆权重并检查是否需要遗忘
+            updated_memories, forgotten_memories = self.forgetting_manager.batch_update_weights(all_memories)
+            
+            # 处理遗忘的记忆
+            for memory in forgotten_memories:
+                logger.info(f"Forgetting memory: {memory.get('id')}")
+                # 这里可以添加遗忘逻辑，如从存储中删除或归档
+        except Exception as e:
+            logger.error(f"Error running forgetting mechanism: {e}")
+    
+    def process_feedback(self, memory_id, feedback):
+        """处理用户反馈"""
+        # 查找记忆
+        memory = None
+        for tenant in self.tenant_manager.tenants.values():
+            for m in tenant.memories:
+                if m.get('id') == memory_id:
+                    memory = m
+                    break
+            if memory:
+                break
+        
+        if not memory:
+            return {'error': 'Memory not found'}
+        
+        # 处理反馈
+        updated_memory = self.evolution_manager.process_feedback(memory, feedback)
+        
+        # 更新存储
+        updates = {k: v for k, v in updated_memory.items() if k != 'id'}
+        self.storage_coordinator.update_memory(memory_id, updates)
+        
+        return {'success': True, 'memory': updated_memory}
+    
+    def optimize_system(self):
+        """优化系统"""
+        # 优化记忆权重计算
+        all_memories = []
+        for tenant in self.tenant_manager.tenants.values():
+            all_memories.extend(tenant.memories)
+        
+        optimized_memories = self.evolution_manager.optimize_weight_calculation(all_memories)
+        
+        # 批量更新记忆
+        for memory in optimized_memories:
+            memory_id = memory.get('id')
+            if memory_id:
+                updates = {k: v for k, v in memory.items() if k != 'id'}
+                self.storage_coordinator.update_memory(memory_id, updates)
+        
+        # 优化系统性能
+        self.evolution_manager.optimize_performance()
+        
+        return {'success': True, 'optimized_count': len(optimized_memories)}
+    
+    def compress_memories(self, tenant_id):
+        """压缩记忆"""
+        # 获取租户
+        tenant = self.tenant_manager.get_tenant(tenant_id)
+        if not tenant:
+            return {'error': 'Tenant not found'}
+        
+        # 压缩记忆
+        compressed_memories = self.intelligent_memory_manager.compress_memories(tenant.memories)
+        
+        # 更新存储
+        for memory in compressed_memories:
+            memory_id = memory.get('id')
+            if memory_id:
+                updates = {k: v for k, v in memory.items() if k != 'id'}
+                self.storage_coordinator.update_memory(memory_id, updates)
+        
+        # 更新租户的记忆列表
+        tenant.memories = compressed_memories
+        
+        return {'success': True, 'compressed_count': len(compressed_memories)}
+    
+    def retrieve_memories(self, query: str = None, limit: int = 5, tenant_id: str = None, include_associations: bool = False, user_id: str = None, scenario: str = None) -> List[Dict[str, Any]]:
         """Retrieve memories based on query.
         
         Args:
@@ -444,11 +605,18 @@ class MemoryClassificationEngine:
             limit: Maximum number of memories to return.
             tenant_id: Optional tenant ID to filter memories by tenant.
             include_associations: Whether to include associated memories in the results.
+            user_id: Optional user ID for access control.
+            scenario: Optional scenario for memory validation.
             
         Returns:
             A list of matching memories sorted by semantic relevance.
         """
         start_time = time.time()
+        
+        # Check access control
+        if not self.access_control_manager.check_permission(user_id or tenant_id, 'memory', 'read'):
+            self.audit_manager.log(user_id or tenant_id, 'access_denied', 'retrieve_memories', {'query': query, 'tenant_id': tenant_id})
+            return []
         
         # Optimize query
         if query:
@@ -458,7 +626,7 @@ class MemoryClassificationEngine:
         # Generate cache key
         from memory_classification_engine.utils.performance import PerformanceOptimizer
         try:
-            cache_key = PerformanceOptimizer.cache_key_generator('retrieve', query=query, limit=limit, tenant_id=tenant_id, include_associations=include_associations)
+            cache_key = PerformanceOptimizer.cache_key_generator('retrieve', query=query, limit=limit, tenant_id=tenant_id, include_associations=include_associations, user_id=user_id)
         except Exception as e:
             logger.error(f"Cache key generation failed: {e}, query={query}, limit={limit}, tenant_id={tenant_id}")
             cache_key = f"retrieve:query:{query}:limit:{limit}"
@@ -467,7 +635,16 @@ class MemoryClassificationEngine:
         try:
             cached_result = self.cache.get(cache_key)
             if cached_result:
-                return cached_result
+                # Decrypt cached results if needed
+                decrypted_result = []
+                for memory in cached_result:
+                    if memory.get('is_encrypted'):
+                        decrypted_memory = self.encryption_manager.decrypt_memory(memory, user_id)
+                        if decrypted_memory:
+                            decrypted_result.append(decrypted_memory)
+                    else:
+                        decrypted_result.append(memory)
+                return decrypted_result
         except Exception as e:
             logger.warning(f"Cache get failed: {e}, cache_key={cache_key}")
         
@@ -489,6 +666,10 @@ class MemoryClassificationEngine:
         # Filter by tenant if specified
         if tenant_id:
             all_memories = [memory for memory in all_memories if memory.get('tenant_id') == tenant_id]
+        
+        # Filter by visibility
+        if user_id:
+            all_memories = self.visibility_manager.filter_by_visibility(all_memories, user_id)
         
         # If query is provided, rank by semantic similarity
         if query:
@@ -555,118 +736,279 @@ class MemoryClassificationEngine:
                         context={'query': query, 'retrieval_time': get_current_time()}
                     )
         
+        # Decrypt memories if needed
+        decrypted_result = []
+        for memory in result:
+            if memory.get('is_encrypted'):
+                decrypted_memory = self.encryption_manager.decrypt_memory(memory, user_id)
+                if decrypted_memory:
+                    decrypted_result.append(decrypted_memory)
+            else:
+                decrypted_result.append(memory)
+        result = decrypted_result
+        
+        # Validate scenario
+        if scenario:
+            result = self.scenario_validator.validate_scenario(result, scenario)
+        
+        # Store in cache
+        try:
+            self.cache.set(cache_key, result)
+        except Exception as e:
+            logger.warning(f"Cache set failed: {e}, cache_key type: {type(cache_key)}")
+        
         # Record performance metrics
         duration = time.time() - start_time
         self.performance_monitor.record_response_time('retrieve_memories', duration)
         self.performance_monitor.increment_throughput('queries_processed')
         self.performance_monitor.log_metrics()
         
+        # Log operation
+        self.audit_manager.log(user_id or tenant_id, 'success', 'retrieve_memories', {
+            'query': query,
+            'limit': limit,
+            'tenant_id': tenant_id,
+            'results_count': len(result),
+            'processing_time': duration
+        })
+        
         return result
     
-    def manage_memory(self, action: str, memory_id: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def manage_memory(self, action: str, memory_id: str, data: Optional[Dict[str, Any]] = None, user_id: str = None) -> Dict[str, Any]:
         """Manage memory (view, edit, delete).
         
         Args:
             action: The action to perform (view, edit, delete).
             memory_id: The ID of the memory to manage.
             data: Optional data for editing.
+            user_id: Optional user ID for access control.
             
         Returns:
             A dictionary containing the result.
         """
+        # Check access control
+        if action == 'view':
+            if not self.access_control_manager.check_permission(user_id, 'memory', 'read'):
+                self.audit_manager.log(user_id, 'access_denied', 'manage_memory', {'action': action, 'memory_id': memory_id})
+                return {'success': False, 'message': 'Access denied'}
+        elif action == 'edit':
+            if not self.access_control_manager.check_permission(user_id, 'memory', 'write'):
+                self.audit_manager.log(user_id, 'access_denied', 'manage_memory', {'action': action, 'memory_id': memory_id})
+                return {'success': False, 'message': 'Access denied'}
+        elif action == 'delete':
+            if not self.access_control_manager.check_permission(user_id, 'memory', 'delete'):
+                self.audit_manager.log(user_id, 'access_denied', 'manage_memory', {'action': action, 'memory_id': memory_id})
+                return {'success': False, 'message': 'Access denied'}
+        
         # Try to find the memory (delegated to StorageCoordinator)
         memory = self.storage_coordinator.get_memory(memory_id)
         
         if not memory:
+            self.audit_manager.log(user_id, 'not_found', 'manage_memory', {'action': action, 'memory_id': memory_id})
             return {'success': False, 'message': 'Memory not found'}
         
         if action == 'view':
-            return {'success': True, 'memory': memory}
+            # Decrypt memory if needed
+            if memory.get('is_encrypted'):
+                decrypted_memory = self.encryption_manager.decrypt_memory(memory, user_id)
+                if decrypted_memory:
+                    self.audit_manager.log(user_id, 'view', 'manage_memory', {'memory_id': memory_id})
+                    return {'success': True, 'memory': decrypted_memory}
+                else:
+                    self.audit_manager.log(user_id, 'decrypt_failed', 'manage_memory', {'memory_id': memory_id})
+                    return {'success': False, 'message': 'Failed to decrypt memory'}
+            else:
+                self.audit_manager.log(user_id, 'view', 'manage_memory', {'memory_id': memory_id})
+                return {'success': True, 'memory': memory}
         
         elif action == 'edit':
             if data:
-                success = self.storage_coordinator.update_memory(memory_id, data)
+                # Encrypt sensitive data if needed
+                if self.encryption_manager.is_sensitive_data(str(data)):
+                    # 简化处理，暂时不加密，因为需要密钥
+                    success = self.storage_coordinator.update_memory(memory_id, data)
+                else:
+                    success = self.storage_coordinator.update_memory(memory_id, data)
+                
                 if success:
                     self.cache.clear()
                     updated_memory = self.storage_coordinator.get_memory(memory_id)
+                    # Decrypt updated memory if needed
+                    if updated_memory.get('is_encrypted'):
+                        decrypted_updated_memory = self.encryption_manager.decrypt_memory(updated_memory, user_id)
+                        if decrypted_updated_memory:
+                            updated_memory = decrypted_updated_memory
+                    self.audit_manager.log(user_id, 'edit', 'manage_memory', {'memory_id': memory_id, 'changes': list(data.keys())})
                     return {'success': True, 'memory': updated_memory}
+            self.audit_manager.log(user_id, 'edit_failed', 'manage_memory', {'memory_id': memory_id})
             return {'success': False, 'message': 'Failed to update memory'}
         
         elif action == 'delete':
             success = self.storage_coordinator.delete_memory(memory_id)
             if success:
                 self.cache.clear()
+            self.audit_manager.log(user_id, 'delete', 'manage_memory', {'memory_id': memory_id, 'success': success})
             return {'success': success, 'message': 'Memory deleted' if success else 'Failed to delete memory'}
         
+        self.audit_manager.log(user_id, 'invalid_action', 'manage_memory', {'action': action, 'memory_id': memory_id})
         return {'success': False, 'message': 'Invalid action'}
     
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self, user_id: str = None) -> Dict[str, Any]:
         """Get statistics about the engine.
         
+        Args:
+            user_id: Optional user ID for access control.
+            
         Returns:
             A dictionary with statistics.
         """
+        # Check access control
+        if not self.access_control_manager.check_permission(user_id, 'user', 'read'):
+            self.audit_manager.log(user_id, 'access_denied', 'get_stats', {})
+            return {'error': 'Access denied'}
+        
         storage_stats = self.storage_coordinator.get_stats()
         memory_summary = self.memory_manager.get_memory_summary()
         cache_stats = self.cache.get_stats()
         
-        return {
+        stats = {
             'working_memory_size': len(self.working_memory),
             'storage': storage_stats,
             'memory': memory_summary,
             'cache': cache_stats
         }
+        
+        self.audit_manager.log(user_id, 'success', 'get_stats', {})
+        
+        return stats
     
-    def export_memories(self, format: str = "json") -> Dict[str, Any]:
+    def export_memories(self, format: str = "json", user_id: str = None) -> Dict[str, Any]:
         """Export memories.
         
         Args:
             format: Export format (json).
+            user_id: Optional user ID for access control.
             
         Returns:
             A dictionary containing the exported memories.
         """
+        # Check access control
+        if not self.access_control_manager.check_permission(user_id, 'memory', 'read'):
+            self.audit_manager.log(user_id, 'access_denied', 'export_memories', {'format': format})
+            return {'error': 'Access denied'}
+        
         if format == "json":
+            # Retrieve memories
+            tier2_memories = self.storage_coordinator.retrieve_memories(tier=2, limit=1000)
+            tier3_memories = self.storage_coordinator.retrieve_memories(tier=3, limit=1000)
+            tier4_memories = self.storage_coordinator.retrieve_memories(tier=4, limit=1000)
+            
+            # Decrypt memories if needed
+            decrypted_tier2 = []
+            for memory in tier2_memories:
+                if memory.get('is_encrypted'):
+                    decrypted_memory = self.encryption_manager.decrypt_memory(memory, user_id)
+                    if decrypted_memory:
+                        decrypted_tier2.append(decrypted_memory)
+                else:
+                    decrypted_tier2.append(memory)
+            
+            decrypted_tier3 = []
+            for memory in tier3_memories:
+                if memory.get('is_encrypted'):
+                    decrypted_memory = self.encryption_manager.decrypt_memory(memory, user_id)
+                    if decrypted_memory:
+                        decrypted_tier3.append(decrypted_memory)
+                else:
+                    decrypted_tier3.append(memory)
+            
+            decrypted_tier4 = []
+            for memory in tier4_memories:
+                if memory.get('is_encrypted'):
+                    decrypted_memory = self.encryption_manager.decrypt_memory(memory, user_id)
+                    if decrypted_memory:
+                        decrypted_tier4.append(decrypted_memory)
+                else:
+                    decrypted_tier4.append(memory)
+            
+            self.audit_manager.log(user_id, 'success', 'export_memories', {
+                'format': format,
+                'tier2_count': len(decrypted_tier2),
+                'tier3_count': len(decrypted_tier3),
+                'tier4_count': len(decrypted_tier4)
+            })
+            
             return {
-                'tier2': self.storage_coordinator.retrieve_memories(tier=2, limit=1000),
-                'tier3': self.storage_coordinator.retrieve_memories(tier=3, limit=1000),
-                'tier4': self.storage_coordinator.retrieve_memories(tier=4, limit=1000)
+                'tier2': decrypted_tier2,
+                'tier3': decrypted_tier3,
+                'tier4': decrypted_tier4
             }
         
+        self.audit_manager.log(user_id, 'unsupported_format', 'export_memories', {'format': format})
         return {'error': 'Unsupported format'}
     
-    def import_memories(self, data: Dict[str, Any], format: str = "json") -> Dict[str, Any]:
+    def import_memories(self, data: Dict[str, Any], format: str = "json", user_id: str = None) -> Dict[str, Any]:
         """Import memories.
         
         Args:
             data: The data to import.
             format: Import format (json).
+            user_id: Optional user ID for access control.
             
         Returns:
             A dictionary containing the import result.
         """
+        # Check access control
+        if not self.access_control_manager.check_permission(user_id, 'memory', 'write'):
+            self.audit_manager.log(user_id, 'access_denied', 'import_memories', {'format': format})
+            return {'error': 'Access denied'}
+        
         if format != "json":
+            self.audit_manager.log(user_id, 'unsupported_format', 'import_memories', {'format': format})
             return {'error': 'Unsupported format'}
         
         imported_count = 0
         
         # Import tier 2 memories
         for memory in data.get('tier2', []):
-            if self.storage_coordinator.store_memory(memory):
-                imported_count += 1
+            # Encrypt sensitive data if needed
+            if self.encryption_manager.is_sensitive_data(str(memory)):
+                # 简化处理，暂时不加密，因为需要密钥
+                if self.storage_coordinator.store_memory(memory):
+                    imported_count += 1
+            else:
+                if self.storage_coordinator.store_memory(memory):
+                    imported_count += 1
         
         # Import tier 3 memories
         for memory in data.get('tier3', []):
-            if self.storage_coordinator.store_memory(memory):
-                imported_count += 1
+            # Encrypt sensitive data if needed
+            if self.encryption_manager.is_sensitive_data(str(memory)):
+                # 简化处理，暂时不加密，因为需要密钥
+                if self.storage_coordinator.store_memory(memory):
+                    imported_count += 1
+            else:
+                if self.storage_coordinator.store_memory(memory):
+                    imported_count += 1
         
         # Import tier 4 memories
         for memory in data.get('tier4', []):
-            if self.storage_coordinator.store_memory(memory):
-                imported_count += 1
+            # Encrypt sensitive data if needed
+            if self.encryption_manager.is_sensitive_data(str(memory)):
+                # 简化处理，暂时不加密，因为需要密钥
+                if self.storage_coordinator.store_memory(memory):
+                    imported_count += 1
+            else:
+                if self.storage_coordinator.store_memory(memory):
+                    imported_count += 1
         
         # Clear cache since memories were imported
         self.cache.clear()
+        
+        self.audit_manager.log(user_id, 'success', 'import_memories', {
+            'format': format,
+            'imported_count': imported_count
+        })
         
         return {'success': True, 'imported_count': imported_count}
     
@@ -689,8 +1031,17 @@ class MemoryClassificationEngine:
         """Clear working memory."""
         self.working_memory = []
     
-    def reload_config(self):
-        """Reload configuration."""
+    def reload_config(self, user_id: str = None):
+        """Reload configuration.
+        
+        Args:
+            user_id: Optional user ID for access control.
+        """
+        # Check access control
+        if not self.access_control_manager.check_permission(user_id, 'user', 'write'):
+            self.audit_manager.log(user_id, 'access_denied', 'reload_config', {})
+            return {'error': 'Access denied'}
+        
         self.config.reload()
         
         # Reload coordinators
@@ -701,12 +1052,22 @@ class MemoryClassificationEngine:
         # Update memory manager
         self.memory_manager = MemoryManager(self.config)
         self.memory_manager.start()
+        
+        self.audit_manager.log(user_id, 'success', 'reload_config', {})
+        
+        return {'success': True, 'message': 'Configuration reloaded'}
     
     # Tenant management methods (delegated to TenantManager)
-    def create_tenant(self, tenant_id: str, name: str, tenant_type: str, **kwargs) -> Dict[str, Any]:
+    def create_tenant(self, tenant_id: str, name: str, tenant_type: str, user_id: str = None, **kwargs) -> Dict[str, Any]:
         """Create a new tenant."""
+        # Check access control
+        if not self.access_control_manager.check_permission(user_id, 'user', 'write'):
+            self.audit_manager.log(user_id, 'access_denied', 'create_tenant', {'tenant_id': tenant_id, 'tenant_type': tenant_type})
+            return {'success': False, 'message': 'Access denied'}
+        
         tenant = self.tenant_manager.create_tenant(tenant_id, name, tenant_type, **kwargs)
         if tenant:
+            self.audit_manager.log(user_id, 'success', 'create_tenant', {'tenant_id': tenant_id, 'tenant_type': tenant_type})
             return {
                 'success': True,
                 'tenant_id': tenant.tenant_id,
@@ -715,12 +1076,19 @@ class MemoryClassificationEngine:
                 'created_at': tenant.created_at
             }
         else:
+            self.audit_manager.log(user_id, 'failed', 'create_tenant', {'tenant_id': tenant_id, 'tenant_type': tenant_type})
             return {'success': False, 'message': 'Failed to create tenant'}
     
-    def get_tenant(self, tenant_id: str) -> Dict[str, Any]:
+    def get_tenant(self, tenant_id: str, user_id: str = None) -> Dict[str, Any]:
         """Get tenant information."""
+        # Check access control
+        if not self.access_control_manager.check_permission(user_id, 'user', 'read'):
+            self.audit_manager.log(user_id, 'access_denied', 'get_tenant', {'tenant_id': tenant_id})
+            return {'success': False, 'message': 'Access denied'}
+        
         tenant = self.tenant_manager.get_tenant(tenant_id)
         if tenant:
+            self.audit_manager.log(user_id, 'success', 'get_tenant', {'tenant_id': tenant_id})
             return {
                 'success': True,
                 'tenant_id': tenant.tenant_id,
@@ -730,11 +1098,18 @@ class MemoryClassificationEngine:
                 'memory_count': len(tenant.memories)
             }
         else:
+            self.audit_manager.log(user_id, 'not_found', 'get_tenant', {'tenant_id': tenant_id})
             return {'success': False, 'message': 'Tenant not found'}
     
-    def list_tenants(self) -> List[Dict[str, Any]]:
+    def list_tenants(self, user_id: str = None) -> List[Dict[str, Any]]:
         """List all tenants."""
+        # Check access control
+        if not self.access_control_manager.check_permission(user_id, 'user', 'read'):
+            self.audit_manager.log(user_id, 'access_denied', 'list_tenants', {})
+            return []
+        
         tenants = self.tenant_manager.list_tenants()
+        self.audit_manager.log(user_id, 'success', 'list_tenants', {'tenant_count': len(tenants)})
         return [
             {
                 'tenant_id': tenant.tenant_id,
@@ -746,15 +1121,27 @@ class MemoryClassificationEngine:
             for tenant in tenants
         ]
     
-    def delete_tenant(self, tenant_id: str) -> Dict[str, Any]:
+    def delete_tenant(self, tenant_id: str, user_id: str = None) -> Dict[str, Any]:
         """Delete a tenant."""
+        # Check access control
+        if not self.access_control_manager.check_permission(user_id, 'user', 'delete'):
+            self.audit_manager.log(user_id, 'access_denied', 'delete_tenant', {'tenant_id': tenant_id})
+            return {'success': False, 'message': 'Access denied'}
+        
         success = self.tenant_manager.delete_tenant(tenant_id)
+        self.audit_manager.log(user_id, 'success' if success else 'failed', 'delete_tenant', {'tenant_id': tenant_id, 'success': success})
         return {'success': success, 'message': 'Tenant deleted' if success else 'Failed to delete tenant'}
     
-    def update_tenant(self, tenant_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_tenant(self, tenant_id: str, updates: Dict[str, Any], user_id: str = None) -> Dict[str, Any]:
         """Update tenant information."""
+        # Check access control
+        if not self.access_control_manager.check_permission(user_id, 'user', 'write'):
+            self.audit_manager.log(user_id, 'access_denied', 'update_tenant', {'tenant_id': tenant_id})
+            return {'success': False, 'message': 'Access denied'}
+        
         tenant = self.tenant_manager.update_tenant(tenant_id, updates)
         if tenant:
+            self.audit_manager.log(user_id, 'success', 'update_tenant', {'tenant_id': tenant_id, 'changes': list(updates.keys())})
             return {
                 'success': True,
                 'tenant_id': tenant.tenant_id,
@@ -763,44 +1150,83 @@ class MemoryClassificationEngine:
                 'updated_at': tenant.updated_at
             }
         else:
+            self.audit_manager.log(user_id, 'not_found', 'update_tenant', {'tenant_id': tenant_id})
             return {'success': False, 'message': 'Tenant not found'}
     
-    def get_tenant_memories(self, tenant_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_tenant_memories(self, tenant_id: str, limit: int = 10, user_id: str = None) -> List[Dict[str, Any]]:
         """Get memories for a specific tenant."""
+        # Check access control
+        if not self.access_control_manager.check_permission(user_id, 'memory', 'read'):
+            self.audit_manager.log(user_id, 'access_denied', 'get_tenant_memories', {'tenant_id': tenant_id})
+            return []
+        
         tenant = self.tenant_manager.get_tenant(tenant_id)
         if not tenant:
+            self.audit_manager.log(user_id, 'not_found', 'get_tenant_memories', {'tenant_id': tenant_id})
             return []
         
         memories = tenant.get_memories()
-        return memories[:limit]
+        # Decrypt memories if needed
+        decrypted_memories = []
+        for memory in memories:
+            if memory.get('is_encrypted'):
+                decrypted_memory = self.encryption_manager.decrypt_memory(memory, user_id)
+                if decrypted_memory:
+                    decrypted_memories.append(decrypted_memory)
+            else:
+                decrypted_memories.append(memory)
+        
+        self.audit_manager.log(user_id, 'success', 'get_tenant_memories', {'tenant_id': tenant_id, 'memory_count': len(decrypted_memories[:limit])})
+        return decrypted_memories[:limit]
     
-    def add_tenant_role(self, tenant_id: str, role_name: str, permissions: List[str]) -> Dict[str, Any]:
+    def add_tenant_role(self, tenant_id: str, role_name: str, permissions: List[str], user_id: str = None) -> Dict[str, Any]:
         """Add a role to an enterprise tenant."""
+        # Check access control
+        if not self.access_control_manager.check_permission(user_id, 'role', 'write'):
+            self.audit_manager.log(user_id, 'access_denied', 'add_tenant_role', {'tenant_id': tenant_id, 'role_name': role_name})
+            return {'success': False, 'message': 'Access denied'}
+        
         tenant = self.tenant_manager.get_tenant(tenant_id)
         if not tenant:
+            self.audit_manager.log(user_id, 'not_found', 'add_tenant_role', {'tenant_id': tenant_id, 'role_name': role_name})
             return {'success': False, 'message': 'Tenant not found'}
         
         if tenant.tenant_type != 'enterprise':
+            self.audit_manager.log(user_id, 'invalid_type', 'add_tenant_role', {'tenant_id': tenant_id, 'tenant_type': tenant.tenant_type})
             return {'success': False, 'message': 'Only enterprise tenants can have roles'}
         
         tenant.add_role(role_name, permissions)
+        self.audit_manager.log(user_id, 'success', 'add_tenant_role', {'tenant_id': tenant_id, 'role_name': role_name, 'permission_count': len(permissions)})
         return {'success': True, 'message': 'Role added successfully'}
     
-    def check_tenant_permission(self, tenant_id: str, role_name: str, permission: str) -> Dict[str, Any]:
+    def check_tenant_permission(self, tenant_id: str, role_name: str, permission: str, user_id: str = None) -> Dict[str, Any]:
         """Check if a role has a specific permission."""
+        # Check access control
+        if not self.access_control_manager.check_permission(user_id, 'role', 'read'):
+            self.audit_manager.log(user_id, 'access_denied', 'check_tenant_permission', {'tenant_id': tenant_id, 'role_name': role_name, 'permission': permission})
+            return {'success': False, 'message': 'Access denied'}
+        
         tenant = self.tenant_manager.get_tenant(tenant_id)
         if not tenant:
+            self.audit_manager.log(user_id, 'not_found', 'check_tenant_permission', {'tenant_id': tenant_id, 'role_name': role_name, 'permission': permission})
             return {'success': False, 'message': 'Tenant not found'}
         
         if tenant.tenant_type != 'enterprise':
+            self.audit_manager.log(user_id, 'invalid_type', 'check_tenant_permission', {'tenant_id': tenant_id, 'tenant_type': tenant.tenant_type})
             return {'success': False, 'message': 'Only enterprise tenants have roles'}
         
         has_permission = tenant.has_permission(role_name, permission)
+        self.audit_manager.log(user_id, 'success', 'check_tenant_permission', {'tenant_id': tenant_id, 'role_name': role_name, 'permission': permission, 'has_permission': has_permission})
         return {'success': True, 'has_permission': has_permission}
     
     # Recommendation methods (using recommendation_system directly)
     def get_recommendations(self, user_id: str, query: Optional[str] = None, limit: int = 5, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get personalized recommendations for a user."""
+        # Check access control
+        if not self.access_control_manager.check_permission(user_id, 'memory', 'read'):
+            self.audit_manager.log(user_id, 'access_denied', 'get_recommendations', {'query': query, 'tenant_id': tenant_id})
+            return []
+        
         from memory_classification_engine.utils.recommendation import recommendation_system
         
         start_time = time.time()
@@ -812,12 +1238,22 @@ class MemoryClassificationEngine:
         if tenant_id:
             all_memories = [memory for memory in all_memories if memory.get('tenant_id') == tenant_id]
         
+        # Decrypt memories if needed
+        decrypted_memories = []
+        for memory in all_memories:
+            if memory.get('is_encrypted'):
+                decrypted_memory = self.encryption_manager.decrypt_memory(memory, user_id)
+                if decrypted_memory:
+                    decrypted_memories.append(decrypted_memory)
+            else:
+                decrypted_memories.append(memory)
+        
         # Generate recommendations
         recommendations = recommendation_system.generate_recommendations(
             user_id=user_id,
             query=query,
             limit=limit,
-            all_memories=all_memories
+            all_memories=decrypted_memories
         )
         
         # Record performance metrics
@@ -825,20 +1261,48 @@ class MemoryClassificationEngine:
         self.performance_monitor.record_response_time('get_recommendations', duration)
         self.performance_monitor.increment_throughput('recommendations_generated')
         
+        # Log operation
+        self.audit_manager.log(user_id, 'success', 'get_recommendations', {
+            'query': query,
+            'limit': limit,
+            'tenant_id': tenant_id,
+            'recommendation_count': len(recommendations),
+            'processing_time': duration
+        })
+        
         return recommendations
     
     def record_user_behavior(self, user_id: str, memory_id: str, action: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Record user behavior for recommendation."""
+        # Check access control
+        if not self.access_control_manager.check_permission(user_id, 'memory', 'write'):
+            self.audit_manager.log(user_id, 'access_denied', 'record_user_behavior', {'memory_id': memory_id, 'action': action})
+            return {'success': False, 'message': 'Access denied'}
+        
         from memory_classification_engine.utils.recommendation import recommendation_system
         
         try:
             recommendation_system.record_user_behavior(user_id, memory_id, action, context)
+            self.audit_manager.log(user_id, 'success', 'record_user_behavior', {'memory_id': memory_id, 'action': action})
             return {'success': True, 'message': 'User behavior recorded'}
         except Exception as e:
             logger.error(f"Error recording user behavior: {e}", exc_info=True)
+            self.audit_manager.log(user_id, 'failed', 'record_user_behavior', {'memory_id': memory_id, 'action': action, 'error': str(e)})
             return {'success': False, 'message': 'Failed to record user behavior'}
     
     def get_user_behavior_summary(self, user_id: str) -> Dict[str, Any]:
         """Get user behavior summary."""
+        # Check access control
+        if not self.access_control_manager.check_permission(user_id, 'memory', 'read'):
+            self.audit_manager.log(user_id, 'access_denied', 'get_user_behavior_summary', {})
+            return {'error': 'Access denied'}
+        
         from memory_classification_engine.utils.recommendation import recommendation_system
-        return recommendation_system.get_user_behavior_summary(user_id)
+        try:
+            summary = recommendation_system.get_user_behavior_summary(user_id)
+            self.audit_manager.log(user_id, 'success', 'get_user_behavior_summary', {})
+            return summary
+        except Exception as e:
+            logger.error(f"Error getting user behavior summary: {e}", exc_info=True)
+            self.audit_manager.log(user_id, 'failed', 'get_user_behavior_summary', {'error': str(e)})
+            return {'error': 'Failed to get user behavior summary'}

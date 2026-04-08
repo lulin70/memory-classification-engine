@@ -195,7 +195,20 @@ class Tier2Storage:
                 memory['type'] = memory['memory_type']
         
         # Sort by last accessed time (most recent first)
-        all_memories.sort(key=lambda x: x.get('last_accessed', ''), reverse=True)
+        def get_timestamp(value):
+            try:
+                from datetime import datetime
+                if isinstance(value, str):
+                    # 尝试解析ISO格式的时间字符串
+                    return datetime.fromisoformat(value.replace('Z', '+00:00')).timestamp()
+                elif isinstance(value, (int, float)):
+                    return float(value)
+                else:
+                    return 0
+            except (ValueError, TypeError):
+                return 0
+        
+        all_memories.sort(key=lambda x: get_timestamp(x.get('last_accessed', 0)), reverse=True)
         
         # Limit the result
         return all_memories[:limit]

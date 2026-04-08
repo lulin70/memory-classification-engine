@@ -11,6 +11,7 @@ import threading
 from memory_classification_engine.utils.helpers import get_current_time
 from memory_classification_engine.utils.logger import logger
 from memory_classification_engine.storage.neo4j_knowledge_graph import Neo4jKnowledgeGraph
+from memory_classification_engine.privacy.encryption import encryption_manager
 
 
 class ConnectionPool:
@@ -386,7 +387,10 @@ class Tier4Storage:
                     confidence REAL NOT NULL,
                     source TEXT NOT NULL,
                     context TEXT,
-                    status TEXT DEFAULT 'active'
+                    status TEXT DEFAULT 'active',
+                    is_encrypted BOOLEAN DEFAULT FALSE,
+                    encryption_key_id TEXT,
+                    privacy_level INTEGER DEFAULT 0
                 )
             ''')
             
@@ -454,6 +458,33 @@ class Tier4Storage:
             memory['last_accessed'] = current_time
             memory['access_count'] = 1
             memory['status'] = 'active'
+            memory['is_encrypted'] = False
+            memory['encryption_key_id'] = None
+            memory['privacy_level'] = 0
+            
+            # Encrypt sensitive data
+            content = memory.get('content', '')
+            if content and encryption_manager.is_sensitive_data(content):
+                # Create or use existing encryption key
+                key_id = memory.get('encryption_key_id')
+                if not key_id:
+                    # Create a new key for each user or session
+                    # In a real system, you would use a user-specific key
+                    key_id = encryption_manager.create_key('default_password')
+                
+                # Encrypt content
+                ciphertext, nonce, tag = encryption_manager.encrypt(content, key_id)
+                # Store encrypted data as base64
+                import base64
+                encrypted_data = {
+                    'ciphertext': base64.b64encode(ciphertext).decode(),
+                    'nonce': base64.b64encode(nonce).decode(),
+                    'tag': base64.b64encode(tag).decode()
+                }
+                memory['content'] = json.dumps(encrypted_data)
+                memory['is_encrypted'] = True
+                memory['encryption_key_id'] = key_id
+                memory['privacy_level'] = 1
             
             # Ensure memory_type field is present
             if 'memory_type' not in memory and 'type' in memory:
@@ -473,8 +504,8 @@ class Tier4Storage:
                     # Insert memory
                     cursor.execute('''
                         INSERT OR REPLACE INTO semantic_memories 
-                        (id, type, memory_type, content, semantic_embedding, entities, relations, created_at, updated_at, last_accessed, access_count, confidence, source, context, status)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        (id, type, memory_type, content, semantic_embedding, entities, relations, created_at, updated_at, last_accessed, access_count, confidence, source, context, status, is_encrypted, encryption_key_id, privacy_level)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         memory.get('id'),
                         memory.get('type'),
@@ -490,7 +521,10 @@ class Tier4Storage:
                         memory.get('confidence'),
                         memory.get('source'),
                         memory.get('context'),
-                        memory.get('status')
+                        memory.get('status'),
+                        memory.get('is_encrypted', False),
+                        memory.get('encryption_key_id'),
+                        memory.get('privacy_level', 0)
                     ))
                     
                     conn.commit()
@@ -621,7 +655,7 @@ class Tier4Storage:
             if query:
                 # Search in content with optimized query
                 cursor.execute('''
-                    SELECT id, type, memory_type, content, semantic_embedding, entities, relations, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
+                    SELECT id, type, memory_type, content, semantic_embedding, entities, relations, created_at, updated_at, last_accessed, access_count, confidence, source, context, status, is_encrypted, encryption_key_id, privacy_level 
                     FROM semantic_memories 
                     WHERE status = 'active' AND content LIKE ? 
                     ORDER BY last_accessed DESC 
@@ -630,7 +664,7 @@ class Tier4Storage:
             else:
                 # Get all active memories with optimized query
                 cursor.execute('''
-                    SELECT id, type, memory_type, content, semantic_embedding, entities, relations, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
+                    SELECT id, type, memory_type, content, semantic_embedding, entities, relations, created_at, updated_at, last_accessed, access_count, confidence, source, context, status, is_encrypted, encryption_key_id, privacy_level 
                     FROM semantic_memories 
                     WHERE status = 'active' 
                     ORDER BY last_accessed DESC 
@@ -647,6 +681,23 @@ class Tier4Storage:
                 # Parse JSON fields
                 memory['entities'] = json.loads(memory.get('entities', '[]'))
                 memory['relations'] = json.loads(memory.get('relations', '[]'))
+                # Decrypt content if it's encrypted
+                if memory.get('is_encrypted'):
+                    try:
+                        content = memory.get('content', '')
+                        if content:
+                            import json
+                            import base64
+                            encrypted_data = json.loads(content)
+                            ciphertext = base64.b64decode(encrypted_data['ciphertext'])
+                            nonce = base64.b64decode(encrypted_data['nonce'])
+                            tag = base64.b64decode(encrypted_data['tag'])
+                            key_id = memory.get('encryption_key_id')
+                            if key_id:
+                                decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
+                                memory['content'] = decrypted_content
+                    except Exception as e:
+                        logger.error(f"Error decrypting memory: {e}")
                 # Update cache
                 with self.cache_lock:
                     self.memory_cache[memory['id']] = memory

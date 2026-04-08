@@ -6,6 +6,7 @@ from collections import deque
 import threading
 from memory_classification_engine.utils.helpers import get_current_time
 from memory_classification_engine.utils.logger import logger
+from memory_classification_engine.privacy.encryption import encryption_manager
 
 class ConnectionPool:
     """Database connection pool for SQLite."""
@@ -304,6 +305,21 @@ class Tier3Storage:
             except sqlite3.OperationalError:
                 pass  # Column already exists
             
+            try:
+                cursor.execute('ALTER TABLE episodic_memories ADD COLUMN is_encrypted BOOLEAN DEFAULT FALSE')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            
+            try:
+                cursor.execute('ALTER TABLE episodic_memories ADD COLUMN encryption_key_id TEXT')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            
+            try:
+                cursor.execute('ALTER TABLE episodic_memories ADD COLUMN privacy_level INTEGER DEFAULT 0')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            
             # Create index on type and status
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_type_status ON episodic_memories (type, status)')
             
@@ -510,6 +526,9 @@ class Tier3Storage:
                 memory['status'] = 'active'
                 memory['version'] = 1
                 memory['conflict_status'] = 'none'
+                memory['is_encrypted'] = False
+                memory['encryption_key_id'] = None
+                memory['privacy_level'] = 0
                 
                 # Calculate weight
                 memory['weight'] = self._calculate_memory_weight(memory)
@@ -517,6 +536,30 @@ class Tier3Storage:
                 # Ensure memory_type field is present
                 if 'memory_type' not in memory and 'type' in memory:
                     memory['memory_type'] = memory['type']
+                
+                # Encrypt sensitive data
+                content = memory.get('content', '')
+                if content and encryption_manager.is_sensitive_data(content):
+                    # Create or use existing encryption key
+                    key_id = memory.get('encryption_key_id')
+                    if not key_id:
+                        # Create a new key for each user or session
+                        # In a real system, you would use a user-specific key
+                        key_id = encryption_manager.create_key('default_password')
+                    
+                    # Encrypt content
+                    ciphertext, nonce, tag = encryption_manager.encrypt(content, key_id)
+                    # Store encrypted data as base64
+                    import base64
+                    encrypted_data = {
+                        'ciphertext': base64.b64encode(ciphertext).decode(),
+                        'nonce': base64.b64encode(nonce).decode(),
+                        'tag': base64.b64encode(tag).decode()
+                    }
+                    memory['content'] = json.dumps(encrypted_data)
+                    memory['is_encrypted'] = True
+                    memory['encryption_key_id'] = key_id
+                    memory['privacy_level'] = 1
                 
                 # Detect conflicts
                 conflicts = self._detect_conflicts(memory)
@@ -574,6 +617,15 @@ class Tier3Storage:
                     if 'conflict_status' in columns:
                         insert_columns.append('conflict_status')
                         insert_values.append(memory.get('conflict_status', 'none'))
+                    if 'is_encrypted' in columns:
+                        insert_columns.append('is_encrypted')
+                        insert_values.append(memory.get('is_encrypted', False))
+                    if 'encryption_key_id' in columns:
+                        insert_columns.append('encryption_key_id')
+                        insert_values.append(memory.get('encryption_key_id'))
+                    if 'privacy_level' in columns:
+                        insert_columns.append('privacy_level')
+                        insert_values.append(memory.get('privacy_level', 0))
                     
                     # Build and execute insert statement
                     placeholders = ','.join(['?'] * len(insert_columns))
@@ -767,6 +819,23 @@ class Tier3Storage:
                 # Ensure memory_type field is present
                 if 'type' in memory and 'memory_type' not in memory:
                     memory['memory_type'] = memory['type']
+                # Decrypt content if it's encrypted
+                if memory.get('is_encrypted'):
+                    try:
+                        content = memory.get('content', '')
+                        if content:
+                            import json
+                            import base64
+                            encrypted_data = json.loads(content)
+                            ciphertext = base64.b64decode(encrypted_data['ciphertext'])
+                            nonce = base64.b64decode(encrypted_data['nonce'])
+                            tag = base64.b64decode(encrypted_data['tag'])
+                            key_id = memory.get('encryption_key_id')
+                            if key_id:
+                                decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
+                                memory['content'] = decrypted_content
+                    except Exception as e:
+                        logger.error(f"Error decrypting memory: {e}")
                 memories.append(memory)
             
             # Update cache
@@ -898,6 +967,23 @@ class Tier3Storage:
                                     # Ensure memory_type field is present
                                     if 'type' in memory and 'memory_type' not in memory:
                                         memory['memory_type'] = memory['type']
+                                    # Decrypt content if it's encrypted
+                                    if memory.get('is_encrypted'):
+                                        try:
+                                            content = memory.get('content', '')
+                                            if content:
+                                                import json
+                                                import base64
+                                                encrypted_data = json.loads(content)
+                                                ciphertext = base64.b64decode(encrypted_data['ciphertext'])
+                                                nonce = base64.b64decode(encrypted_data['nonce'])
+                                                tag = base64.b64decode(encrypted_data['tag'])
+                                                key_id = memory.get('encryption_key_id')
+                                                if key_id:
+                                                    decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
+                                                    memory['content'] = decrypted_content
+                                        except Exception as e:
+                                            logger.error(f"Error decrypting memory: {e}")
                                     memories.append(memory)
                                 return memories
                 except Exception as e:
@@ -911,7 +997,7 @@ class Tier3Storage:
             if query:
                 # Search for query in content with optimized query
                 cursor.execute('''
-                    SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
+                    SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status, is_encrypted, encryption_key_id, privacy_level 
                     FROM episodic_memories 
                     WHERE status = 'active' AND content LIKE ? 
                     ORDER BY last_accessed DESC 
@@ -920,7 +1006,7 @@ class Tier3Storage:
             else:
                 # Get all active memories with optimized query
                 cursor.execute('''
-                    SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
+                    SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status, is_encrypted, encryption_key_id, privacy_level 
                     FROM episodic_memories 
                     WHERE status = 'active' 
                     ORDER BY last_accessed DESC 
@@ -937,6 +1023,23 @@ class Tier3Storage:
                 # Ensure memory_type field is present
                 if 'type' in memory and 'memory_type' not in memory:
                     memory['memory_type'] = memory['type']
+                # Decrypt content if it's encrypted
+                if memory.get('is_encrypted'):
+                    try:
+                        content = memory.get('content', '')
+                        if content:
+                            import json
+                            import base64
+                            encrypted_data = json.loads(content)
+                            ciphertext = base64.b64decode(encrypted_data['ciphertext'])
+                            nonce = base64.b64decode(encrypted_data['nonce'])
+                            tag = base64.b64decode(encrypted_data['tag'])
+                            key_id = memory.get('encryption_key_id')
+                            if key_id:
+                                decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
+                                memory['content'] = decrypted_content
+                    except Exception as e:
+                        logger.error(f"Error decrypting memory: {e}")
                 memories.append(memory)
             
             return memories

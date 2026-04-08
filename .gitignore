@@ -43,6 +43,7 @@ profile.out
 
 # Trae files
 .trae/
+!.trae/documents/
 
 # Benchmarks
 .benchmarks/
