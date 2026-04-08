@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="memory-classification-engine",
-    version="0.1.0",
+    version="0.4.0",
     description="A lightweight memory classification engine for AI agents",
     author="lulin70",
     author_email="lulin70@example.com",
@@ -12,7 +12,7 @@ setup(
         "PyYAML",
     ],
     extras_require={
-        "api": ["Flask"],
+        "api": ["Flask", "aiohttp", "socketio"],
         "llm": ["requests"],
         "testing": ["pytest", "pytest-benchmark"],
         "profiling": ["memory-profiler"],

@@ -29,4 +29,6 @@ sentence-transformers
 
 # Web API
 Flask
+aiohttp
+socketio
 requests
