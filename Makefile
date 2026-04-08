@@ -25,3 +25,9 @@ format:
 
 run:
 	python -c "from memory_classification_engine import MemoryClassificationEngine; engine = MemoryClassificationEngine(); print('Engine initialized successfully!')"
+
+run-examples:
+	python examples/basic_usage.py
+
+run-community-example:
+	python examples/community_feedback_example.py

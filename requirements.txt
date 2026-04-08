@@ -11,6 +11,8 @@ pycld2  # For more accurate language detection
 
 # Optional dependencies
 Flask  # For REST API
+aiohttp  # For async API server
+socketio  # For WebSocket support
 requests  # For LLM API calls
 pytest  # For testing
 pytest-benchmark  # For performance testing
