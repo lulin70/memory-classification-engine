@@ -192,6 +192,10 @@
 
 ### 安装
 
+详细的安装指南请参考 [安装指南](docs/user_guides/installation_guide.md)。
+
+快速安装步骤：
+
 ```bash
 # 克隆项目
 git clone https://github.com/lulin70/memory-classification-engine.git
@@ -283,6 +287,63 @@ print(result)
 # 检索记忆
 memories = engine.retrieve_memories("代码风格")
 print(memories)
+```
+
+### Agent框架使用
+
+```python
+from memory_classification_engine import MemoryClassificationEngine
+
+# 初始化引擎
+engine = MemoryClassificationEngine()
+
+# 注册Agent
+agent_config = {
+    'adapter': 'claude_code',  # 支持的适配器：claude_code, work_buddy, trae, openclaw
+    'api_key': 'your_api_key'  # 如果需要API密钥
+}
+engine.register_agent('my_agent', agent_config)
+
+# 列出所有注册的Agent
+agents = engine.list_agents()
+print("注册的Agent:", agents)
+
+# 使用Agent处理消息
+result = engine.process_message_with_agent('my_agent', "Hello, world!")
+print("Agent处理结果:", result)
+
+# 注销Agent
+engine.unregister_agent('my_agent')
+```
+
+### 知识库集成使用
+
+```python
+from memory_classification_engine import MemoryClassificationEngine
+
+# 初始化引擎（需要在配置文件中设置Obsidian vault路径）
+engine = MemoryClassificationEngine()
+
+# 处理消息并创建记忆
+user_message = "我喜欢阅读科幻小说"
+result = engine.process_message(user_message)
+memory_id = result['matches'][0]['id']
+
+# 将记忆写回知识库
+write_result = engine.write_memory_to_knowledge(memory_id)
+print("写回知识库结果:", write_result)
+
+# 从知识库获取相关知识
+knowledge = engine.get_knowledge("科幻小说")
+print("知识库检索结果:", knowledge)
+
+# 同步知识库
+engine.sync_knowledge_base()
+print("知识库同步完成")
+
+# 获取知识库统计信息
+stats = engine.get_knowledge_statistics()
+print("知识库统计信息:", stats)
 ```
 
 ## 项目结构
