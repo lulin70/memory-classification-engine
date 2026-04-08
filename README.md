@@ -194,6 +194,10 @@
 
 详细的安装指南请参考 [安装指南](docs/user_guides/installation_guide.md)。
 
+### 使用指南
+
+详细的用户指南请参考 [用户指南](docs/user_guides/user_guide.md)。
+
 快速安装步骤：
 
 ```bash
