@@ -275,3 +275,121 @@ class MemoryClassificationSDK:
             List of tenants.
         """
         return self._make_request("GET", "tenants")
+    
+    def submit_feedback(self, user_id: str, feedback_type: str, content: str, 
+                       severity: str = "medium", metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Submit feedback.
+        
+        Args:
+            user_id: User ID.
+            feedback_type: Type of feedback (bug, feature, suggestion, question).
+            content: Feedback content.
+            severity: Severity level (low, medium, high, critical).
+            metadata: Additional metadata.
+            
+        Returns:
+            Feedback submission result.
+        """
+        data = {
+            "user_id": user_id,
+            "feedback_type": feedback_type,
+            "content": content,
+            "severity": severity,
+            "metadata": metadata or {}
+        }
+        return self._make_request("POST", "community/feedback", data)
+    
+    def get_feedback(self, feedback_id: str) -> Dict[str, Any]:
+        """Get feedback by ID.
+        
+        Args:
+            feedback_id: Feedback ID.
+            
+        Returns:
+            Feedback data.
+        """
+        return self._make_request("GET", f"community/feedback/{feedback_id}")
+    
+    def list_feedback(self, status: Optional[str] = None, feedback_type: Optional[str] = None, 
+                     user_id: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+        """List feedback with filters.
+        
+        Args:
+            status: Filter by status (open, in_progress, resolved, closed).
+            feedback_type: Filter by feedback type.
+            user_id: Filter by user ID.
+            limit: Maximum number of results.
+            
+        Returns:
+            List of feedback.
+        """
+        params = {}
+        if status:
+            params["status"] = status
+        if feedback_type:
+            params["feedback_type"] = feedback_type
+        if user_id:
+            params["user_id"] = user_id
+        if limit:
+            params["limit"] = limit
+        
+        return self._make_request("GET", "community/feedback", params=params)
+    
+    def update_feedback_status(self, feedback_id: str, status: str, 
+                              user_id: str, comment: Optional[str] = None) -> Dict[str, Any]:
+        """Update feedback status.
+        
+        Args:
+            feedback_id: Feedback ID.
+            status: New status (open, in_progress, resolved, closed).
+            user_id: User ID making the update.
+            comment: Optional comment.
+            
+        Returns:
+            Update result.
+        """
+        data = {
+            "status": status,
+            "user_id": user_id,
+            "comment": comment
+        }
+        return self._make_request("PUT", f"community/feedback/{feedback_id}/status", data)
+    
+    def reply_to_feedback(self, feedback_id: str, user_id: str, content: str) -> Dict[str, Any]:
+        """Reply to feedback.
+        
+        Args:
+            feedback_id: Feedback ID.
+            user_id: User ID making the reply.
+            content: Reply content.
+            
+        Returns:
+            Reply result.
+        """
+        data = {
+            "user_id": user_id,
+            "content": content
+        }
+        return self._make_request("POST", f"community/feedback/{feedback_id}/reply", data)
+    
+    def get_feedback_stats(self) -> Dict[str, Any]:
+        """Get feedback statistics.
+        
+        Returns:
+            Feedback statistics.
+        """
+        return self._make_request("GET", "community/feedback/stats")
+    
+    def export_feedback(self, filename: str = "feedback_export.json") -> Dict[str, Any]:
+        """Export feedback.
+        
+        Args:
+            filename: Export filename.
+            
+        Returns:
+            Export result.
+        """
+        params = {
+            "filename": filename
+        }
+        return self._make_request("GET", "community/feedback/export", params=params)

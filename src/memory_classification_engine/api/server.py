@@ -10,6 +10,7 @@ import socketio
 from memory_classification_engine import MemoryClassificationEngine
 from memory_classification_engine.utils.logger import logger
 from memory_classification_engine.utils.security import SecurityManager
+from memory_classification_engine.community.feedback_manager import feedback_manager
 
 
 class APIServer:
@@ -74,6 +75,17 @@ class APIServer:
             web.post('/api/auth/token', self.generate_token),
             web.post('/api/auth/verify', self.verify_token),
             web.post('/api/auth/key', self.generate_api_key)
+        ])
+        
+        # Community endpoints
+        self.app.add_routes([
+            web.post('/api/community/feedback', self.submit_feedback),
+            web.get('/api/community/feedback/{feedback_id}', self.get_feedback),
+            web.get('/api/community/feedback', self.list_feedback),
+            web.put('/api/community/feedback/{feedback_id}/status', self.update_feedback_status),
+            web.post('/api/community/feedback/{feedback_id}/reply', self.reply_to_feedback),
+            web.get('/api/community/feedback/stats', self.get_feedback_stats),
+            web.get('/api/community/feedback/export', self.export_feedback)
         ])
     
     def setup_socketio_events(self):
@@ -339,6 +351,107 @@ class APIServer:
             return web.json_response({'api_key': api_key})
         except Exception as e:
             logger.error(f"Error generating API key: {e}", exc_info=True)
+            return web.json_response({'error': str(e)}, status=500)
+    
+    async def submit_feedback(self, request: web.Request) -> web.Response:
+        """Submit feedback endpoint."""
+        try:
+            data = await request.json()
+            user_id = data.get('user_id')
+            feedback_type = data.get('feedback_type')
+            content = data.get('content')
+            severity = data.get('severity', 'medium')
+            metadata = data.get('metadata', {})
+            
+            if not user_id or not feedback_type or not content:
+                return web.json_response({'error': 'user_id, feedback_type, and content are required'}, status=400)
+            
+            result = feedback_manager.submit_feedback(user_id, feedback_type, content, severity, metadata)
+            return web.json_response(result)
+        except Exception as e:
+            logger.error(f"Error submitting feedback: {e}", exc_info=True)
+            return web.json_response({'error': str(e)}, status=500)
+    
+    async def get_feedback(self, request: web.Request) -> web.Response:
+        """Get feedback endpoint."""
+        try:
+            feedback_id = request.match_info.get('feedback_id')
+            feedback = feedback_manager.get_feedback(feedback_id)
+            
+            if not feedback:
+                return web.json_response({'error': 'Feedback not found'}, status=404)
+            
+            return web.json_response(feedback)
+        except Exception as e:
+            logger.error(f"Error getting feedback: {e}", exc_info=True)
+            return web.json_response({'error': str(e)}, status=500)
+    
+    async def list_feedback(self, request: web.Request) -> web.Response:
+        """List feedback endpoint."""
+        try:
+            status = request.query.get('status')
+            feedback_type = request.query.get('feedback_type')
+            user_id = request.query.get('user_id')
+            limit = int(request.query.get('limit', 100))
+            
+            feedback = feedback_manager.list_feedback(status, feedback_type, user_id, limit)
+            return web.json_response(feedback)
+        except Exception as e:
+            logger.error(f"Error listing feedback: {e}", exc_info=True)
+            return web.json_response({'error': str(e)}, status=500)
+    
+    async def update_feedback_status(self, request: web.Request) -> web.Response:
+        """Update feedback status endpoint."""
+        try:
+            feedback_id = request.match_info.get('feedback_id')
+            data = await request.json()
+            status = data.get('status')
+            user_id = data.get('user_id')
+            comment = data.get('comment')
+            
+            if not status or not user_id:
+                return web.json_response({'error': 'status and user_id are required'}, status=400)
+            
+            result = feedback_manager.update_feedback_status(feedback_id, status, user_id, comment)
+            return web.json_response(result)
+        except Exception as e:
+            logger.error(f"Error updating feedback status: {e}", exc_info=True)
+            return web.json_response({'error': str(e)}, status=500)
+    
+    async def reply_to_feedback(self, request: web.Request) -> web.Response:
+        """Reply to feedback endpoint."""
+        try:
+            feedback_id = request.match_info.get('feedback_id')
+            data = await request.json()
+            user_id = data.get('user_id')
+            content = data.get('content')
+            
+            if not user_id or not content:
+                return web.json_response({'error': 'user_id and content are required'}, status=400)
+            
+            result = feedback_manager.reply_to_feedback(feedback_id, user_id, content)
+            return web.json_response(result)
+        except Exception as e:
+            logger.error(f"Error replying to feedback: {e}", exc_info=True)
+            return web.json_response({'error': str(e)}, status=500)
+    
+    async def get_feedback_stats(self, request: web.Request) -> web.Response:
+        """Get feedback stats endpoint."""
+        try:
+            stats = feedback_manager.get_feedback_stats()
+            return web.json_response(stats)
+        except Exception as e:
+            logger.error(f"Error getting feedback stats: {e}", exc_info=True)
+            return web.json_response({'error': str(e)}, status=500)
+    
+    async def export_feedback(self, request: web.Request) -> web.Response:
+        """Export feedback endpoint."""
+        try:
+            filename = request.query.get('filename', 'feedback_export.json')
+            result = feedback_manager.export_feedback(filename)
+            return web.json_response(result)
+        except Exception as e:
+            logger.error(f"Error exporting feedback: {e}", exc_info=True)
             return web.json_response({'error': str(e)}, status=500)
     
     async def start(self):
