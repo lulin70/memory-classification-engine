@@ -127,6 +127,13 @@ class MemoryClassificationEngine:
         
         # Run initial archive
         self._run_archive()
+        
+        # Initialize Agent manager and knowledge manager for Phase 5
+        from memory_classification_engine.agents.agent_manager import AgentManager
+        from memory_classification_engine.knowledge.knowledge_manager import KnowledgeManager
+        
+        self.agent_manager = AgentManager(self.config)
+        self.knowledge_manager = KnowledgeManager(self.config)
     
     def _run_archive(self):
         """Run memory archive process to remove low-weight memories."""
@@ -382,6 +389,80 @@ class MemoryClassificationEngine:
             'language': language,
             'language_confidence': lang_confidence
         }
+    
+    def process_message_with_agent(self, agent_name: str, message: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """使用Agent处理消息"""
+        # 先使用Agent处理消息
+        agent_result = self.agent_manager.process_message(agent_name, message, context)
+        
+        # 然后使用引擎处理消息
+        engine_result = self.process_message(message, context)
+        
+        # 合并结果
+        result = {
+            'agent_result': agent_result,
+            'engine_result': engine_result
+        }
+        
+        return result
+    
+    def write_memory_to_knowledge(self, memory_id: str) -> Dict[str, Any]:
+        """将记忆写回知识库"""
+        # 查找记忆
+        memory = None
+        for tenant in self.tenant_manager.tenants.values():
+            for m in tenant.memories:
+                if m.get('id') == memory_id:
+                    memory = m
+                    break
+            if memory:
+                break
+        
+        if not memory:
+            return {'error': 'Memory not found'}
+        
+        # 写回知识库
+        success = self.knowledge_manager.write_memory_to_knowledge(memory)
+        
+        if success:
+            return {'success': True, 'memory_id': memory_id}
+        else:
+            return {'error': 'Failed to write memory to knowledge base'}
+    
+    def get_knowledge(self, query: str) -> Dict[str, Any]:
+        """获取知识库中的相关知识"""
+        knowledge = self.knowledge_manager.get_knowledge(query)
+        return {'knowledge': knowledge}
+    
+    def sync_knowledge_base(self) -> Dict[str, Any]:
+        """同步知识库"""
+        self.knowledge_manager.sync_knowledge_base()
+        return {'success': True}
+    
+    def get_knowledge_statistics(self) -> Dict[str, Any]:
+        """获取知识库统计信息"""
+        return self.knowledge_manager.get_knowledge_statistics()
+    
+    def register_agent(self, agent_name: str, agent_config: Dict[str, Any]) -> Dict[str, Any]:
+        """注册Agent"""
+        success = self.agent_manager.register_agent(agent_name, agent_config)
+        if success:
+            return {'success': True, 'agent_name': agent_name}
+        else:
+            return {'error': 'Failed to register agent'}
+    
+    def unregister_agent(self, agent_name: str) -> Dict[str, Any]:
+        """注销Agent"""
+        success = self.agent_manager.unregister_agent(agent_name)
+        if success:
+            return {'success': True, 'agent_name': agent_name}
+        else:
+            return {'error': 'Failed to unregister agent'}
+    
+    def list_agents(self) -> Dict[str, Any]:
+        """列出所有Agent"""
+        agents = self.agent_manager.list_agents()
+        return {'agents': agents}
     
     def _build_associations_async(self, memories: List[Dict[str, Any]], context: Optional[Dict[str, Any]]):
         """Build memory associations asynchronously.

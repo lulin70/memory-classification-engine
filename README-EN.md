@@ -66,6 +66,12 @@ The problem this project aims to solve is: **Implement a lightweight memory clas
 - **Intelligent Memory Management Enhancement**: Automatic memory compression and merging, supporting hierarchical storage and retrieval of memories
 - **Performance Optimization**: Automatic system performance tuning to ensure high performance and lightweight
 
+### 8. Ecosystem Expansion and Integration
+- **Multiple Agent Framework Support**: Supports ClaudeCode, WorkBuddy, TRAE, openclaw and other Agent frameworks, providing a unified API interface
+- **Knowledge Base Integration**: Integrates with Obsidian, implementing memory write-back to knowledge base and context enhancement from knowledge base
+- **Agent Framework Auto-discovery and Registration**: Implements automatic discovery and registration mechanism for Agent frameworks, supporting dynamic loading and unloading
+- **Knowledge Base Auto-sync and Update**: Supports automatic synchronization and update of knowledge base, ensuring data consistency
+
 ## Technical Architecture
 
 ```
@@ -155,8 +161,11 @@ Conversation Content
 - Implement performance optimization
 - Implement cost control mechanism
 
-### Phase 5: Ecosystem Expansion
-- Support multiple Agent frameworks (priority adaptation to ClaudeCode, WorkBuddy, Cursor, etc.)
+### Phase 5: Ecosystem Expansion and Integration
+- Implement multiple Agent framework support (ClaudeCode, WorkBuddy, TRAE, openclaw)
+- Implement knowledge base integration (integration with Obsidian)
+- Implement Agent framework auto-discovery and registration mechanism
+- Implement knowledge base auto-sync and update
 - Implement enterprise-level multi-user memory sharing and permission management
 - Open memory import/export format standards
 
