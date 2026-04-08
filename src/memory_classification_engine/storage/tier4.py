@@ -501,12 +501,19 @@ class Tier4Storage:
                     conn = self.connection_pool.get_connection()
                     cursor = conn.cursor()
                     
-                    # Insert memory
-                    cursor.execute('''
-                        INSERT OR REPLACE INTO semantic_memories 
-                        (id, type, memory_type, content, semantic_embedding, entities, relations, created_at, updated_at, last_accessed, access_count, confidence, source, context, status, is_encrypted, encryption_key_id, privacy_level)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', (
+                    # Check table structure
+                    cursor.execute("PRAGMA table_info(semantic_memories)")
+                    columns = [column[1] for column in cursor.fetchall()]
+                    
+                    # Build dynamic SQL based on actual columns
+                    base_columns = ['id', 'type', 'memory_type', 'content', 'semantic_embedding', 'entities', 'relations', 
+                                  'created_at', 'updated_at', 'last_accessed', 'access_count', 'confidence', 
+                                  'source', 'context', 'status']
+                    optional_columns = ['is_encrypted', 'encryption_key_id', 'privacy_level']
+                    
+                    # Determine which columns to include
+                    included_columns = base_columns.copy()
+                    values = [
                         memory.get('id'),
                         memory.get('type'),
                         memory.get('memory_type'),
@@ -521,11 +528,32 @@ class Tier4Storage:
                         memory.get('confidence'),
                         memory.get('source'),
                         memory.get('context'),
-                        memory.get('status'),
-                        memory.get('is_encrypted', False),
-                        memory.get('encryption_key_id'),
-                        memory.get('privacy_level', 0)
-                    ))
+                        memory.get('status')
+                    ]
+                    
+                    # Add optional columns if they exist
+                    if 'is_encrypted' in columns:
+                        included_columns.append('is_encrypted')
+                        values.append(memory.get('is_encrypted', False))
+                    if 'encryption_key_id' in columns:
+                        included_columns.append('encryption_key_id')
+                        values.append(memory.get('encryption_key_id'))
+                    if 'privacy_level' in columns:
+                        included_columns.append('privacy_level')
+                        values.append(memory.get('privacy_level', 0))
+                    
+                    # Build SQL statement
+                    columns_str = ', '.join(included_columns)
+                    placeholders = ', '.join(['?' for _ in values])
+                    
+                    sql = f"""
+                        INSERT OR REPLACE INTO semantic_memories 
+                        ({columns_str})
+                        VALUES ({placeholders})
+                    """
+                    
+                    # Insert memory
+                    cursor.execute(sql, values)
                     
                     conn.commit()
                     self.connection_pool.return_connection(conn)
@@ -652,10 +680,20 @@ class Tier4Storage:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
+            # Check if is_encrypted column exists
+            cursor.execute("PRAGMA table_info(semantic_memories)")
+            columns = [column[1] for column in cursor.fetchall()]
+            has_is_encrypted = 'is_encrypted' in columns
+            
+            if has_is_encrypted:
+                select_columns = 'id, type, memory_type, content, semantic_embedding, entities, relations, created_at, updated_at, last_accessed, access_count, confidence, source, context, status, is_encrypted, encryption_key_id, privacy_level'
+            else:
+                select_columns = 'id, type, memory_type, content, semantic_embedding, entities, relations, created_at, updated_at, last_accessed, access_count, confidence, source, context, status'
+            
             if query:
                 # Search in content with optimized query
-                cursor.execute('''
-                    SELECT id, type, memory_type, content, semantic_embedding, entities, relations, created_at, updated_at, last_accessed, access_count, confidence, source, context, status, is_encrypted, encryption_key_id, privacy_level 
+                cursor.execute(f'''
+                    SELECT {select_columns} 
                     FROM semantic_memories 
                     WHERE status = 'active' AND content LIKE ? 
                     ORDER BY last_accessed DESC 
@@ -663,8 +701,8 @@ class Tier4Storage:
                 ''', (f'%{query}%', limit))
             else:
                 # Get all active memories with optimized query
-                cursor.execute('''
-                    SELECT id, type, memory_type, content, semantic_embedding, entities, relations, created_at, updated_at, last_accessed, access_count, confidence, source, context, status, is_encrypted, encryption_key_id, privacy_level 
+                cursor.execute(f'''
+                    SELECT {select_columns} 
                     FROM semantic_memories 
                     WHERE status = 'active' 
                     ORDER BY last_accessed DESC 
@@ -679,14 +717,14 @@ class Tier4Storage:
             for row in rows:
                 memory = dict(row)
                 # Parse JSON fields
+                import json
                 memory['entities'] = json.loads(memory.get('entities', '[]'))
                 memory['relations'] = json.loads(memory.get('relations', '[]'))
                 # Decrypt content if it's encrypted
-                if memory.get('is_encrypted'):
+                if has_is_encrypted and memory.get('is_encrypted'):
                     try:
                         content = memory.get('content', '')
                         if content:
-                            import json
                             import base64
                             encrypted_data = json.loads(content)
                             ciphertext = base64.b64decode(encrypted_data['ciphertext'])

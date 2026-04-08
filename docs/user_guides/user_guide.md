@@ -211,27 +211,155 @@ print("性能指标已重置")
 
 ### 6.1 记忆管理
 
-- **定期优化**：定期调用 `optimize_system()` 方法优化系统性能
-- **压缩记忆**：定期调用 `compress_memories()` 方法压缩记忆，减少存储空间
+- **定期优化**：定期调用 `optimize_system()` 方法优化系统性能，建议每天或每周执行一次
+- **压缩记忆**：定期调用 `compress_memories()` 方法压缩记忆，减少存储空间，建议每月执行一次
 - **设置重要性**：对于重要的记忆，设置较高的重要性级别，确保它们不会被遗忘
+- **批量操作**：对于大量记忆操作，使用批量API而不是单个操作，提高效率
+- **记忆标签**：为记忆添加标签，便于后续检索和管理
 
 ### 6.2 Agent使用
 
-- **选择合适的Agent**：根据任务类型选择合适的Agent框架
+- **选择合适的Agent**：根据任务类型选择合适的Agent框架，例如ClaudeCode适合代码生成，WorkBuddy适合协作任务
 - **管理Agent生命周期**：使用完Agent后，及时注销它们，释放资源
 - **配置Agent参数**：根据具体需求配置Agent的参数，以获得最佳效果
+- **Agent组合**：对于复杂任务，可以组合多个Agent的能力
+- **错误处理**：为Agent操作添加适当的错误处理，提高系统稳定性
 
 ### 6.3 知识库集成
 
 - **设置Obsidian vault**：确保正确设置Obsidian vault路径，以便记忆能够正确写回知识库
 - **定期同步**：定期调用 `sync_knowledge_base()` 方法同步知识库，确保数据一致性
-- **合理组织知识**：在Obsidian中合理组织知识，便于记忆的检索和管理
+- **合理组织知识**：在Obsidian中合理组织知识，使用文件夹和标签分类
+- **知识链接**：在Obsidian中创建知识之间的链接，形成知识网络
+- **版本控制**：考虑使用Git等版本控制系统管理Obsidian vault
 
 ### 6.4 性能优化
 
 - **调整缓存大小**：根据系统资源调整缓存大小，平衡性能和内存使用
 - **禁用不需要的功能**：如果不需要某些功能（如LLM或Neo4j），可以在配置文件中禁用它们，提高性能
 - **优化存储**：定期清理不需要的记忆，减少存储压力
+- **批量处理**：对于大量数据操作，使用批量处理减少数据库访问次数
+- **异步操作**：对于耗时操作，考虑使用异步处理，提高系统响应速度
+- **硬件优化**：根据系统负载，适当增加内存或使用SSD存储
+
+### 6.5 安全最佳实践
+
+- **API密钥管理**：使用环境变量或密钥管理服务存储API密钥，避免硬编码
+- **数据加密**：启用敏感数据加密，保护用户隐私
+- **访问控制**：设置适当的访问权限，限制对记忆的访问
+- **审计日志**：启用审计日志，记录系统操作
+- **定期备份**：定期备份记忆数据，防止数据丢失
+
+### 6.6 常见使用场景
+
+#### 6.6.1 智能客服
+
+```python
+# 初始化引擎
+engine = MemoryClassificationEngine()
+
+# 处理用户查询
+def handle_customer_query(user_id, query):
+    # 检索相关记忆
+    memories = engine.retrieve_memories(query, user_id=user_id)
+    
+    # 构建上下文
+    context = {
+        "user_id": user_id,
+        "previous_memories": memories
+    }
+    
+    # 处理查询
+    result = engine.process_message(query, context=context)
+    
+    # 存储新记忆
+    if result.get("matches"):
+        for match in result["matches"]:
+            # 可以添加额外的元数据
+            match["user_id"] = user_id
+            engine.manage_memory("edit", match["id"], match)
+    
+    return result
+```
+
+#### 6.6.2 个人助理
+
+```python
+# 初始化引擎
+engine = MemoryClassificationEngine()
+
+# 管理用户偏好
+def update_user_preference(user_id, preference):
+    result = engine.process_message(
+        f"用户偏好：{preference}",
+        context={"user_id": user_id, "memory_type": "user_preference"}
+    )
+    return result
+
+# 检索用户偏好
+def get_user_preferences(user_id):
+    memories = engine.retrieve_memories(
+        "user_preference",
+        memory_type="user_preference",
+        user_id=user_id
+    )
+    return memories
+
+# 智能推荐
+def recommend_content(user_id, current_topic):
+    # 检索相关记忆
+    memories = engine.retrieve_memories(
+        current_topic,
+        user_id=user_id,
+        limit=5
+    )
+    
+    # 基于记忆生成推荐
+    recommendations = []
+    for memory in memories:
+        if "preference" in memory.get("content", "").lower():
+            recommendations.append(memory["content"])
+    
+    return recommendations
+```
+
+#### 6.6.3 企业知识管理
+
+```python
+# 初始化引擎
+engine = MemoryClassificationEngine()
+
+# 创建企业租户
+def create_company_tenant(company_id, company_name):
+    result = engine.tenant_manager.create_tenant(
+        company_id,
+        company_name,
+        "enterprise"
+    )
+    return result
+
+# 共享记忆到团队
+def share_memory_to_team(memory_id, team_id):
+    result = engine.manage_memory(
+        "edit",
+        memory_id,
+        {"visibility": "team", "team_id": team_id}
+    )
+    return result
+
+# 批量导入企业知识
+def import_company_knowledge(company_id, knowledge_items):
+    for item in knowledge_items:
+        result = engine.process_message(
+            item["content"],
+            context={
+                "user_id": "system",
+                "tenant_id": company_id,
+                "memory_type": "fact_declaration"
+            }
+        )
+    return len(knowledge_items)
+```
 
 ## 7. 故障排除
 

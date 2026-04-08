@@ -1,0 +1,171 @@
+{
+  "rules": [
+    {
+      "id": "rule_1",
+      "name": "Email Address Detection",
+      "pattern": "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}",
+      "memory_type": "contact_information",
+      "tier": 2,
+      "action": "extract",
+      "description": "Email address detection",
+      "language": "all",
+      "priority": 10
+    },
+    {
+      "id": "rule_2",
+      "name": "Phone Number Detection",
+      "pattern": "(\\+?\\d{1,3}[-. ]?)?(\\(?\\d{3}\\)?[-. ]?)?\\d{3}[-. ]?\\d{4}",
+      "memory_type": "contact_information",
+      "tier": 2,
+      "action": "extract",
+      "description": "Phone number detection",
+      "language": "all",
+      "priority": 10
+    },
+    {
+      "id": "rule_3",
+      "name": "Date Detection",
+      "pattern": "(\\d{1,4}[-/\\.\\s]?){2,3}",
+      "memory_type": "event",
+      "tier": 3,
+      "action": "extract",
+      "description": "Date detection",
+      "language": "all",
+      "priority": 8
+    },
+    {
+      "id": "rule_4",
+      "name": "Time Detection",
+      "pattern": "(\\d{1,2}:\\d{2}(\\s*[AP]M)?)|(\\d{1,2}\\.\\d{2}(\\s*[AP]M)?)|(\\d{1,2}(\\s*[AP]M)?)",
+      "memory_type": "event",
+      "tier": 3,
+      "action": "extract",
+      "description": "Time detection",
+      "language": "all",
+      "priority": 8
+    },
+    {
+      "id": "rule_5",
+      "name": "URL Detection",
+      "pattern": "https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_\\+.~#?&//=]*)",
+      "memory_type": "reference",
+      "tier": 3,
+      "action": "extract",
+      "description": "URL detection",
+      "language": "all",
+      "priority": 7
+    },
+    {
+      "id": "rule_6",
+      "name": "Location Detection",
+      "pattern": "at\\s+([A-Z][a-z]+(\\s+[A-Z][a-z]+)*)",
+      "memory_type": "location",
+      "tier": 3,
+      "action": "extract",
+      "description": "Location detection",
+      "language": "en",
+      "priority": 6
+    },
+    {
+      "id": "rule_7",
+      "name": "Task Deadline",
+      "pattern": "(due|deadline|by)\\s+(\\d{1,4}[-/\\.\\s]?){2,3}",
+      "memory_type": "task",
+      "tier": 2,
+      "action": "extract",
+      "description": "Task deadline detection",
+      "language": "en",
+      "priority": 9
+    },
+    {
+      "id": "rule_8",
+      "name": "Meeting Detection",
+      "pattern": "(meeting|call|appointment)\\s+(with|at|on|for)",
+      "memory_type": "event",
+      "tier": 2,
+      "action": "extract",
+      "description": "Meeting detection",
+      "language": "en",
+      "priority": 8
+    },
+    {
+      "id": "rule_9",
+      "name": "Shopping List",
+      "pattern": "(buy|purchase|get|need)\\s+(groceries|items|things)",
+      "memory_type": "task",
+      "tier": 2,
+      "action": "extract",
+      "description": "Shopping list detection",
+      "language": "en",
+      "priority": 7
+    },
+    {
+      "id": "rule_10",
+      "name": "Personal Preference",
+      "pattern": "(like|prefer|want|love|hate|dislike)\\s+(to\\s+)?[a-zA-Z]+",
+      "memory_type": "user_preference",
+      "tier": 2,
+      "action": "extract",
+      "description": "Personal preference detection",
+      "language": "en",
+      "priority": 6
+    },
+    {
+      "id": "rule_11",
+      "name": "Chinese Phone Number",
+      "pattern": "1[3-9]\\d{9}",
+      "memory_type": "contact_information",
+      "tier": 2,
+      "action": "extract",
+      "description": "Chinese phone number detection",
+      "language": "zh",
+      "priority": 10
+    },
+    {
+      "id": "rule_12",
+      "name": "Chinese Date",
+      "pattern": "\\d{4}年\\d{1,2}月\\d{1,2}日",
+      "memory_type": "event",
+      "tier": 3,
+      "action": "extract",
+      "description": "Chinese date detection",
+      "language": "zh",
+      "priority": 8
+    },
+    {
+      "id": "rule_13",
+      "name": "Chinese Time",
+      "pattern": "\\d{1,2}时\\d{1,2}分",
+      "memory_type": "event",
+      "tier": 3,
+      "action": "extract",
+      "description": "Chinese time detection",
+      "language": "zh",
+      "priority": 8
+    },
+    {
+      "id": "rule_14",
+      "name": "Chinese Meeting",
+      "pattern": "(会议|通话|约会)\\s+(with|at|on|for|和|在|关于)",
+      "memory_type": "event",
+      "tier": 2,
+      "action": "extract",
+      "description": "Chinese meeting detection",
+      "language": "zh",
+      "priority": 8
+    },
+    {
+      "id": "rule_15",
+      "name": "Chinese Shopping",
+      "pattern": "(买|购买|需要)\\s+(东西|物品| groceries)",
+      "memory_type": "task",
+      "tier": 2,
+      "action": "extract",
+      "description": "Chinese shopping detection",
+      "language": "zh",
+      "priority": 7
+    }
+  ],
+  "default_rules": true,
+  "custom_rules": []
+}

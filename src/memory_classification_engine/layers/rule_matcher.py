@@ -38,7 +38,7 @@ class RuleMatcher:
             rule_language = rule.get('language')
             
             # Skip rules that are language-specific and don't match the detected language
-            if rule_language and rule_language != language:
+            if rule_language and rule_language != "all" and rule_language != language:
                 continue
             
             # Check if the pattern matches the message

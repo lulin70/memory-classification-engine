@@ -464,6 +464,92 @@ class MemoryClassificationEngine:
         agents = self.agent_manager.list_agents()
         return {'agents': agents}
     
+    def process_with_agent(self, agent_name: str, message: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """使用Agent处理消息"""
+        return self.agent_manager.process_message(agent_name, message, context)
+    
+    def assign_tenant(self, user_id: str, tenant_id: str) -> Dict[str, Any]:
+        """分配租户"""
+        try:
+            self.access_control_manager.assign_tenant(user_id, tenant_id)
+            self.audit_manager.log(user_id, 'success', 'assign_tenant', {'tenant_id': tenant_id})
+            return {'success': True, 'tenant_id': tenant_id}
+        except Exception as e:
+            self.audit_manager.log(user_id, 'error', 'assign_tenant', {'tenant_id': tenant_id, 'error': str(e)})
+            return {'error': str(e)}
+    
+    def get_user_tenant(self, user_id: str) -> Dict[str, Any]:
+        """获取用户租户"""
+        try:
+            tenant_id = self.access_control_manager.get_user_tenant(user_id)
+            return {'success': True, 'tenant_id': tenant_id}
+        except Exception as e:
+            return {'error': str(e)}
+    
+    def share_memory(self, memory_id: str, user_ids: List[str], permission: str = 'read', user_id: str = None) -> Dict[str, Any]:
+        """共享记忆"""
+        # 检查权限
+        if not self.access_control_manager.check_permission(user_id, 'memory', 'share'):
+            self.audit_manager.log(user_id, 'access_denied', 'share_memory', {'memory_id': memory_id})
+            return {'error': 'Access denied'}
+        
+        try:
+            self.access_control_manager.share_memory(memory_id, user_ids, permission)
+            self.audit_manager.log(user_id, 'success', 'share_memory', {
+                'memory_id': memory_id,
+                'user_ids': user_ids,
+                'permission': permission
+            })
+            return {'success': True, 'memory_id': memory_id, 'shared_with': user_ids}
+        except Exception as e:
+            self.audit_manager.log(user_id, 'error', 'share_memory', {
+                'memory_id': memory_id,
+                'error': str(e)
+            })
+            return {'error': str(e)}
+    
+    def unshare_memory(self, memory_id: str, user_id: str, unshare_user_id: str) -> Dict[str, Any]:
+        """取消共享记忆"""
+        # 检查权限
+        if not self.access_control_manager.check_permission(user_id, 'memory', 'share'):
+            self.audit_manager.log(user_id, 'access_denied', 'unshare_memory', {'memory_id': memory_id})
+            return {'error': 'Access denied'}
+        
+        try:
+            self.access_control_manager.unshare_memory(memory_id, unshare_user_id)
+            self.audit_manager.log(user_id, 'success', 'unshare_memory', {
+                'memory_id': memory_id,
+                'unshare_user_id': unshare_user_id
+            })
+            return {'success': True, 'memory_id': memory_id, 'unshared_from': unshare_user_id}
+        except Exception as e:
+            self.audit_manager.log(user_id, 'error', 'unshare_memory', {
+                'memory_id': memory_id,
+                'error': str(e)
+            })
+            return {'error': str(e)}
+    
+    def get_memory_shares(self, memory_id: str, user_id: str) -> Dict[str, Any]:
+        """获取记忆共享信息"""
+        # 检查权限
+        if not self.access_control_manager.check_permission(user_id, 'memory', 'read'):
+            self.audit_manager.log(user_id, 'access_denied', 'get_memory_shares', {'memory_id': memory_id})
+            return {'error': 'Access denied'}
+        
+        try:
+            shares = self.access_control_manager.get_memory_shares(memory_id)
+            return {'success': True, 'shares': shares}
+        except Exception as e:
+            return {'error': str(e)}
+    
+    def check_memory_access(self, user_id: str, memory_id: str, action: str) -> Dict[str, Any]:
+        """检查记忆访问权限"""
+        try:
+            has_access = self.access_control_manager.check_memory_access(user_id, memory_id, action)
+            return {'success': True, 'has_access': has_access}
+        except Exception as e:
+            return {'error': str(e)}
+    
     def _build_associations_async(self, memories: List[Dict[str, Any]], context: Optional[Dict[str, Any]]):
         """Build memory associations asynchronously.
         
@@ -963,12 +1049,14 @@ class MemoryClassificationEngine:
         
         return stats
     
-    def export_memories(self, format: str = "json", user_id: str = None) -> Dict[str, Any]:
+    def export_memories(self, format: str = "json", user_id: str = None, tenant_id: str = None, memory_types: List[str] = None) -> Dict[str, Any]:
         """Export memories.
         
         Args:
             format: Export format (json).
             user_id: Optional user ID for access control.
+            tenant_id: Optional tenant ID to filter memories by tenant.
+            memory_types: Optional list of memory types to export.
             
         Returns:
             A dictionary containing the exported memories.
@@ -984,46 +1072,47 @@ class MemoryClassificationEngine:
             tier3_memories = self.storage_coordinator.retrieve_memories(tier=3, limit=1000)
             tier4_memories = self.storage_coordinator.retrieve_memories(tier=4, limit=1000)
             
+            # Combine all memories
+            all_memories = tier2_memories + tier3_memories + tier4_memories
+            
+            # Filter by tenant if specified
+            if tenant_id:
+                all_memories = [memory for memory in all_memories if memory.get('tenant_id') == tenant_id]
+            
+            # Filter by memory types if specified
+            if memory_types:
+                all_memories = [memory for memory in all_memories if memory.get('type') in memory_types]
+            
             # Decrypt memories if needed
-            decrypted_tier2 = []
-            for memory in tier2_memories:
+            decrypted_memories = []
+            for memory in all_memories:
                 if memory.get('is_encrypted'):
                     decrypted_memory = self.encryption_manager.decrypt_memory(memory, user_id)
                     if decrypted_memory:
-                        decrypted_tier2.append(decrypted_memory)
+                        decrypted_memories.append(decrypted_memory)
                 else:
-                    decrypted_tier2.append(memory)
+                    decrypted_memories.append(memory)
             
-            decrypted_tier3 = []
-            for memory in tier3_memories:
-                if memory.get('is_encrypted'):
-                    decrypted_memory = self.encryption_manager.decrypt_memory(memory, user_id)
-                    if decrypted_memory:
-                        decrypted_tier3.append(decrypted_memory)
-                else:
-                    decrypted_tier3.append(memory)
-            
-            decrypted_tier4 = []
-            for memory in tier4_memories:
-                if memory.get('is_encrypted'):
-                    decrypted_memory = self.encryption_manager.decrypt_memory(memory, user_id)
-                    if decrypted_memory:
-                        decrypted_tier4.append(decrypted_memory)
-                else:
-                    decrypted_tier4.append(memory)
+            # Build export structure
+            export_data = {
+                "version": "1.0",
+                "metadata": {
+                    "exported_at": get_current_time(),
+                    "exported_by": user_id,
+                    "engine_version": "0.1.0",
+                    "total_memories": len(decrypted_memories)
+                },
+                "memories": decrypted_memories
+            }
             
             self.audit_manager.log(user_id, 'success', 'export_memories', {
                 'format': format,
-                'tier2_count': len(decrypted_tier2),
-                'tier3_count': len(decrypted_tier3),
-                'tier4_count': len(decrypted_tier4)
+                'total_count': len(decrypted_memories),
+                'tenant_id': tenant_id,
+                'memory_types': memory_types
             })
             
-            return {
-                'tier2': decrypted_tier2,
-                'tier3': decrypted_tier3,
-                'tier4': decrypted_tier4
-            }
+            return export_data
         
         self.audit_manager.log(user_id, 'unsupported_format', 'export_memories', {'format': format})
         return {'error': 'Unsupported format'}
@@ -1048,32 +1137,21 @@ class MemoryClassificationEngine:
             self.audit_manager.log(user_id, 'unsupported_format', 'import_memories', {'format': format})
             return {'error': 'Unsupported format'}
         
+        # Validate format
+        if 'version' not in data or 'memories' not in data:
+            self.audit_manager.log(user_id, 'invalid_format', 'import_memories', {'format': format})
+            return {'error': 'Invalid format: missing version or memories field'}
+        
         imported_count = 0
         
-        # Import tier 2 memories
-        for memory in data.get('tier2', []):
-            # Encrypt sensitive data if needed
-            if self.encryption_manager.is_sensitive_data(str(memory)):
-                # 简化处理，暂时不加密，因为需要密钥
-                if self.storage_coordinator.store_memory(memory):
-                    imported_count += 1
-            else:
-                if self.storage_coordinator.store_memory(memory):
-                    imported_count += 1
-        
-        # Import tier 3 memories
-        for memory in data.get('tier3', []):
-            # Encrypt sensitive data if needed
-            if self.encryption_manager.is_sensitive_data(str(memory)):
-                # 简化处理，暂时不加密，因为需要密钥
-                if self.storage_coordinator.store_memory(memory):
-                    imported_count += 1
-            else:
-                if self.storage_coordinator.store_memory(memory):
-                    imported_count += 1
-        
-        # Import tier 4 memories
-        for memory in data.get('tier4', []):
+        # Import memories
+        for memory in data.get('memories', []):
+            # Validate required fields
+            required_fields = ['id', 'type', 'memory_type', 'content', 'confidence', 'source', 'tier', 'created_at']
+            for field in required_fields:
+                if field not in memory:
+                    continue  # Skip memories with missing required fields
+            
             # Encrypt sensitive data if needed
             if self.encryption_manager.is_sensitive_data(str(memory)):
                 # 简化处理，暂时不加密，因为需要密钥
@@ -1088,7 +1166,8 @@ class MemoryClassificationEngine:
         
         self.audit_manager.log(user_id, 'success', 'import_memories', {
             'format': format,
-            'imported_count': imported_count
+            'imported_count': imported_count,
+            'total_memories': len(data.get('memories', []))
         })
         
         return {'success': True, 'imported_count': imported_count}

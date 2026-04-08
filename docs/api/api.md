@@ -1,526 +1,469 @@
-# API文档
+# Memory Classification Engine API Documentation
 
-## 1. 概述
+## Overview
 
-Memory Classification Engine 提供了一套完整的API接口，用于管理和操作记忆数据。本文档详细描述了所有API接口的使用方法、参数说明和返回值格式。
+The Memory Classification Engine provides a comprehensive API for managing and classifying memories. This document describes the available endpoints, request/response formats, and usage examples.
 
-## 2. 核心API
+## Base URL
 
-### 2.1 MemoryClassificationEngine
+All API endpoints are relative to the base URL:
 
-#### 2.1.1 初始化
-
-```python
-from memory_classification_engine import MemoryClassificationEngine
-
-# 初始化引擎
-engine = MemoryClassificationEngine(config_path="config.yaml")
+```
+http://localhost:8000/api/v1
 ```
 
-**参数**：
-- `config_path`：配置文件路径，默认为 `config.yaml`
+## Authentication
 
-**返回值**：
-- `MemoryClassificationEngine` 实例
+API requests require authentication using API keys. Include the API key in the `Authorization` header:
 
-#### 2.1.2 process_message
-
-处理用户消息并分类存储。
-
-```python
-result = engine.process_message(
-    message="我喜欢使用Python编写Web应用",
-    context={"conversation_id": "123"}
-)
+```
+Authorization: Bearer YOUR_API_KEY
 ```
 
-**参数**：
-- `message`：用户消息内容
-- `context`：可选的上下文信息
+## Endpoints
 
-**返回值**：
-```python
+### 1. Process Message
+
+**POST /process**
+
+Process a message and classify it into memories.
+
+**Request Body:**
+
+```json
 {
-    "message": "我喜欢使用Python编写Web应用",
-    "matches": [
+  "message": "I need to buy groceries tomorrow at 5 PM",
+  "context": {
+    "user_id": "user123",
+    "tenant_id": "default",
+    "scenario": "personal"
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "I need to buy groceries tomorrow at 5 PM",
+  "matches": [
+    {
+      "memory_type": "fact_declaration",
+      "tier": 3,
+      "content": "I need to buy groceries tomorrow at 5 PM",
+      "confidence": 0.5,
+      "source": "default:general",
+      "description": "General fact declaration",
+      "language": "en",
+      "id": "mem_1234567890",
+      "tenant_id": "default",
+      "language_confidence": 0.97,
+      "type": "fact_declaration",
+      "entities": [
         {
-            "id": "mem_123456",
-            "type": "user_preference",
-            "memory_type": "user_preference",
-            "content": "我喜欢使用Python编写Web应用",
-            "confidence": 0.9,
-            "source": "user",
-            "tier": 2,
-            "created_at": "2024-01-01T12:00:00",
-            "updated_at": "2024-01-01T12:00:00",
-            "last_accessed": "2024-01-01T12:00:00",
-            "access_count": 1,
-            "status": "active"
+          "text": "PM",
+          "type": "organization",
+          "confidence": 0.5
         }
+      ],
+      "sentiment": {
+        "sentiment": "neutral",
+        "confidence": 0.5,
+        "positive_indicators": 0,
+        "negative_indicators": 0
+      },
+      "created_by": "default",
+      "sensitivity_level": "low",
+      "visibility": "private",
+      "created_at": "2026-04-08T10:21:57Z",
+      "updated_at": "2026-04-08T10:21:57Z",
+      "last_accessed": 1775643717.21584,
+      "access_count": 1,
+      "status": "active",
+      "is_encrypted": false,
+      "encryption_key_id": null,
+      "privacy_level": 0,
+      "weight": 0.7
+    }
+  ],
+  "plugin_results": {
+    "sentiment_analyzer": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "entity_extractor": {
+      "entities": [
+        {
+          "text": "PM",
+          "type": "organization",
+          "confidence": 0.5
+        }
+      ],
+      "entity_count": 1
+    }
+  },
+  "working_memory_size": 1,
+  "processing_time": 0.015302181243896484,
+  "tenant_id": "default",
+  "language": "en",
+  "language_confidence": 0.97
+}
+```
+
+### 2. Retrieve Memories
+
+**GET /memories**
+
+Retrieve memories based on query parameters.
+
+**Query Parameters:**
+
+- `query`: Search query string
+- `limit`: Maximum number of results (default: 5)
+- `tenant_id`: Filter by tenant ID
+- `memory_type`: Filter by memory type
+- `tier`: Filter by storage tier
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "memories": [
+    {
+      "id": "mem_1234567890",
+      "content": "I need to buy groceries tomorrow at 5 PM",
+      "memory_type": "fact_declaration",
+      "tier": 3,
+      "confidence": 0.5,
+      "created_at": "2026-04-08T10:21:57Z",
+      "updated_at": "2026-04-08T10:21:57Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+### 3. Get Memory
+
+**GET /memories/{memory_id}**
+
+Get a specific memory by ID.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "memory": {
+    "id": "mem_1234567890",
+    "content": "I need to buy groceries tomorrow at 5 PM",
+    "memory_type": "fact_declaration",
+    "tier": 3,
+    "confidence": 0.5,
+    "source": "default:general",
+    "description": "General fact declaration",
+    "language": "en",
+    "tenant_id": "default",
+    "language_confidence": 0.97,
+    "type": "fact_declaration",
+    "entities": [
+      {
+        "text": "PM",
+        "type": "organization",
+        "confidence": 0.5
+      }
     ],
-    "working_memory_size": 1
+    "sentiment": {
+      "sentiment": "neutral",
+      "confidence": 0.5,
+      "positive_indicators": 0,
+      "negative_indicators": 0
+    },
+    "created_by": "default",
+    "sensitivity_level": "low",
+    "visibility": "private",
+    "created_at": "2026-04-08T10:21:57Z",
+    "updated_at": "2026-04-08T10:21:57Z",
+    "last_accessed": 1775643717.21584,
+    "access_count": 1,
+    "status": "active",
+    "is_encrypted": false,
+    "encryption_key_id": null,
+    "privacy_level": 0,
+    "weight": 0.7
+  }
 }
 ```
 
-#### 2.1.3 retrieve_memories
+### 4. Update Memory
 
-检索记忆数据。
+**PUT /memories/{memory_id}**
 
-```python
-memories = engine.retrieve_memories(
-    query="Python Web",
-    memory_type="user_preference",
-    limit=10,
-    use_vector_search=True
-)
-```
+Update a memory.
 
-**参数**：
-- `query`：搜索关键词
-- `memory_type`：记忆类型，可选
-- `limit`：返回结果数量限制，默认10
-- `use_vector_search`：是否使用向量搜索，默认True
+**Request Body:**
 
-**返回值**：
-- 记忆列表，格式与 `process_message` 返回的 `matches` 相同
-
-#### 2.1.4 manage_memory
-
-管理记忆（查看、编辑、删除）。
-
-```python
-result = engine.manage_memory(
-    action="edit",
-    memory_id="mem_123456",
-    data={"content": "我喜欢使用Python和JavaScript编写Web应用"}
-)
-```
-
-**参数**：
-- `action`：操作类型，可选值：`view`、`edit`、`delete`
-- `memory_id`：记忆ID
-- `data`：编辑时的更新数据，仅 `edit` 操作需要
-
-**返回值**：
-```python
+```json
 {
-    "success": True,
-    "memory": {...}  # 仅 view 和 edit 操作返回
+  "content": "I need to buy groceries tomorrow at 6 PM",
+  "tags": ["shopping", "personal"]
 }
 ```
 
-#### 2.1.5 get_stats
+**Response:**
 
-获取系统统计信息。
-
-```python
-stats = engine.get_stats()
+```json
+{
+  "success": true,
+  "memory": {
+    "id": "mem_1234567890",
+    "content": "I need to buy groceries tomorrow at 6 PM",
+    "updated_at": "2026-04-08T10:30:00Z"
+  }
+}
 ```
 
-**返回值**：
-```python
+### 5. Delete Memory
+
+**DELETE /memories/{memory_id}**
+
+Delete a memory.
+
+**Response:**
+
+```json
 {
+  "success": true,
+  "message": "Memory deleted"
+}
+```
+
+### 6. Export Memories
+
+**GET /export**
+
+Export memories in various formats.
+
+**Query Parameters:**
+
+- `format`: Export format (json, csv, jsonl)
+- `tenant_id`: Filter by tenant ID
+- `memory_types`: Comma-separated list of memory types
+
+**Response:**
+
+The response will be a file download in the requested format.
+
+### 7. Get Stats
+
+**GET /stats**
+
+Get system statistics.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "stats": {
     "working_memory_size": 10,
-    "tier2": {
-        "total_memories": 50,
-        "active_memories": 45
-    },
-    "tier3": {
-        "total_memories": 200,
-        "active_memories": 180
-    },
-    "tier4": {
+    "storage": {
+      "tier2": {
         "total_memories": 100,
-        "active_memories": 95
+        "memory_types": {
+          "user_preference": 40,
+          "habit": 60
+        }
+      },
+      "tier3": {
+        "total_memories": 200,
+        "memory_types": {
+          "fact_declaration": 150,
+          "event": 50
+        }
+      },
+      "tier4": {
+        "total_memories": 50,
+        "memory_types": {
+          "relationship": 30,
+          "value": 20
+        }
+      }
     },
     "total_memories": 350
+  }
 }
 ```
 
-## 3. 存储层API
+### 8. Manage Memory
 
-### 3.1 BaseStorage
+**POST /memories/manage**
 
-#### 3.1.1 store_memory
+Manage memory operations (view, edit, delete).
 
-存储记忆。
+**Request Body:**
 
-```python
-success = storage.store_memory(memory)
-```
-
-**参数**：
-- `memory`：记忆数据字典
-
-**返回值**：
-- `True` 成功，`False` 失败
-
-#### 3.1.2 retrieve_memories
-
-检索记忆。
-
-```python
-memories = storage.retrieve_memories(query, limit)
-```
-
-**参数**：
-- `query`：搜索关键词，可选
-- `limit`：返回数量限制，默认10
-
-**返回值**：
-- 记忆列表
-
-#### 3.1.3 update_memory
-
-更新记忆。
-
-```python
-success = storage.update_memory(memory_id, updates)
-```
-
-**参数**：
-- `memory_id`：记忆ID
-- `updates`：更新数据字典
-
-**返回值**：
-- `True` 成功，`False` 失败
-
-#### 3.1.4 delete_memory
-
-删除记忆。
-
-```python
-success = storage.delete_memory(memory_id)
-```
-
-**参数**：
-- `memory_id`：记忆ID
-
-**返回值**：
-- `True` 成功，`False` 失败
-
-### 3.2 Tier3StorageFTS
-
-#### 3.2.1 warmup_cache
-
-预热缓存。
-
-```python
-count = storage.warmup_cache(limit=100)
-```
-
-**参数**：
-- `limit`：预热记忆数量，默认100
-
-**返回值**：
-- 预热的记忆数量
-
-#### 3.2.2 get_cache_stats
-
-获取缓存统计信息。
-
-```python
-stats = storage.get_cache_stats()
-```
-
-**返回值**：
-```python
+```json
 {
-    "enabled": True,
-    "size": 50,
-    "max_size": 1000,
-    "expired_items": 0,
-    "ttl": 3600,
-    "warmup_completed": True
+  "action": "edit",
+  "memory_id": "mem_1234567890",
+  "data": {
+    "content": "Updated memory content"
+  },
+  "user_id": "user123"
 }
 ```
 
-## 4. 插件系统API
-
-### 4.1 PluginManager
-
-#### 4.1.1 load_plugin
-
-加载插件。
-
-```python
-success = plugin_manager.load_plugin("sentiment_analyzer")
-```
-
-**参数**：
-- `plugin_name`：插件名称
-
-**返回值**：
-- `True` 成功，`False` 失败
-
-#### 4.1.2 load_all_plugins
-
-加载所有插件。
-
-```python
-loaded_plugins = plugin_manager.load_all_plugins()
-```
-
-**返回值**：
-- 加载的插件名称列表
-
-#### 4.1.3 process_message
-
-通过插件处理消息。
-
-```python
-results = plugin_manager.process_message(message, context)
-```
-
-**参数**：
-- `message`：消息内容
-- `context`：上下文信息
-
-**返回值**：
-- 插件处理结果字典
-
-#### 4.1.4 process_memory
-
-通过插件处理记忆。
-
-```python
-processed_memory = plugin_manager.process_memory(memory)
-```
-
-**参数**：
-- `memory`：记忆数据
-
-**返回值**：
-- 处理后的记忆数据
-
-## 5. 配置API
-
-### 5.1 ConfigManager
-
-#### 5.1.1 load_config
-
-加载配置。
-
-```python
-config = ConfigManager.load_config("config.yaml")
-```
-
-**参数**：
-- `config_path`：配置文件路径
-
-**返回值**：
-- 配置字典
-
-#### 5.1.2 get
-
-获取配置值。
-
-```python
-value = config.get("storage.data_path", "./data")
-```
-
-**参数**：
-- `key`：配置键
-- `default`：默认值
-
-**返回值**：
-- 配置值
-
-## 6. 工具API
-
-### 6.1 Helpers
-
-#### 6.1.1 generate_memory_id
-
-生成记忆ID。
-
-```python
-memory_id = generate_memory_id()
-```
-
-**返回值**：
-- 记忆ID字符串
-
-#### 6.1.2 get_current_time
-
-获取当前时间。
-
-```python
-current_time = get_current_time()
-```
-
-**返回值**：
-- ISO格式的时间字符串
-
-### 6.2 Logger
-
-#### 6.2.1 get_logger
-
-获取日志记录器。
-
-```python
-logger = get_logger("memory_engine")
-logger.info("Memory stored successfully")
-```
-
-**参数**：
-- `name`：日志名称
-
-**返回值**：
-- 日志记录器实例
-
-## 7. 异常处理
-
-### 7.1 异常类
-
-| 异常类 | 描述 |
-|---------|------|
-| `MemoryEngineError` | 基础异常类 |
-| `StorageError` | 存储相关异常 |
-| `MemoryNotFoundError` | 记忆未找到 |
-| `MemoryAlreadyExistsError` | 记忆已存在 |
-| `DatabaseError` | 数据库错误 |
-| `FTS5Error` | FTS5相关错误 |
-| `CacheError` | 缓存相关错误 |
-| `ConfigurationError` | 配置错误 |
-
-### 7.2 异常处理示例
-
-```python
-try:
-    engine.process_message("测试消息")
-except MemoryNotFoundError as e:
-    print(f"记忆未找到: {e}")
-except StorageError as e:
-    print(f"存储错误: {e}")
-except Exception as e:
-    print(f"未知错误: {e}")
-```
-
-## 8. 最佳实践
-
-### 8.1 API使用建议
-
-1. **初始化**：在应用启动时初始化引擎实例
-2. **错误处理**：始终捕获和处理异常
-3. **参数验证**：在调用API前验证参数
-4. **性能优化**：
-   - 批量操作优于单个操作
-   - 使用缓存减少重复查询
-   - 合理设置查询限制
-
-### 8.2 常见问题
-
-| 问题 | 原因 | 解决方案 |
-|------|------|----------|
-| 记忆存储失败 | 数据库连接问题 | 检查数据库权限和路径 |
-| 搜索结果为空 | 索引未建立 | 重建FTS5索引 |
-| 性能下降 | 缓存未预热 | 调用warmup_cache方法 |
-| 插件加载失败 | 插件依赖缺失 | 安装插件依赖 |
-
-## 9. 示例代码
-
-### 9.1 基本使用
-
-```python
-from memory_classification_engine import MemoryClassificationEngine
-
-# 初始化引擎
-engine = MemoryClassificationEngine()
-
-# 处理消息
-result = engine.process_message("我喜欢使用Python")
-print(f"处理结果: {result}")
-
-# 搜索记忆
-memories = engine.retrieve_memories("Python")
-print(f"搜索结果: {len(memories)} 条")
-
-# 获取统计信息
-stats = engine.get_stats()
-print(f"系统统计: {stats}")
-```
-
-### 9.2 高级使用
-
-```python
-from memory_classification_engine import MemoryClassificationEngine
-from memory_classification_engine.storage.tier3_fts import Tier3StorageFTS
-
-# 初始化引擎
-engine = MemoryClassificationEngine()
-
-# 直接使用存储层
-storage = Tier3StorageFTS("./data/tier3")
-
-# 预热缓存
-storage.warmup_cache(limit=200)
-
-# 存储记忆
-memory = {
-    "id": "mem_123",
-    "type": "user_preference",
-    "content": "我喜欢使用JavaScript",
-    "confidence": 0.9,
-    "source": "user"
+**Response:**
+
+```json
+{
+  "success": true,
+  "memory": {
+    "id": "mem_1234567890",
+    "content": "Updated memory content",
+    "updated_at": "2026-04-08T10:30:00Z"
+  }
 }
-storage.store_memory(memory)
-
-# 搜索记忆
-results = storage.retrieve_memories("JavaScript")
-print(f"搜索结果: {len(results)} 条")
 ```
 
-## 10. 版本兼容性
+### 9. Process with Agent
 
-### 10.1 API变更
+**POST /process/agent**
 
-| 版本 | 变更 |
-|------|------|
-| 1.0.0 | 初始版本 |
-| 1.1.0 | 添加插件系统 |
-| 1.2.0 | 添加FTS5搜索 |
-| 1.3.0 | 添加缓存系统 |
-| 1.4.0 | 添加向量存储和检索功能 |
+Process a message with a specific agent.
 
-### 10.2 向后兼容
+**Request Body:**
 
-- 1.x 版本保持API向后兼容
-- 2.0 版本可能会有破坏性变更
+```json
+{
+  "agent_name": "claude_code",
+  "message": "Write a Python function to calculate factorial",
+  "context": {
+    "user_id": "user123",
+    "tenant_id": "default"
+  }
+}
+```
 
-## 11. 故障排除
+**Response:**
 
-### 11.1 常见错误
+```json
+{
+  "success": true,
+  "agent_name": "claude_code",
+  "response": "Here's a Python function to calculate factorial:
+\n```python\ndef factorial(n):\n    if n == 0:\n        return 1\n    else:\n        return n * factorial(n-1)\n```",
+  "processing_time": 0.5
+}
+```
 
-| 错误信息 | 原因 | 解决方案 |
-|---------|------|----------|
-| `DatabaseError: unable to open database file` | 数据库文件权限问题 | 检查文件权限 |
-| `FTS5Error: FTS5 extension not available` | SQLite FTS5未启用 | 使用支持FTS5的SQLite版本 |
-| `MemoryNotFoundError: Memory not found` | 记忆ID不存在 | 检查记忆ID是否正确 |
+### 10. Tenant Management
 
-### 11.2 日志级别
+**POST /tenants**
 
-- `DEBUG`：详细调试信息
-- `INFO`：一般信息
-- `WARNING`：警告信息
-- `ERROR`：错误信息
-- `CRITICAL`：严重错误
+Create a new tenant.
 
-## 12. 贡献指南
+**Request Body:**
 
-### 12.1 API扩展
+```json
+{
+  "tenant_id": "company_a",
+  "name": "Company A",
+  "tenant_type": "enterprise",
+  "user_id": "admin123"
+}
+```
 
-如果您需要扩展API，请遵循以下步骤：
+**Response:**
 
-1. 在对应模块中添加新方法
-2. 更新API文档
-3. 添加相应的测试用例
-4. 提交Pull Request
+```json
+{
+  "success": true,
+  "tenant_id": "company_a",
+  "message": "Tenant created successfully"
+}
+```
 
-### 12.2 反馈
+## Error Responses
 
-如有API相关问题或建议，请通过以下方式反馈：
+All API endpoints return standardized error responses:
 
-- GitHub Issues
-- 邮件：support@memory-engine.com
-- 论坛：forum.memory-engine.com
+```json
+{
+  "success": false,
+  "error": "Error message",
+  "code": 400
+}
+```
+
+### Common Error Codes
+
+- `400`: Bad Request - Invalid input data
+- `401`: Unauthorized - Invalid or missing API key
+- `403`: Forbidden - Insufficient permissions
+- `404`: Not Found - Resource not found
+- `500`: Internal Server Error - Server-side error
+
+## SDK Usage
+
+### Python SDK
+
+```python
+from memory_classification_engine.sdk import MemoryClassificationSDK
+
+# Initialize SDK
+sdk = MemoryClassificationSDK(api_key="YOUR_API_KEY", base_url="http://localhost:8000/api/v1")
+
+# Process a message
+result = sdk.process_message("I need to buy groceries tomorrow at 5 PM")
+print(result)
+
+# Retrieve memories
+memories = sdk.retrieve_memories(query="groceries")
+print(memories)
+
+# Get a specific memory
+memory = sdk.get_memory("mem_1234567890")
+print(memory)
+
+# Update a memory
+updated_memory = sdk.update_memory("mem_1234567890", {"content": "I need to buy groceries tomorrow at 6 PM"})
+print(updated_memory)
+
+# Delete a memory
+deleted = sdk.delete_memory("mem_1234567890")
+print(deleted)
+
+# Export memories
+export_data = sdk.export_memories(format="json")
+print(export_data)
+
+# Get stats
+stats = sdk.get_stats()
+print(stats)
+
+# Process with agent
+agent_result = sdk.process_with_agent("claude_code", "Write a Python function")
+print(agent_result)
+```
+
+## Rate Limits
+
+API requests are subject to rate limits:
+
+- Free tier: 100 requests per minute
+- Standard tier: 1000 requests per minute
+- Enterprise tier: 10,000 requests per minute
+
+## Versioning
+
+The API uses semantic versioning. The current version is v1. Subsequent versions will be available at `/api/v2`, `/api/v3`, etc.
+
+## Support
+
+For API support, contact support@memory-classification-engine.com or visit our documentation at https://docs.memory-classification-engine.com.

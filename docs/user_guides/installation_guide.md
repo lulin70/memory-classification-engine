@@ -178,6 +178,7 @@ print("知识库统计信息:", stats)
 - 确保你使用的是Python 3.8或更高版本
 - 尝试使用 `pip install --upgrade pip` 升级pip
 - 如果特定包安装失败，尝试单独安装该包
+- 对于网络问题，可以使用国内镜像源，例如：`pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple`
 
 ### 2. Neo4j连接失败
 
@@ -188,6 +189,7 @@ print("知识库统计信息:", stats)
 - 检查 `config/config.yaml` 中的Neo4j配置是否正确
 - 验证Neo4j的用户名和密码是否正确
 - 如果不需要Neo4j，可以在配置文件中将 `neo4j.enabled` 设置为 `false`
+- 检查网络连接，确保Neo4j端口（7474和7687）未被防火墙阻止
 
 ### 3. Obsidian集成失败
 
@@ -197,6 +199,8 @@ print("知识库统计信息:", stats)
 - 确保Obsidian已安装
 - 检查 `config/config.yaml` 中的 `obsidian_vault_path` 是否正确设置
 - 确保你有足够的权限访问Obsidian vault目录
+- 确保Obsidian vault目录存在且是有效的Obsidian vault
+- 检查Obsidian是否正在运行（某些操作可能需要Obsidian处于活动状态）
 
 ### 4. LLM功能不可用
 
@@ -206,6 +210,8 @@ print("知识库统计信息:", stats)
 - 确保已设置 `MCE_LLM_API_KEY` 环境变量
 - 检查 `config/config.yaml` 中的LLM配置是否正确
 - 确保你的API密钥有效且有足够的配额
+- 检查网络连接，确保可以访问LLM API服务
+- 尝试使用不同的LLM模型，如 `gpt-3.5-turbo` 或 `glm-4`
 
 ### 5. 性能问题
 
@@ -215,6 +221,37 @@ print("知识库统计信息:", stats)
 - 确保你的系统满足最低要求
 - 调整 `config/config.yaml` 中的内存相关配置
 - 考虑禁用不需要的功能（如LLM或Neo4j）
+- 增加系统内存或使用更强大的硬件
+- 定期清理缓存和临时文件
+
+### 6. 记忆分类不准确
+
+**问题**：记忆分类结果与预期不符。
+
+**解决方案**：
+- 检查规则配置文件 `config/rules.yaml` 是否正确
+- 考虑启用LLM功能，提高分类准确性
+- 提供反馈，帮助系统学习和改进
+- 调整分类阈值和权重设置
+
+### 7. 缓存问题
+
+**问题**：缓存未预热或缓存命中率低。
+
+**解决方案**：
+- 调用 `warmup_cache()` 方法预热缓存
+- 调整缓存大小和过期时间
+- 检查缓存配置是否正确
+
+### 8. 插件加载失败
+
+**问题**：无法加载插件。
+
+**解决方案**：
+- 确保插件依赖已安装
+- 检查插件配置是否正确
+- 查看日志文件了解具体错误信息
+- 尝试重新安装插件
 
 ## 故障排除
 

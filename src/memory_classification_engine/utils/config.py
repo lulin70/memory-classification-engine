@@ -87,10 +87,16 @@ class ConfigManager:
         Returns:
             The loaded rules as a dictionary.
         """
-        rules_path = rules_path or self.get('rules.config_path', './config/rules.yaml')
+        rules_path = rules_path or self.get('rules.config_path', './config/advanced_rules.json')
         try:
             with open(rules_path, 'r', encoding='utf-8') as f:
-                rules = yaml.safe_load(f)
+                if rules_path.endswith('.yaml') or rules_path.endswith('.yml'):
+                    rules = yaml.safe_load(f)
+                elif rules_path.endswith('.json'):
+                    import json
+                    rules = json.load(f)
+                else:
+                    rules = yaml.safe_load(f)
             return rules or {}
         except Exception as e:
             print(f"Error loading rules: {e}")

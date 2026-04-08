@@ -132,3 +132,14 @@ semantic:
   cache_ttl: 7200
   # 批处理大小
   batch_size: 10
+
+# 知识库配置
+knowledge:
+  # Obsidian vault路径
+  obsidian_vault_path: "~/ObsidianVault"
+  # 同步间隔（秒）
+  sync_interval: 3600
+  # 写回策略: immediate, batch, scheduled
+  write_strategy: "immediate"
+  # 知识库类型: obsidian, notion, confluence
+  type: "obsidian"

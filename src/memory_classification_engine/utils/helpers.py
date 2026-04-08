@@ -84,6 +84,11 @@ def extract_content(text: str, pattern: str, action: str) -> Optional[str]:
         content = re.sub(r'[.!?]+$', '', content)
         return content
     
+    elif action == "extract":
+        # Extract the matched content
+        content = match.group(0)
+        return content
+    
     return None
 
 def calculate_memory_weight(confidence: float, days_since_last_access: int, access_count: int) -> float:
