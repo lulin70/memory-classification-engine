@@ -1,0 +1,91 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+logs/
+*.log
+
+# Data files
+data/
+
+# Cache
+.cache/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Test files
+# test_*.py
+# !tests/
+
+# Backup files
+*.bak
+
+# Profile files
+profile.out
+
+# Script generators (used once, not part of the project)
+_gen_*.py
+write_readme*.py
+
+# Benchmarks
+.benchmarks/
+
+# Test cache
+.pytest_cache/
+.test_cache/
+.test_smart_cache/
+
+# Build files
+build/
+dist/
+
+# Local development files
+local/
+temp/
+tmp/
+
+# Export files
+*.export.json
+*.export.csv
+
+# Debug files
+*.debug
+*.log
+
+# OS generated files
+Thumbs.db
+
+# IDE generated files
+*.swp
+*.swo
+*~
+
+# Virtual environment
+venv/
+env/
+
+# Models
+models/
+
+# Docker files
+docker-compose.override.yml

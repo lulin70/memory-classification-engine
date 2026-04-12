@@ -1,0 +1,43 @@
+# Memory Classification Engine - Dependencies
+
+# Core dependencies
+PyYAML
+sentence-transformers  # For pre-trained word embeddings
+numpy  # For numerical operations
+neo4j  # For Neo4j graph database connection
+langdetect  # For language detection
+polyglot  # For multilingual NLP
+pycld2  # For more accurate language detection
+
+# Web API
+Flask  # For REST API
+aiohttp  # For async API server
+socketio  # For WebSocket support
+requests  # For LLM API calls
+
+# Testing
+pytest
+pytest-cov
+pytest-benchmark
+memory-profiler  # For memory usage analysis
+
+# Code quality
+flake8
+black
+isort
+mypy
+
+# Security
+safety
+
+# Build
+build
+twine
+
+# Documentation
+sphinx
+sphinx-rtd-theme
+
+# Optional dependencies for testing
+scikit-learn
+faiss-cpu

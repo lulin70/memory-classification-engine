@@ -1,0 +1,30 @@
+[flake8]
+# 最大行长度
+max-line-length = 120
+
+# 忽略的错误
+ignore = 
+    E203,  # whitespace before ':'
+    E266,  # too many leading '#' for block comment
+    E501,  # line too long (handled by max-line-length)
+    W503,  # line break before binary operator
+    W605,  # invalid escape sequence
+
+# 排除的目录
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    build,
+    dist,
+    .eggs,
+    *.egg-info,
+    .pytest_cache,
+    .mypy_cache
+
+# 每个函数最大复杂度
+max-complexity = 15
+
+# 导入排序检查
+application-import-names = memory_classification_engine
