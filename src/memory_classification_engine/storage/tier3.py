@@ -840,17 +840,29 @@ class Tier3Storage:
                 if memory.get('is_encrypted'):
                     try:
                         content = memory.get('content', '')
-                        if content:
+                        if content and isinstance(content, str):
                             import json
                             import base64
-                            encrypted_data = json.loads(content)
-                            ciphertext = base64.b64decode(encrypted_data['ciphertext'])
-                            nonce = base64.b64decode(encrypted_data['nonce'])
-                            tag = base64.b64decode(encrypted_data['tag'])
-                            key_id = memory.get('encryption_key_id')
-                            if key_id:
-                                decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
-                                memory['content'] = decrypted_content
+                            try:
+                                encrypted_data = json.loads(content)
+                                if isinstance(encrypted_data, dict) and all(key in encrypted_data for key in ['ciphertext', 'nonce', 'tag']):
+                                    try:
+                                        ciphertext = base64.b64decode(encrypted_data['ciphertext'])
+                                        nonce = base64.b64decode(encrypted_data['nonce'])
+                                        tag = base64.b64decode(encrypted_data['tag'])
+                                        key_id = memory.get('encryption_key_id')
+                                        if key_id:
+                                            try:
+                                                decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
+                                                memory['content'] = decrypted_content
+                                            except Exception as decrypt_error:
+                                                logger.error(f"Error decrypting memory content: {decrypt_error}")
+                                    except Exception as decode_error:
+                                        logger.error(f"Error decoding base64 data: {decode_error}")
+                                else:
+                                    logger.error("Invalid encrypted data structure")
+                            except json.JSONDecodeError as json_error:
+                                logger.error(f"Error parsing JSON content: {json_error}")
                     except Exception as e:
                         logger.error(f"Error decrypting memory: {e}")
                 memories.append(memory)
@@ -1044,17 +1056,29 @@ class Tier3Storage:
                 if memory.get('is_encrypted'):
                     try:
                         content = memory.get('content', '')
-                        if content:
+                        if content and isinstance(content, str):
                             import json
                             import base64
-                            encrypted_data = json.loads(content)
-                            ciphertext = base64.b64decode(encrypted_data['ciphertext'])
-                            nonce = base64.b64decode(encrypted_data['nonce'])
-                            tag = base64.b64decode(encrypted_data['tag'])
-                            key_id = memory.get('encryption_key_id')
-                            if key_id:
-                                decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
-                                memory['content'] = decrypted_content
+                            try:
+                                encrypted_data = json.loads(content)
+                                if isinstance(encrypted_data, dict) and all(key in encrypted_data for key in ['ciphertext', 'nonce', 'tag']):
+                                    try:
+                                        ciphertext = base64.b64decode(encrypted_data['ciphertext'])
+                                        nonce = base64.b64decode(encrypted_data['nonce'])
+                                        tag = base64.b64decode(encrypted_data['tag'])
+                                        key_id = memory.get('encryption_key_id')
+                                        if key_id:
+                                            try:
+                                                decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
+                                                memory['content'] = decrypted_content
+                                            except Exception as decrypt_error:
+                                                logger.error(f"Error decrypting memory content: {decrypt_error}")
+                                    except Exception as decode_error:
+                                        logger.error(f"Error decoding base64 data: {decode_error}")
+                                else:
+                                    logger.error("Invalid encrypted data structure")
+                            except json.JSONDecodeError as json_error:
+                                logger.error(f"Error parsing JSON content: {json_error}")
                     except Exception as e:
                         logger.error(f"Error decrypting memory: {e}")
                 memories.append(memory)

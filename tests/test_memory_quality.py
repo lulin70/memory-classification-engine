@@ -84,7 +84,7 @@ def test_memory_quality_system():
     
     # 测试低价值记忆报告
     print("\n7. Testing low value memory report...")
-    low_value = orchestrator.generate_low_value_report(threshold=0.5)
+    low_value = orchestrator.generate_low_value_memory_report(threshold=0.5)
     print(f"   Low value memories (threshold: 0.5): {len(low_value)}")
     for mem in low_value[:3]:
         print(f"     {mem['memory_id']}: {mem['quality_metrics']['overall_quality']:.2f}")

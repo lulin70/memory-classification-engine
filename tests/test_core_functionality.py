@@ -9,11 +9,12 @@ def test_initialization():
     print("=== Testing Engine Initialization ===")
     engine = MemoryClassificationEngine()
     print("✓ Engine initialized successfully")
-    return engine
+    assert engine is not None
 
-def test_memory_classification(engine):
+def test_memory_classification():
     """Test memory classification."""
     print("\n=== Testing Memory Classification ===")
+    engine = MemoryClassificationEngine()
     
     # Test 1: Simple text memory
     memory = "I need to buy groceries tomorrow at 5 PM"
@@ -28,21 +29,30 @@ def test_memory_classification(engine):
     print(f"Process complex message result: {result}")
     assert "matches" in result
     assert len(result.get("matches", [])) > 0
-    
-    return result.get("matches", [])[0].get("id")
 
-def test_memory_retrieval(engine, memory_id):
+def test_memory_retrieval():
     """Test memory retrieval."""
     print("\n=== Testing Memory Retrieval ===")
+    engine = MemoryClassificationEngine()
+    
+    # First create a memory
+    memory = "Meeting with John at 2 PM about project deadline"
+    engine.process_message(memory)
     
     # Test retrieve memories
     memories = engine.retrieve_memories("project deadline")
     print(f"Retrieve memories result: {len(memories)} memories found")
     assert len(memories) > 0
 
-def test_memory_update(engine, memory_id):
+def test_memory_update():
     """Test memory update."""
     print("\n=== Testing Memory Update ===")
+    engine = MemoryClassificationEngine()
+    
+    # First create a memory
+    memory = "Meeting with John at 2 PM about project deadline"
+    result = engine.process_message(memory)
+    memory_id = result.get("matches", [])[0].get("id")
     
     # Test manage memory edit
     updated_content = "Meeting with John at 2 PM about project deadline. He mentioned the client wants the report by Friday. Need to prepare slides."
@@ -54,9 +64,15 @@ def test_memory_update(engine, memory_id):
     memories = engine.retrieve_memories("project deadline")
     assert len(memories) > 0
 
-def test_memory_deletion(engine, memory_id):
+def test_memory_deletion():
     """Test memory deletion."""
     print("\n=== Testing Memory Deletion ===")
+    engine = MemoryClassificationEngine()
+    
+    # First create a memory
+    memory = "Meeting with John at 2 PM about project deadline"
+    result = engine.process_message(memory)
+    memory_id = result.get("matches", [])[0].get("id")
     
     # Test manage memory delete
     result = engine.manage_memory("delete", memory_id)
@@ -67,9 +83,10 @@ def test_memory_deletion(engine, memory_id):
     memories = engine.retrieve_memories("project deadline")
     assert len(memories) >= 0
 
-def test_batch_processing(engine):
+def test_batch_processing():
     """Test batch processing."""
     print("\n=== Testing Batch Processing ===")
+    engine = MemoryClassificationEngine()
     
     memories = [
         "Buy milk and eggs",

@@ -52,7 +52,7 @@ def test_nudge_mechanism():
     print("\n4. Checking nudge results...")
     
     # 检查是否有记忆被标记为需要审查
-    recent_memories = engine.storage_coordinator.retrieve_memories(limit=10)
+    recent_memories = engine.storage_coordinator.retrieve_memories(query="", limit=10)
     
     print(f"   Found {len(recent_memories)} memories in storage")
     

@@ -48,6 +48,7 @@ from memory_classification_engine.utils.constants import (
     DEFAULT_TOTAL_MEMORY_RETRIEVAL_LIMIT,
     DEFAULT_TIER_MEMORY_RETRIEVAL_LIMIT,
     DEFAULT_TOPIC_CONTINUITY_THRESHOLD,
+    DEFAULT_BATCH_SIZE,
     DEFAULT_CONVERSATION_HISTORY_LIMIT,
     ENGINE_VERSION
 )
@@ -344,7 +345,7 @@ class MemoryClassificationEngine:
         logger.info("Running nudge mechanism...")
         try:
             # Comment in Chinese removedntly
-            recent_memories = self.storage_coordinator.retrieve_memories(limit=50)
+            recent_memories = self.storage_coordinator.retrieve_memories(query="", limit=50)
             
             # Comment in Chinese removedys
             old_memories = []

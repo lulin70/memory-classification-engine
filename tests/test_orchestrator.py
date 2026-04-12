@@ -3,7 +3,7 @@
 测试 MemoryOrchestrator 功能
 """
 
-from memory_classification_engine import MemoryOrchestrator, get_orchestrator
+from memory_classification_engine import MemoryOrchestrator, get_memory_orchestrator
 import json
 
 def test_memory_orchestrator():
@@ -75,8 +75,8 @@ def test_memory_orchestrator():
     print(f"   Stats: {json.dumps(stats, indent=2)}")
     
     # 测试全局编排器实例
-    print("\n7. Testing get_orchestrator() function...")
-    global_orchestrator = get_orchestrator()
+    print("\n7. Testing get_memory_orchestrator() function...")
+    global_orchestrator = get_memory_orchestrator()
     print("   ✅ Global orchestrator obtained")
     test_memory = global_orchestrator.recall("Python")
     print(f"   Found {len(test_memory)} memory(ies) for 'Python'")

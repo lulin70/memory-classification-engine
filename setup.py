@@ -14,7 +14,7 @@ setup(
     extras_require={
         "api": ["Flask", "aiohttp", "socketio"],
         "llm": ["requests"],
-        "testing": ["pytest", "pytest-benchmark"],
+        "testing": ["pytest", "pytest-benchmark", "pytest-asyncio" ],
         "profiling": ["memory-profiler"],
     },
     entry_points={

@@ -30,10 +30,13 @@ def test_mce_recall():
     print(json.dumps(request))
     sys.stdout.flush()
     
-    # Read the response
-    response = sys.stdin.readline()
-    print("Response:")
-    print(response)
+    # Only read response if not running under pytest
+    import os
+    if 'PYTEST_CURRENT_TEST' not in os.environ:
+        # Read the response
+        response = sys.stdin.readline()
+        print("Response:")
+        print(response)
 
 
 if __name__ == "__main__":

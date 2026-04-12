@@ -77,52 +77,56 @@ def test_multilingual_support():
     """Test multilingual support."""
     print("\n=== Testing Multilingual Support ===")
     
-    # Initialize engine
-    engine = MemoryClassificationEngine()
-    
-    # Test Chinese messages
-    chinese_messages = [
-        "我明天需要去超市买东西",
-        "我的邮箱是zhangsan@example.com",
-        "会议时间是下午3点",
-        "我喜欢吃中国菜"
-    ]
-    
-    for message in chinese_messages:
-        print(f"\nProcessing Chinese message: {message}")
-        result = engine.process_message(message)
+    try:
+        # Initialize engine
+        engine = MemoryClassificationEngine()
         
-        if "matches" in result and len(result["matches"]) > 0:
-            memory_type = result["matches"][0].get("memory_type")
-            language = result["matches"][0].get("language")
-            print(f"Memory type: {memory_type}")
-            print(f"Detected language: {language}")
-            print("✓ Processed successfully")
-        else:
-            print("✗ Failed to process")
-    
-    # Test English messages
-    english_messages = [
-        "I need to go to the store tomorrow",
-        "My email is john@example.com",
-        "Meeting at 3 PM",
-        "I like Italian food"
-    ]
-    
-    for message in english_messages:
-        print(f"\nProcessing English message: {message}")
-        result = engine.process_message(message)
+        # Test Chinese messages
+        chinese_messages = [
+            "我明天需要去超市买东西",
+            "我的邮箱是zhangsan@example.com",
+            "会议时间是下午3点",
+            "我喜欢吃中国菜"
+        ]
         
-        if "matches" in result and len(result["matches"]) > 0:
-            memory_type = result["matches"][0].get("memory_type")
-            language = result["matches"][0].get("language")
-            print(f"Memory type: {memory_type}")
-            print(f"Detected language: {language}")
-            print("✓ Processed successfully")
-        else:
-            print("✗ Failed to process")
-    
-    return True
+        for message in chinese_messages:
+            print(f"\nProcessing Chinese message: {message}")
+            result = engine.process_message(message)
+            
+            if "matches" in result and len(result["matches"]) > 0:
+                memory_type = result["matches"][0].get("memory_type")
+                language = result["matches"][0].get("language")
+                print(f"Memory type: {memory_type}")
+                print(f"Detected language: {language}")
+                print("✓ Processed successfully")
+            else:
+                print("✗ Failed to process")
+        
+        # Test English messages
+        english_messages = [
+            "I need to go to the store tomorrow",
+            "My email is john@example.com",
+            "Meeting at 3 PM",
+            "I like Italian food"
+        ]
+        
+        for message in english_messages:
+            print(f"\nProcessing English message: {message}")
+            result = engine.process_message(message)
+            
+            if "matches" in result and len(result["matches"]) > 0:
+                memory_type = result["matches"][0].get("memory_type")
+                language = result["matches"][0].get("language")
+                print(f"Memory type: {memory_type}")
+                print(f"Detected language: {language}")
+                print("✓ Processed successfully")
+            else:
+                print("✗ Failed to process")
+        
+        return True
+    except Exception as e:
+        print(f"\n✗ Test failed with exception: {e}")
+        return False
 
 def main():
     """Run all advanced classification tests."""

@@ -9,11 +9,33 @@ class SemanticUtility:
     def _init_embedding_model(self):
         """初始化嵌入模型"""
         try:
-            # Comment in Chinese removedrs
             from sentence_transformers import SentenceTransformer
-            return SentenceTransformer('all-MiniLM-L6-v2')
+            import os
+            
+            # 获取模型名称
+            model_name = self.config.get('semantic.model_name', 'all-MiniLM-L6-v2')
+            
+            # 尝试从本地路径加载模型
+            local_model_paths = [
+                os.path.join('.', 'models', model_name),
+                os.path.join('.', 'models', f'models--sentence-transformers--{model_name}'),
+                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'models', model_name),
+                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'models', f'models--sentence-transformers--{model_name}')
+            ]
+            
+            for local_path in local_model_paths:
+                if os.path.exists(local_path):
+                    logger.info(f"Loading model from local path: {local_path}")
+                    return SentenceTransformer(local_path)
+            
+            # 如果本地路径不存在，尝试从 Hugging Face 下载
+            logger.info(f"Loading model from Hugging Face: sentence-transformers/{model_name}")
+            return SentenceTransformer(f'sentence-transformers/{model_name}')
         except ImportError:
             logger.warning("sentence-transformers not available, using fallback semantic analysis")
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to load embedding model: {e}, using fallback semantic analysis")
             return None
     
     def calculate_similarity(self, text1, text2):
