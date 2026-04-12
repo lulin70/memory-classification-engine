@@ -29,7 +29,7 @@ The root cause: **most systems don't classify before they store.** They treat a 
 MCE classifies **every message in real time** before storing:
 
 ```
-Message: "上次那个方案太复杂了，换个简单点的"
+Message: "That last approach was too complex, let's go simpler"
 
 Traditional system:
   → Stores as summary fragment: "discussed approach complexity"
@@ -62,7 +62,7 @@ Incoming Message
        ▼
 ┌─────────────────────┐   60%+ of messages   │  Zero cost
 │ Layer 1: Rule Match  │   handled here      │  Regex + keywords
-│   "记住", "以后都..." │                     │  Deterministic
+│   "remember", "always..."│                   │  Deterministic
 └──────────┬──────────┘
            │ Unmatched
            ▼

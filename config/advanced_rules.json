@@ -25,22 +25,22 @@
     {
       "id": "rule_3",
       "name": "Date Detection",
-      "pattern": "(\\d{1,4}[-/\\.\\s]?){2,3}",
+      "pattern": "\\b(\\d{4}[-/]\\d{1,2}[-/]\\d{1,2})\\b|(\\d{1,2}[-/]\\d{1,2}[-/]\\d{4})\\b|(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|December)\\s+\\d{1,2},?\\s+\\d{4}",
       "memory_type": "event",
       "tier": 3,
       "action": "extract",
-      "description": "Date detection",
+      "description": "Strict date detection (YYYY-MM-DD or Month DD YYYY format)",
       "language": "all",
       "priority": 8
     },
     {
       "id": "rule_4",
       "name": "Time Detection",
-      "pattern": "(\\d{1,2}:\\d{2}(\\s*[AP]M)?)|(\\d{1,2}\\.\\d{2}(\\s*[AP]M)?)|(\\d{1,2}(\\s*[AP]M)?)",
+      "pattern": "\\b(\\d{1,2}:\\d{2}(:\\d{2})?(\\s*[AP]M)?)\\b",
       "memory_type": "event",
       "tier": 3,
       "action": "extract",
-      "description": "Time detection",
+      "description": "Strict time detection (HH:MM or HH:MM:SS format)",
       "language": "all",
       "priority": 8
     },

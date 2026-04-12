@@ -46,7 +46,9 @@ def test_submit_feedback():
     assert suggestion_result.get("success") is True
     suggestion_id = suggestion_result.get("feedback_id")
     
-    return bug_id, feature_id, suggestion_id
+    assert bug_id is not None
+    assert feature_id is not None
+    assert suggestion_id is not None
 
 
 def test_get_feedback():
@@ -67,8 +69,6 @@ def test_get_feedback():
     assert feedback is not None
     assert feedback.get("id") == feedback_id
     assert feedback.get("user_id") == "test_user_4"
-    
-    return feedback_id
 
 
 def test_list_feedback():

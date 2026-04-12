@@ -832,9 +832,9 @@ class MemoryClassificationEngine:
 
                     # Comment in Chinese removed)
                     all_memories = []
-                    all_memories.extend(self.storage_coordinator.retrieve_memories(limit=DEFAULT_MEMORY_RETRIEVAL_LIMIT//2, tier=2))
-                    all_memories.extend(self.storage_coordinator.retrieve_memories(limit=DEFAULT_MEMORY_RETRIEVAL_LIMIT, tier=3))
-                    all_memories.extend(self.storage_coordinator.retrieve_memories(limit=DEFAULT_MEMORY_RETRIEVAL_LIMIT//2, tier=4))
+                    all_memories.extend(self.storage_coordinator.retrieve_memories(query="", limit=DEFAULT_MEMORY_RETRIEVAL_LIMIT//2, tier=2))
+                    all_memories.extend(self.storage_coordinator.retrieve_memories(query="", limit=DEFAULT_MEMORY_RETRIEVAL_LIMIT, tier=3))
+                    all_memories.extend(self.storage_coordinator.retrieve_memories(query="", limit=DEFAULT_MEMORY_RETRIEVAL_LIMIT//2, tier=4))
                     
                     # Comment in Chinese removedtch
                     for memory in batch_memories:

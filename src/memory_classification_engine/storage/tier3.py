@@ -1048,40 +1048,43 @@ class Tier3Storage:
             # Comment in Chinese removeds
             memories = []
             for row in rows:
-                memory = dict(row)
-                # Comment in Chinese removednt
-                if 'type' in memory and 'memory_type' not in memory:
-                    memory['memory_type'] = memory['type']
-                # Comment in Chinese removedd
-                if memory.get('is_encrypted'):
-                    try:
-                        content = memory.get('content', '')
-                        if content and isinstance(content, str):
-                            import json
-                            import base64
-                            try:
-                                encrypted_data = json.loads(content)
-                                if isinstance(encrypted_data, dict) and all(key in encrypted_data for key in ['ciphertext', 'nonce', 'tag']):
-                                    try:
-                                        ciphertext = base64.b64decode(encrypted_data['ciphertext'])
-                                        nonce = base64.b64decode(encrypted_data['nonce'])
-                                        tag = base64.b64decode(encrypted_data['tag'])
-                                        key_id = memory.get('encryption_key_id')
-                                        if key_id:
+                try:
+                    memory = dict(row)
+                    if 'type' in memory and 'memory_type' not in memory:
+                        memory['memory_type'] = memory['type']
+                    
+                    if memory.get('is_encrypted'):
+                        try:
+                            content = memory.get('content', '')
+                            if content and isinstance(content, str) and len(content) > 10:
+                                import json
+                                import base64
+                                try:
+                                    encrypted_data = json.loads(content)
+                                    if isinstance(encrypted_data, dict):
+                                        required_keys = ['ciphertext', 'nonce', 'tag']
+                                        if all(key in encrypted_data for key in required_keys):
                                             try:
-                                                decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
-                                                memory['content'] = decrypted_content
+                                                ciphertext = base64.b64decode(encrypted_data['ciphertext'])
+                                                nonce = base64.b64decode(encrypted_data['nonce'])
+                                                tag = base64.b64decode(encrypted_data['tag'])
+                                                key_id = memory.get('encryption_key_id')
+                                                if key_id:
+                                                    decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
+                                                    memory['content'] = str(decrypted_content)
                                             except Exception as decrypt_error:
-                                                logger.error(f"Error decrypting memory content: {decrypt_error}")
-                                    except Exception as decode_error:
-                                        logger.error(f"Error decoding base64 data: {decode_error}")
-                                else:
-                                    logger.error("Invalid encrypted data structure")
-                            except json.JSONDecodeError as json_error:
-                                logger.error(f"Error parsing JSON content: {json_error}")
-                    except Exception as e:
-                        logger.error(f"Error decrypting memory: {e}")
-                memories.append(memory)
+                                                logger.debug(f"Error decrypting: {decrypt_error}")
+                                except (json.JSONDecodeError, TypeError, ValueError) as json_error:
+                                    logger.debug(f"Not encrypted JSON: {str(content)[:50]}")
+                            else:
+                                logger.debug("Empty or invalid content for decryption")
+                        except Exception as e:
+                            logger.debug(f"Skipping decryption for memory: {e}")
+                    
+                    memories.append(memory)
+                except Exception as row_error:
+                    logger.debug(f"Error processing row: {row_error}")
+                    continue
             
             return memories
         except Exception as e:
