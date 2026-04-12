@@ -1,91 +1,83 @@
 # Python
+*.pyc
 __pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
 
-# Database files
-*.db
-*.db-shm
-*.db-wal
+# Virtual environment
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
 
 # Logs
 logs/
 *.log
 
-# Data files
+# Test coverage
+.coverage/
+
+# Data
 data/
 
-# Cache
-.cache/
-
-# IDE
-.idea/
-.vscode/
-
-# OS
-.DS_Store
-
-# Environment
+# Environment variables
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
-# Test files
-# test_*.py
-# !tests/
+# Temporary files
+*.tmp
+*.temp
 
-# Backup files
-*.bak
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
 
-# Profile files
-profile.out
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
 
-# Script generators (used once, not part of the project)
-_gen_*.py
-write_readme*.py
+# Thumbnails
+._*
 
-# Benchmarks
-.benchmarks/
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
 
-# Test cache
-.pytest_cache/
-.test_cache/
-.test_smart_cache/
+# TypeScript
+*.tsbuildinfo
 
-# Build files
-build/
-dist/
+# Optional npm cache directory
+.npm
 
-# Local development files
-local/
-temp/
-tmp/
+# Optional eslint cache
+.eslintcache
 
-# Export files
-*.export.json
-*.export.csv
+# Optional stylelint cache
+.stylelintcache
 
-# Debug files
-*.debug
-*.log
-
-# OS generated files
-Thumbs.db
-
-# IDE generated files
-*.swp
-*.swo
-*~
-
-# Virtual environment
-venv/
-env/
-
-# Models
-models/
-
-# Docker files
-docker-compose.override.yml
+# Yarn
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.pnp.*
