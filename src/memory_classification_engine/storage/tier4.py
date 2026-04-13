@@ -337,23 +337,23 @@ class Tier4Storage:
         self.storage_path = storage_path
         os.makedirs(self.storage_path, exist_ok=True)
         
-        # Comment in Chinese removedth
+        # Database path
         self.db_path = os.path.join(self.storage_path, "semantic_memories.db")
         
-        # Comment in Chinese removedction pool
-        self.connection_pool = ConnectionPool(self.db_path)
+        # Connection pool with increased max connections
+        self.connection_pool = ConnectionPool(self.db_path, max_connections=10)
         
-        # Comment in Chinese removed
+        # Memory cache with optimized size
         self.memory_cache = {}
         self.cache_lock = threading.Lock()
-        self.cache_size = 100  # Comment in Chinese removed
+        self.cache_size = 200  # Increased cache size for better performance
         
-        # Comment in Chinese removedph
+        # Knowledge graph
         self.enable_graph = enable_graph
         if enable_graph:
             self.knowledge_graph = Neo4jKnowledgeGraph(storage_path)
         
-        # Comment in Chinese removed
+        # Initialize database
         self._init_db()
         
         logger.info("Tier4Storage initialized")

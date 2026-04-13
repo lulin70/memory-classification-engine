@@ -137,7 +137,7 @@ except ImportError as e:
 class Tier3Storage:
     """Storage for episodic memory (tier 3)."""
     
-    def __init__(self, storage_path: str = "./data/tier3", enable_cache: bool = True, cache_size: int = 1000, cache_ttl: int = 3600, enable_vector_search: bool = True, enable_in_memory_cache: bool = True, enable_memory_compression: bool = True, compression_threshold_days: int = 30, super_compression_threshold_days: int = 90):
+    def __init__(self, storage_path: str = "./data/tier3", enable_cache: bool = True, cache_size: int = 500, cache_ttl: int = 1800, enable_vector_search: bool = True, enable_in_memory_cache: bool = True, enable_memory_compression: bool = True, compression_threshold_days: int = 30, super_compression_threshold_days: int = 90):
         """Initialize tier 3 storage.
         
         Args:
@@ -154,46 +154,47 @@ class Tier3Storage:
         self.storage_path = storage_path
         os.makedirs(self.storage_path, exist_ok=True)
         
-        # Comment in Chinese removedth
+        # Database path
         self.db_path = os.path.join(self.storage_path, "episodic_memories.db")
         
-        # Comment in Chinese removedctions
+        # Connection pool
         self.connection_pool = ConnectionPool(self.db_path, max_connections=10)
         
-        # Comment in Chinese removed
+        # In-memory cache settings
         self.enable_in_memory_cache = enable_in_memory_cache
         if enable_in_memory_cache:
             self._init_in_memory_cache()
         
-        # Comment in Chinese removedttings
+        # Cache settings - reduced cache size and TTL for better memory usage
         self.enable_cache = enable_cache
         if enable_cache:
             from memory_classification_engine.utils.cache import MemoryCache
             self.cache = MemoryCache(max_size=cache_size, ttl=cache_ttl)
         
-        # Comment in Chinese removedttings
+        # Vector search settings
         self.enable_vector_search = enable_vector_search and VECTOR_SEARCH_AVAILABLE
         if self.enable_vector_search:
-            # Comment in Chinese removedr
-            self.vectorizer = TfidfVectorizer(stop_words='english', max_features=1000)
-            # Comment in Chinese removedx
+            # Vectorizer with optimized settings
+            self.vectorizer = TfidfVectorizer(stop_words='english', max_features=500, min_df=2)
+            # Vector index
             self.index = None
             self.memory_ids = []
-            self._init_vector_index()
+            # Lazy initialization of vector index
+            self.vector_index_initialized = False
         
-        # Comment in Chinese removedttings
+        # Memory compression settings
         self.enable_memory_compression = enable_memory_compression
         self.compression_threshold_days = compression_threshold_days
         self.super_compression_threshold_days = super_compression_threshold_days
         
-        # Comment in Chinese removed
+        # Initialize database
         self._init_db()
         
-        # Comment in Chinese removedd
+        # Load data to in-memory cache
         if self.enable_in_memory_cache:
             self._load_data_to_in_memory_cache()
         
-        # Comment in Chinese removedd
+        # Start memory compression task
         if self.enable_memory_compression:
             import threading
             threading.Thread(target=self._compress_old_memories).start()
@@ -408,74 +409,61 @@ class Tier3Storage:
     
     def _init_vector_index(self):
         """Initialize vector index from existing memories."""
-        if not self.enable_vector_search:
+        if not self.enable_vector_search or self.vector_index_initialized:
             return
         
         try:
-            # Comment in Chinese removeds
+            # Get active memories
             conn = self.connection_pool.get_connection()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute('SELECT id, content FROM episodic_memories WHERE status = ?', ('active',))
+            # Limit the number of memories for vector index to reduce memory usage
+            cursor.execute('SELECT id, content FROM episodic_memories WHERE status = ? ORDER BY last_accessed DESC LIMIT 1000', ('active',))
             rows = cursor.fetchall()
             self.connection_pool.return_connection(conn)
             
             if not rows:
-                # Comment in Chinese removedx
+                # No memories to index
                 self.index = None
                 self.memory_ids = []
+                self.vector_index_initialized = True
                 return
             
-            # Comment in Chinese removeds
+            # Extract contents and IDs
             contents = [row['content'] for row in rows]
             self.memory_ids = [row['id'] for row in rows]
             
-            # Comment in Chinese removedtion
-            from memory_classification_engine.utils.semantic import semantic_utility
-            
-            # Comment in Chinese removedxts
-            # 逐个编码文本，因为 semantic_utility 没有 batch_encode_texts 方法
-            embeddings = []
-            for content in contents:
-                try:
-                    # 使用 calculate_similarity 方法作为回退
-                    # 这里我们使用一个空字符串作为比较对象，只是为了获取嵌入
-                    # 注意：这不是正确的嵌入生成方法，但可以作为临时回退
-                    semantic_utility.calculate_similarity(content, "")
-                    # 由于我们无法直接获取嵌入，这里使用空列表作为回退
-                    embeddings.append([])
-                except Exception as e:
-                    logger.error(f"Error encoding text: {e}")
-                    embeddings.append([])
-            
-            # Comment in Chinese removedddings
-            valid_embeddings = []
-            valid_memory_ids = []
-            for i, emb in enumerate(embeddings):
-                if emb is not None and len(emb) > 0:
-                    valid_embeddings.append(emb)
-                    valid_memory_ids.append(self.memory_ids[i])
-            
-            if not valid_embeddings:
+            # Generate embeddings using TfidfVectorizer directly
+            try:
+                # Fit and transform in one step
+                vectors = self.vectorizer.fit_transform(contents).toarray().astype('float32')
+            except Exception as e:
+                logger.error(f"Error generating embeddings: {e}")
                 self.index = None
                 self.memory_ids = []
+                self.vector_index_initialized = True
                 return
             
-            # Comment in Chinese removedy
-            vectors = np.array(valid_embeddings, dtype='float32')
-            self.memory_ids = valid_memory_ids
+            # Only proceed if we have valid vectors
+            if vectors.size == 0:
+                self.index = None
+                self.memory_ids = []
+                self.vector_index_initialized = True
+                return
             
-            # Comment in Chinese removed
+            # Create FAISS index
             dimension = vectors.shape[1]
-            nlist = min(100, len(valid_embeddings))  # Comment in Chinese removedrs
+            nlist = min(50, len(vectors))  # Reduce nlist for smaller index
             self.index = faiss.IndexIVFFlat(faiss.IndexFlatL2(dimension), dimension, nlist, faiss.METRIC_L2)
             self.index.train(vectors)
             self.index.add(vectors)
             
+            self.vector_index_initialized = True
             logger.info(f"Vector index initialized with {len(self.memory_ids)} memories")
         except Exception as e:
             logger.error(f"Error initializing vector index: {e}", exc_info=True)
             self.enable_vector_search = False
+            self.vector_index_initialized = True
     
     def store_memory(self, memory: Dict[str, Any]) -> bool:
         """Store a memory in tier 3.
@@ -881,22 +869,30 @@ class Tier3Storage:
         Returns:
             A list of matching memories sorted by similarity.
         """
-        if not self.enable_vector_search or self.index is None:
+        if not self.enable_vector_search:
+            return []
+        
+        # Lazy initialization of vector index
+        if not self.vector_index_initialized:
+            self._init_vector_index()
+        
+        if self.index is None:
             return []
         
         try:
-            # Comment in Chinese removedry
+            # Create query vector
             try:
                 query_vector = self.vectorizer.transform([query]).toarray().astype('float32')
             except Exception as e:
-                # Comment in Chinese removedmpty list
+                # Return empty list if vectorization fails
                 logger.error(f"Error creating query vector: {e}")
                 return []
             
-            # Comment in Chinese removedx
-            distances, indices = self.index.search(query_vector, limit)
+            # Search index with reduced limit to save memory
+            search_limit = min(limit * 2, 50)  # Get more results than needed for better ranking
+            distances, indices = self.index.search(query_vector, search_limit)
             
-            # Comment in Chinese removeds
+            # Get matched memory IDs
             matched_memory_ids = []
             for i in range(len(indices[0])):
                 idx = indices[0][i]
@@ -906,29 +902,32 @@ class Tier3Storage:
             if not matched_memory_ids:
                 return []
             
-            # Comment in Chinese removed
+            # Get memories from database
             conn = self.connection_pool.get_connection()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
-            # Comment in Chinese removedry
-            placeholders = ','.join(['?'] * len(matched_memory_ids))
+            # Limit the number of memories to query
+            limited_ids = matched_memory_ids[:limit]
+            placeholders = ','.join(['?'] * len(limited_ids))
             cursor.execute(f'''
                 SELECT * FROM episodic_memories 
                 WHERE status = 'active' AND id IN ({placeholders})
-                ORDER BY instr(',{','.join(matched_memory_ids)},', ',' || id || ',')
-            ''', matched_memory_ids)
+                ORDER BY instr(',{','.join(limited_ids)},', ',' || id || ',')
+            ''', limited_ids)
             
             rows = cursor.fetchall()
             self.connection_pool.return_connection(conn)
             
-            # Comment in Chinese removeds
+            # Process results
             memories = []
             for row in rows:
                 memory = dict(row)
-                # Comment in Chinese removednt
+                # Ensure both type and memory_type are set
                 if 'type' in memory and 'memory_type' not in memory:
                     memory['memory_type'] = memory['type']
+                # Decrypt content if needed
+                MemoryEncryptionHelper.decrypt_memory_content(memory)
                 memories.append(memory)
             
             return memories
