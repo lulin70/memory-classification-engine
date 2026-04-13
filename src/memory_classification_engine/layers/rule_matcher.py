@@ -23,9 +23,13 @@ class RuleMatcher:
             execution_context: Optional execution context containing feedback signals.
             
         Returns:
-            A list of matching memories.
+            A list of matching memories, sorted by priority (highest first).
         """
         matches = []
+        
+        # Handle None message
+        if message is None:
+            return matches
         
         # Comment in Chinese removed
         language, _ = language_manager.detect_language(message)
@@ -37,6 +41,7 @@ class RuleMatcher:
             action = rule.get('action')
             description = rule.get('description')
             rule_language = rule.get('language')
+            priority = rule.get('priority', 5)  # Default priority if not specified
             
             # Comment in Chinese removed
             if rule_language and rule_language != "all" and rule_language != language:
@@ -45,19 +50,33 @@ class RuleMatcher:
             # Comment in Chinese removed
             if re.search(pattern, message):
                 # Comment in Chinese removedction
-                content = extract_content(message, pattern, action)
+                if action == "extract":
+                    # For extract action, use the entire message as content
+                    content = message
+                else:
+                    content = extract_content(message, pattern, action)
                 
                 if content:
+                    # 构建 source 字段，确保偏好规则的 source 包含 'preference'
+                    if memory_type == 'user_preference':
+                        source = 'rule:preference'
+                    else:
+                        source = f'rule:{pattern}'
+                    
                     match = {
                         'memory_type': memory_type,
                         'tier': tier,
                         'content': content,
                         'confidence': 1.0,  # Comment in Chinese removed
-                        'source': f'rule:{pattern}',
+                        'source': source,
                         'description': description,
-                        'language': language
+                        'language': language,
+                        'priority': priority  # Add priority to match
                     }
                     matches.append(match)
+        
+        # Sort matches by priority (highest first)
+        matches.sort(key=lambda x: x.get('priority', 5), reverse=True)
         
         return matches
     

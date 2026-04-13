@@ -94,6 +94,18 @@ class ClassificationPipeline:
         """
         from memory_classification_engine.utils.language import language_manager
         
+        # Handle None message
+        if message is None:
+            return {
+                'memory_type': 'fact_declaration',
+                'tier': 3,
+                'content': '',
+                'confidence': 0.5,
+                'source': 'default:general',
+                'description': 'General fact declaration',
+                'language': language
+            }
+        
         message_lower = message.lower()
         
         # Comment in Chinese removedr

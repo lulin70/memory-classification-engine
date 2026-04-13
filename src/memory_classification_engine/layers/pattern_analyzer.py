@@ -14,6 +14,7 @@ class PatternAnalyzer:
         self.correction_patterns = {}
         self.fact_patterns = {}
         self.relationship_patterns = {}
+        self.location_patterns = {}
     
     def analyze(self, message: str, context: Optional[Dict[str, Any]] = None, execution_context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Analyze a message for patterns.
@@ -27,6 +28,10 @@ class PatternAnalyzer:
             A list of detected patterns.
         """
         patterns = []
+        
+        # Handle None message
+        if message is None:
+            return patterns
         
         # Comment in Chinese removed to history
         self.message_history.append(message)
@@ -86,6 +91,12 @@ class PatternAnalyzer:
         if sentiment_pattern:
             sentiment_pattern['language'] = language
             patterns.append(sentiment_pattern)
+        
+        # Comment in Chinese removedrns
+        location_pattern = self._detect_location_pattern(message, language)
+        if location_pattern:
+            location_pattern['language'] = language
+            patterns.append(location_pattern)
         
         return patterns
     
@@ -209,6 +220,12 @@ class PatternAnalyzer:
         # Comment in Chinese removedr
         preference_keywords = language_manager.get_keywords('user_preference', language)
         
+        # 添加更多偏好关键词
+        if language == 'en':
+            preference_keywords.extend(['enjoy', 'fancy', 'adore', 'preference', 'favorite', 'preferred'])
+        elif language == 'zh-cn':
+            preference_keywords.extend(['爱好', '喜好', '偏爱', '最爱的', '喜欢的', '偏好'])
+        
         message_lower = message.lower()
         for keyword in preference_keywords:
             if keyword in message_lower:
@@ -258,39 +275,47 @@ class PatternAnalyzer:
         
         # Comment in Chinese removedrs
         if language == 'en':
-            correction_keywords.extend(['no', 'not', 'don\'t', 'doesn\'t', 'didn\'t'])
+            # 避免误匹配普通否定词，只添加明确的纠正词
+            correction_keywords.extend(['wrong', 'incorrect', 'mistake', 'error', 'fix', 'bug', 'issue', 'problem'])
         elif language == 'zh-cn':
-            correction_keywords.extend(['不', '没', '没有', '别', '不要'])
+            correction_keywords.extend(['错', '误', '修', '改', '问题', 'bug'])
         
         message_lower = message.lower()
+        
+        # 检查是否包含纠正关键词
+        found_correction = False
         for keyword in correction_keywords:
             if keyword in message_lower:
-                # Comment in Chinese removednt
-                correction_content = message
-                
-                # Comment in Chinese removedrs to
-                if len(self.message_history) >= 2:
-                    previous_message = self.message_history[-2]
-                    if language.startswith('zh'):
-                        correction_content = f"纠正: {message}. 针对: {previous_message}"
-                    else:
-                        correction_content = f"Correction: {message}. Referring to: {previous_message}"
-                
-                # Comment in Chinese removed
-                correction_hash = hash(correction_content)
-                if correction_hash in self.correction_patterns:
-                    self.correction_patterns[correction_hash] += 1
+                found_correction = True
+                break
+        
+        if found_correction:
+            # Comment in Chinese removednt
+            correction_content = message
+            
+            # Comment in Chinese removedrs to
+            if len(self.message_history) >= 2:
+                previous_message = self.message_history[-2]
+                if language.startswith('zh'):
+                    correction_content = f"纠正: {message}. 针对: {previous_message}"
                 else:
-                    self.correction_patterns[correction_hash] = 1
-                
-                return {
-                    'memory_type': 'correction',
-                    'tier': 3,
-                    'content': correction_content,
-                    'confidence': 0.7,
-                    'source': 'pattern:correction',
-                    'description': '纠正模式'
-                }
+                    correction_content = f"Correction: {message}. Referring to: {previous_message}"
+            
+            # Comment in Chinese removed
+            correction_hash = hash(correction_content)
+            if correction_hash in self.correction_patterns:
+                self.correction_patterns[correction_hash] += 1
+            else:
+                self.correction_patterns[correction_hash] = 1
+            
+            return {
+                'memory_type': 'correction',
+                'tier': 3,
+                'content': correction_content,
+                'confidence': 0.7,
+                'source': 'pattern:correction',
+                'description': '纠正模式'
+            }
         
         return None
     
@@ -452,9 +477,9 @@ class PatternAnalyzer:
         
         # Comment in Chinese removedrs
         if language == 'en':
-            task_keywords.extend(['help', 'write', 'create', 'build', 'make', 'generate', 'develop', 'implement'])
+            task_keywords.extend(['help', 'write', 'create', 'build', 'make', 'generate', 'develop', 'implement', 'need', 'should', 'must', 'have to', 'require', 'buy', 'purchase', 'acquire'])
         elif language == 'zh-cn':
-            task_keywords.extend(['帮', '写', '创建', '构建', '制作', '生成', '开发', '实现'])
+            task_keywords.extend(['帮', '写', '创建', '构建', '制作', '生成', '开发', '实现', '需要', '应该', '必须', '要买', '购买', '获取'])
         
         message_lower = message.lower()
         for keyword in task_keywords:
@@ -599,6 +624,58 @@ class PatternAnalyzer:
         
         return None
     
+    def _detect_location_pattern(self, message: str, language: str) -> Optional[Dict[str, Any]]:
+        """Detect location patterns.
+        
+        Args:
+            message: The message to analyze.
+            language: The detected language code.
+            
+        Returns:
+            A location pattern if detected, None otherwise.
+        """
+        # 位置关键词
+        location_keywords = {
+            'en': ['at', 'in', 'on', 'located', 'place', 'location', 'address'],
+            'zh-cn': ['在', '位于', '地址', '地方', '位置']
+        }
+        
+        # 检查语言对应的关键词
+        keywords = location_keywords.get(language, location_keywords.get('en', []))
+        
+        message_lower = message.lower()
+        for keyword in keywords:
+            if keyword in message_lower:
+                # 位置内容
+                location_content = message
+                
+                # 检查是否包含常见地点名称
+                common_locations = {
+                    'en': ['park', 'station', 'airport', 'hotel', 'restaurant', 'office', 'building', 'street', 'avenue', 'road'],
+                    'zh-cn': ['公园', '车站', '机场', '酒店', '餐厅', '办公室', '大楼', '街道', '大道', '路']
+                }
+                
+                location_terms = common_locations.get(language, common_locations.get('en', []))
+                for term in location_terms:
+                    if term in message_lower:
+                        # 生成位置模式
+                        location_hash = hash(location_content)
+                        if location_hash in self.location_patterns:
+                            self.location_patterns[location_hash] += 1
+                        else:
+                            self.location_patterns[location_hash] = 1
+                        
+                        return {
+                            'memory_type': 'location',
+                            'tier': 3,
+                            'content': location_content,
+                            'confidence': 0.7,
+                            'source': 'pattern:location',
+                            'description': '位置模式'
+                        }
+        
+        return None
+    
     def clear_history(self):
         """Clear the message history."""
         self.message_history = []
@@ -607,3 +684,4 @@ class PatternAnalyzer:
         self.correction_patterns = {}
         self.fact_patterns = {}
         self.relationship_patterns = {}
+        self.location_patterns = {}

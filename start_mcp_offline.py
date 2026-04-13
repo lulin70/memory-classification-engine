@@ -27,5 +27,6 @@ print(f"   Model cache: {os.environ['HF_HOME']}")
 print(f"   Offline mode: enabled")
 
 # Import and start server
+import asyncio
 from memory_classification_engine.integration.layer2_mcp.server import main
-main()
+asyncio.run(main())

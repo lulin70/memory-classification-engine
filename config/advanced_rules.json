@@ -1,1 +1,139 @@
-{"rules": [{"id": "rule_1", "name": "Email Address Detection", "pattern": "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", "memory_type": "contact_information", "tier": 2, "action": "extract", "description": "Email address detection", "language": "all", "priority": 10}, {"id": "rule_2", "name": "Phone Number Detection - International", "pattern": "(\\+?\\d{1,3}[-. ]?)?(\\(?\\d{3}\\)?[-. ]?)?\\d{3}[-. ]?\\d{4}", "memory_type": "contact_information", "tier": 2, "action": "extract", "description": "International phone number detection", "language": "all", "priority": 10}, {"id": "rule_3", "name": "Date Detection - EN", "pattern": "\\b(\\d{4}[-/]\\d{1,2}[-/]\\d{1,2})\\b|(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec(?:ember)?)\\s+\\d{1,2},?\\s+\\d{4}", "memory_type": "event", "tier": 3, "action": "extract", "description": "English date detection (YYYY-MM-DD or Month DD YYYY)", "language": "en", "priority": 8}, {"id": "rule_4", "name": "Time Detection - EN", "pattern": "\\b(\\d{1,2}:\\d{2}(:\\d{2})?(\\s*[AP]M)?)\\b", "memory_type": "event", "tier": 3, "action": "extract", "description": "English time detection (HH:MM format)", "language": "en", "priority": 8}, {"id": "rule_5", "name": "URL Detection", "pattern": "https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_\\+.~#?&//=]*)", "memory_type": "reference", "tier": 3, "action": "extract", "description": "URL detection", "language": "all", "priority": 7}, {"id": "rule_6_en", "name": "Location Detection - EN", "pattern": "(?:in|at|from|to)\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+)*(?:\\s+(?:City|Street|Avenue|Road|Building|Office)))?", "memory_type": "fact_declaration", "tier": 3, "action": "extract", "description": "English location detection", "language": "en", "priority": 7}, {"id": "rule_7_en", "name": "Task Deadline - EN", "pattern": "\\b(due|deadline|by|before)\\s+(tomorrow|today|(?:next\\s+)?(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)|\\d{1,2}(?:st|nd|rd|th)?(?:\\s+(?:of)?\\s+)?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?)", "memory_type": "task_pattern", "tier": 2, "action": "extract", "description": "English task deadline detection", "language": "en", "priority": 9}, {"id": "rule_8_en", "name": "Meeting Detection - EN", "pattern": "\\b(meeting|call|appointment|interview|standup|sync|review)\\s+(with|at|on|for|about)\\b", "memory_type": "event", "tier": 2, "action": "extract", "description": "English meeting/event detection", "language": "en", "priority": 8}, {"id": "rule_9_en", "name": "Shopping List - EN", "pattern": "\\b(buy|purchase|get|need|order|pick up)\\s+(groceries|items|things|food|supplies|milk|bread|coffee)", "memory_type": "task_pattern", "tier": 2, "action": "extract", "description": "English shopping/task detection", "language": "en", "priority": 7}, {"id": "rule_10_en", "name": "Personal Preference - EN", "pattern": "\\b(I\\s+)?(prefer|like|love|hate|dislike|want|wish|would rather)\\s+(to\\s+)?(use|have|do|be|go|stay|work)\\b", "memory_type": "user_preference", "tier": 2, "action": "extract", "description": "English personal preference detection", "language": "en", "priority": 9}, {"id": "rule_11_en", "name": "Correction Pattern - EN", "pattern": "\\b(too complex|too complicated|wrong approach|bad idea|mistake|error|bug|issue|problem|not working|doesn't work|let's change|switch to|try something else|go back|revert)\\b", "memory_type": "correction", "tier": 2, "action": "extract", "description": "English correction/rejection detection", "language": "en", "priority": 9}, {"id": "rule_12_en", "name": "Decision Pattern - EN", "pattern": "\\b(let's|we will|I'll|decided to|going to|choose|selected|opted for|using|adopting|implementing)\\s+(use|go with|implement|adopt|build|create|deploy|install|setup)\\b", "memory_type": "decision", "tier": 2, "action": "extract", "description": "English decision pattern detection", "language": "en", "priority": 9}, {"id": "rule_13_zh", "name": "Chinese Phone Number", "pattern": "1[3-9]\\d{9}", "memory_type": "contact_information", "tier": 2, "action": "extract", "description": "Chinese phone number detection (11 digits starting with 13-19)", "language": "zh", "priority": 10}, {"id": "rule_14_zh", "name": "Chinese Date - ZH", "pattern": "\\d{4}年\\d{1,2}月\\d{1,2}日|\\d{4}[/-]\\d{1,2}[/-]\\d{1,2}", "memory_type": "event", "tier": 3, "action": "extract", "description": "Chinese date detection (YYYY年MM月DD日 or YYYY-MM-DD)", "language": "zh", "priority": 8}, {"id": "rule_15_zh", "name": "Chinese Time - ZH", "pattern": "\\d{1,2}时\\d{1,2}分|\\d{1,2}:\\d{2}|下午\\d{1,2}:\\d{2}|上午\\d{1,2}:\\d{2}", "memory_type": "event", "tier": 3, "action": "extract", "description": "Chinese time detection (XX时XX分 or HH:MM)", "language": "zh", "priority": 8}, {"id": "rule_16_zh", "name": "Meeting Detection - ZH", "pattern": "(会议|开会|通话|电话会议|约会|面谈|评审|复盘|站会|同步会)(和|与|跟|在|关于|讨论|安排)?", "memory_type": "event", "tier": 2, "action": "extract", "description": "Chinese meeting/event detection", "language": "zh", "priority": 8}, {"id": "rule_17_zh", "name": "Shopping/Task - ZH", "pattern": "(买|购买|需要|采购|下单|去取|拿一下)(东西|物品|菜|饭|咖啡|材料|工具|配件| groceries)", "memory_type": "task_pattern", "tier": 2, "action": "extract", "description": "Chinese shopping/task detection", "language": "zh", "priority": 7}, {"id": "rule_18_zh", "name": "Preference - ZH", "pattern": "(我喜欢|我倾向|我更愿意|我希望|我想要|偏好|喜欢|习惯用|常用|通常用)(用|使用|做|采用|选择|保持|坚持)", "memory_type": "user_preference", "tier": 2, "action": "extract", "description": "Chinese user preference detection", "language": "zh", "priority": 9}, {"id": "rule_19_zh", "name": "Correction - ZH", "pattern": "(太复杂了|太繁琐了|不对|错了|有问题|有bug|出问题了|不行|不好用|换个|改用|重新来|回滚|撤销|放弃|取消|不要了|不用那个)", "memory_type": "correction", "tier": 2, "action": "extract", "description": "Chinese correction/rejection detection", "language": "zh", "priority": 9}, {"id": "rule_20_zh", "name": "Decision - ZH", "pattern": "(决定|确定|选择|采用|使用|部署|实施|安装|搭建|配置)(用|使用|Redis|MySQL|PostgreSQL|Docker|Kubernetes|Python|Java|Go|Rust|Vue|React|Angular)", "memory_type": "decision", "tier": 2, "action": "extract", "description": "Chinese decision pattern detection", "language": "zh", "priority": 9}, {"id": "rule_21_zh", "name": "Relationship - ZH", "pattern": "(负责|主管|管理|处理|开发|维护|设计|测试|运营|支持)(后端|前端|数据库|服务器|API|UI|UX|安全|运维|产品|项目)", "memory_type": "relationship", "tier": 2, "action": "extract", "description": "Chinese role-responsibility relationship detection", "language": "zh", "priority": 8}, {"id": "rule_22_ja", "name": "Japanese Date - JA", "pattern": "\\d{4}年\\d{1,2}月\\d{1,2}日|\\d{4}[/-]\\d{1,2}[/-]\\d{1,2}", "memory_type": "event", "tier": 3, "action": "extract", "description": "Japanese date detection", "language": "ja", "priority": 8}, {"id": "rule_23_ja", "name": "Japanese Time - JA", "pattern": "\\d{1,2}時\\d{1,2}分|\\d{1,2}:\\d{2}|午前\\d{1,2}:\\d{2}|午後\\d{1,2}:\\d{2}", "memory_type": "event", "tier": 3, "action": "extract", "description": "Japanese time detection", "memory_type": "event", "language": "ja", "priority": 8}, {"id": "rule_24_ja", "name": "Meeting Detection - JA", "pattern": "(ミーティング|会議|電話会議|面談|レビュー|同期会|定例)(と|に|で|について|を)?", "memory_type": "event", "tier": 2, "action": "extract", "description": "Japanese meeting/event detection", "language": "ja", "priority": 8}, {"id": "rule_25_ja", "name": "Preference - JA", "pattern": "(好む|好き|希望する|望む|欲しい|傾向がある)(使う|用いる|採用する|選ぶ|維持する|続ける)", "memory_type": "user_preference", "tier": 2, "action": "extract", "description": "Japanese preference detection", "language": "ja", "priority": 9}, {"id": "rule_26_ja", "name": "Correction - JA", "pattern": "(複雑すぎる|難しすぎる|間違っている|問題がある|バグがある|動かない|だめ|やめる|変更する|切り替える|取り消す|キャンセルする)", "memory_type": "correction", "tier": 2, "action": "extract", "description": "Japanese correction/rejection detection", "language": "ja", "priority": 9}, {"id": "rule_27_ja", "name": "Decision - JA", "pattern": "(決定する|決めた|選択する|選んだ|採用する|導入する|実装する|デプロイする|インストールする|構築する)(Redis|MySQL|PostgreSQL|Docker|Kubernetes|Python|Java|Go|Rust|Vue|React|Angular)?", "memory_type": "decision", "tier": 2, "action": "extract", "description": "Japanese decision pattern detection", "language": "ja", "priority": 9}, {"id": "rule_28_ja", "name": "Relationship - JA", "pattern": "(担当|責任者|管理者|開発者|設計者|テスター|オペレーター)(バックエンド|フロントエンド|データベース|サーバー|API|UI|UX|セキュリティ|運用|製品|プロジェクト)", "memory_type": "relationship", "tier": 2, "action": "extract", "description": "Japanese role-responsibility relationship detection", "language": "ja", "priority": 8}], "default_rules": true, "custom_rules": []}
+{
+  "rules": [
+    {
+      "pattern": "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}",
+      "memory_type": "contact_information",
+      "tier": 3,
+      "action": "extract",
+      "description": "Email address",
+      "language": "all",
+      "priority": 10
+    },
+    {
+      "pattern": "\\b(?:\\d{3}-\\d{3}-\\d{4}|\\d{11})\\b",
+      "memory_type": "contact_information",
+      "tier": 3,
+      "action": "extract",
+      "description": "Phone number",
+      "language": "all",
+      "priority": 10
+    },
+    {
+      "pattern": "电话号码是\\d{11}",
+      "memory_type": "contact_information",
+      "tier": 3,
+      "action": "extract",
+      "description": "Chinese phone number",
+      "language": "zh-cn",
+      "priority": 10
+    },
+    {
+      "pattern": "\\b(?:20\\d{2}[-/\\.]?(?:0[1-9]|1[0-2])[-/\\.]?(?:0[1-9]|[12]\\d|3[01]))\\b",
+      "memory_type": "event",
+      "tier": 3,
+      "action": "extract",
+      "description": "Date",
+      "language": "all",
+      "priority": 11
+    },
+    {
+      "pattern": "\\d{4}年\\d{1,2}月\\d{1,2}日",
+      "memory_type": "event",
+      "tier": 3,
+      "action": "extract",
+      "description": "Chinese date",
+      "language": "zh-cn",
+      "priority": 11
+    },
+    {
+      "pattern": "(?i)\\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\\s+\\d{1,2}(?:st|nd|rd|th)?\\b",
+      "memory_type": "event",
+      "tier": 3,
+      "action": "extract",
+      "description": "English date",
+      "language": "en",
+      "priority": 11
+    },
+    {
+      "pattern": "https?:\\/\\/(?:www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b(?:[-a-zA-Z0-9()@:%_\\+.~#?&//=]*)",
+      "memory_type": "reference",
+      "tier": 3,
+      "action": "extract",
+      "description": "URL",
+      "language": "all",
+      "priority": 9
+    },
+    {
+      "pattern": "\\b(?:meet|meeting|meet me|see you)\\b",
+      "memory_type": "fact_declaration",
+      "tier": 3,
+      "action": "extract",
+      "description": "Meeting",
+      "language": "en",
+      "priority": 8
+    },
+    {
+      "pattern": "\\b(?:会议|见面|约见|会面)\\b",
+      "memory_type": "fact_declaration",
+      "tier": 3,
+      "action": "extract",
+      "description": "Meeting (Chinese)",
+      "language": "zh-cn",
+      "priority": 8
+    },
+    {
+      "pattern": "(?i)\\b(?:need|require|must|should|have to)\\b",
+      "memory_type": "task",
+      "tier": 3,
+      "action": "extract",
+      "description": "Task",
+      "language": "en",
+      "priority": 7
+    },
+    {
+      "pattern": "(?:需要|必须|应该|要买)",
+      "memory_type": "fact_declaration",
+      "tier": 3,
+      "action": "extract",
+      "description": "Task (Chinese)",
+      "language": "zh-cn",
+      "priority": 7
+    },
+    {
+      "pattern": "\\b(?:like|love|prefer|enjoy)\\b",
+      "memory_type": "user_preference",
+      "tier": 2,
+      "action": "extract",
+      "description": "Preference",
+      "language": "en",
+      "priority": 7
+    },
+    {
+      "pattern": "\\b(?:喜欢|爱好|偏好|喜爱)\\b",
+      "memory_type": "user_preference",
+      "tier": 2,
+      "action": "extract",
+      "description": "Preference (Chinese)",
+      "language": "zh-cn",
+      "priority": 7
+    },
+    {
+      "pattern": "\\b(?:at|in|on)\\s+\\w+",
+      "memory_type": "location",
+      "tier": 3,
+      "action": "extract",
+      "description": "Location",
+      "language": "en",
+      "priority": 6
+    },
+    {
+      "pattern": "\\b(?:在|位于)\\s+\\w+",
+      "memory_type": "location",
+      "tier": 3,
+      "action": "extract",
+      "description": "Location (Chinese)",
+      "language": "zh-cn",
+      "priority": 6
+    }
+  ]
+}

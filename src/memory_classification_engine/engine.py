@@ -1183,11 +1183,59 @@ class MemoryClassificationEngine:
                     ranked_memories.append(memory)
             
             # Comment in Chinese removedncy
-            ranked_memories.sort(key=lambda x: (x.get('semantic_similarity', 0), x.get('confidence', 0), x.get('last_accessed', ''), x.get('created_at', '')), reverse=True)
+            # 确保排序时所有值都是兼容的类型
+            def get_sort_key(x):
+                semantic_similarity = x.get('semantic_similarity', 0)
+                try:
+                    semantic_similarity = float(semantic_similarity)
+                except (ValueError, TypeError):
+                    semantic_similarity = 0
+                
+                confidence = x.get('confidence', 0)
+                try:
+                    confidence = float(confidence)
+                except (ValueError, TypeError):
+                    confidence = 0
+                
+                last_accessed = x.get('last_accessed', '1970-01-01T00:00:00Z')
+                if not isinstance(last_accessed, str):
+                    last_accessed = '1970-01-01T00:00:00Z'
+                
+                created_at = x.get('created_at', '1970-01-01T00:00:00Z')
+                if not isinstance(created_at, str):
+                    created_at = '1970-01-01T00:00:00Z'
+                
+                return (semantic_similarity, confidence, last_accessed, created_at)
+            
+            ranked_memories.sort(key=get_sort_key, reverse=True)
             all_memories = ranked_memories
         else:
             # Comment in Chinese removedr priority
-            all_memories.sort(key=lambda x: (x.get('confidence', 0), x.get('last_accessed', ''), x.get('created_at', ''), x.get('tier', 0)), reverse=True)
+            # 确保排序时所有值都是兼容的类型
+            def get_sort_key(x):
+                confidence = x.get('confidence', 0)
+                try:
+                    confidence = float(confidence)
+                except (ValueError, TypeError):
+                    confidence = 0
+                
+                last_accessed = x.get('last_accessed', '1970-01-01T00:00:00Z')
+                if not isinstance(last_accessed, str):
+                    last_accessed = '1970-01-01T00:00:00Z'
+                
+                created_at = x.get('created_at', '1970-01-01T00:00:00Z')
+                if not isinstance(created_at, str):
+                    created_at = '1970-01-01T00:00:00Z'
+                
+                tier = x.get('tier', 0)
+                try:
+                    tier = int(tier)
+                except (ValueError, TypeError):
+                    tier = 0
+                
+                return (confidence, last_accessed, created_at, tier)
+            
+            all_memories.sort(key=get_sort_key, reverse=True)
         
         # Comment in Chinese removedlts
         top_memories = all_memories[:limit]

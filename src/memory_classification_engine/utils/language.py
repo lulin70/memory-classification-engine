@@ -67,7 +67,7 @@ class LanguageManager:
             'ar': ['قرر', 'قرار', 'اختر', 'خيار', 'تأكيد', 'اتفق']
         },
         'relationship': {
-            'en': ['responsible', 'manage', 'belong', 'report', 'work with', 'team'],
+            'en': ['responsible', 'manage', 'belong', 'report', 'work with', 'team', 'handles'],
             'zh-cn': ['负责', '管理', '属于', '汇报', '合作', '团队'],
             'es': ['responsable', 'gestionar', 'pertenecer', 'informar', 'trabajar con', 'equipo'],
             'fr': ['responsable', 'gérer', 'appartenir', 'rapporter', 'travailler avec', 'équipe'],
@@ -127,6 +127,10 @@ class LanguageManager:
         Returns:
             A tuple of (language_code, confidence).
         """
+        # Handle None input
+        if text is None:
+            return "en", 0.5
+        
         # Comment in Chinese removedrs
         if any("\u4e00" <= char <= "\u9fff" for char in text):
             return "zh-cn", 0.95

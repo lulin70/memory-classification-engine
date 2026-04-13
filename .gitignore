@@ -1,83 +1,45 @@
-# Python
-*.pyc
-__pycache__/
+# 忽略缓存目录
+.cache/
 
-# Virtual environment
+# 忽略模型目录
+models/
+
+# 忽略性能分析文件
+profile.out
+
+# 忽略备份文件
+*.bak
+backup/
+
+# 忽略虚拟环境
 .venv/
 env/
 
-# IDE
+# 忽略 IDE 配置文件
 .vscode/
 .idea/
 
-# OS
+# 忽略日志文件
+*.log
+logs/
+
+# 忽略测试临时文件
+.pytest_cache/
+
+# 忽略操作系统文件
 .DS_Store
 Thumbs.db
 
-# Build artifacts
-build/
-dist/
+# 忽略数据目录
+data/
+mce-mcp/data/
+
+# 忽略 Python 编译文件
+__pycache__/
+*.pyc
+
+# 忽略 egg-info 目录
 *.egg-info/
 
-# Logs
-logs/
-*.log
-
-# Test coverage
-.coverage/
-
-# Data
-data/
-
-# Environment variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Temporary files
-*.tmp
-*.temp
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Thumbnails
-._*
-
-# Files that might appear in the root of a volume
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-
-# TypeScript
-*.tsbuildinfo
-
-# Optional npm cache directory
-.npm
-
-# Optional eslint cache
-.eslintcache
-
-# Optional stylelint cache
-.stylelintcache
-
-# Yarn
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/sdks
-!.yarn/versions
-.pnp.*
+# 忽略测试文件
+test_*.py
