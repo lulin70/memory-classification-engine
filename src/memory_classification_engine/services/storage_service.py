@@ -210,6 +210,17 @@ class StorageService(BaseService):
             self.log_error(f"Failed to get storage stats: {e}")
             return {'error': str(e)}
 
+    def get_stats(self, tier: Optional[int] = None) -> Dict[str, Any]:
+        """Get storage statistics (alias for get_storage_stats).
+
+        Args:
+            tier: Optional storage tier filter.
+
+        Returns:
+            Dictionary with storage statistics.
+        """
+        return self.get_storage_stats()
+
     def archive_memories(self, memory_ids: List[str]) -> int:
         """Archive memories to long-term storage.
 

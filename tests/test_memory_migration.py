@@ -16,8 +16,11 @@ def test_memory_migration():
     
     # 初始化编排器和迁移管理器
     print("1. Initializing MemoryOrchestrator and MemoryMigrationManager...")
+    print("   Step 1: Creating orchestrator1...")
     orchestrator1 = MemoryOrchestrator()
+    print("   Step 2: Creating orchestrator2...")
     orchestrator2 = MemoryOrchestrator()  # 模拟另一个 Agent 实例
+    print("   Step 3: Creating migration_manager...")
     migration_manager = get_memory_migration_manager()
     print("   ✅ MemoryOrchestrator and MemoryMigrationManager initialized")
     

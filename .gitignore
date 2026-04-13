@@ -43,3 +43,6 @@ __pycache__/
 
 # 忽略测试文件
 test_*.py
+
+# 忽略 .trae 目录
+.trae/

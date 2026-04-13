@@ -12,5 +12,8 @@ export HF_EVALUATE_OFFLINE="1"
 # Change to project directory
 cd "/Users/lin/Documents/trae_projects/memory-classification-engine"
 
+# Add src directory to Python path
+export PYTHONPATH="/Users/lin/Documents/trae_projects/memory-classification-engine/src:$PYTHONPATH"
+
 # Activate virtual environment and start server
 exec .venv/bin/python -m memory_classification_engine.integration.layer2_mcp.server

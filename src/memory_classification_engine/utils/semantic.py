@@ -25,8 +25,22 @@ class SemanticUtility:
             
             for local_path in local_model_paths:
                 if os.path.exists(local_path):
-                    logger.info(f"Loading model from local path: {local_path}")
-                    return SentenceTransformer(local_path)
+                    # 检查是否是目录
+                    if os.path.isdir(local_path):
+                        # 检查是否包含 snapshots 目录
+                        snapshots_dir = os.path.join(local_path, 'snapshots')
+                        if os.path.exists(snapshots_dir):
+                            # 列出 snapshots 目录中的所有子目录
+                            import glob
+                            snapshot_paths = glob.glob(os.path.join(snapshots_dir, '*'))
+                            if snapshot_paths:
+                                # 选择第一个快照目录
+                                snapshot_path = snapshot_paths[0]
+                                logger.info(f"Loading model from snapshot path: {snapshot_path}")
+                                return SentenceTransformer(snapshot_path)
+                        # 如果没有 snapshots 目录，尝试直接加载
+                        logger.info(f"Loading model from local path: {local_path}")
+                        return SentenceTransformer(local_path)
             
             # 如果本地路径不存在，尝试从 Hugging Face 下载
             logger.info(f"Loading model from Hugging Face: sentence-transformers/{model_name}")
