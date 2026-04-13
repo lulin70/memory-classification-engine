@@ -80,3 +80,22 @@ class ConfigManager:
         except Exception as e:
             print(f"Error loading rules: {e}")
             return {}
+
+    def set(self, key: str, value: Any):
+        """Set a configuration value by key.
+        
+        Args:
+            key: The configuration key, using dot notation (e.g., "storage.data_path").
+            value: The value to set.
+        """
+        keys = key.split('.')
+        config = self.config
+        
+        # Navigate to the parent level
+        for k in keys[:-1]:
+            if k not in config:
+                config[k] = {}
+            config = config[k]
+        
+        # Set the value
+        config[keys[-1]] = value

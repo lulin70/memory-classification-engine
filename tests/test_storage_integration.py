@@ -65,7 +65,7 @@ class TestTier2Storage:
         """Test updating a memory in tier 2."""
         memory = {
             'id': 'mem_003',
-            'memory_type': 'decision',
+            'memory_type': 'user_preference',
             'content': 'Use PostgreSQL',
             'confidence': 0.85,
             'tier': 2
@@ -268,11 +268,21 @@ class TestStorageIntegration:
 
     def test_batch_storage(self, storage_coordinator):
         """Test batch storage functionality."""
-        batch_memories = [
-            {'id': f'batch_{i:03d}', 'memory_type': 'task_pattern',
-             'content': f'Task pattern {i}', 'tier': 2 + (i % 3)}
-            for i in range(10)
-        ]
+        batch_memories = []
+        for i in range(10):
+            tier = 2 + (i % 3)
+            if tier == 2:
+                memory_type = 'user_preference'
+            elif tier == 3:
+                memory_type = 'fact_declaration'
+            else:  # tier == 4
+                memory_type = 'semantic_memory'
+            batch_memories.append({
+                'id': f'batch_{i:03d}',
+                'memory_type': memory_type,
+                'content': f'Task pattern {i}',
+                'tier': tier
+            })
         
         result = storage_coordinator.store_memories_batch(batch_memories)
         assert result is True

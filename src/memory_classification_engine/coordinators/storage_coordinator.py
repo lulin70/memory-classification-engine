@@ -69,22 +69,25 @@ class StorageCoordinator:
                 tier = memory.get('tier', 3)
                 tiered_memories[tier].append(memory)
             
-            # Comment in Chinese removedr
+            # Store memories by tier
             success = True
             
             if tiered_memories[2]:
                 for memory in tiered_memories[2]:
                     if not self.tier2_storage.store_memory(memory):
+                        logger.warning(f"Failed to store memory in tier 2: {memory.get('id')}")
                         success = False
             
             if tiered_memories[3]:
                 for memory in tiered_memories[3]:
                     if not self.tier3_storage.store_memory(memory):
+                        logger.warning(f"Failed to store memory in tier 3: {memory.get('id')}")
                         success = False
             
             if tiered_memories[4]:
                 for memory in tiered_memories[4]:
                     if not self.tier4_storage.store_memory(memory):
+                        logger.warning(f"Failed to store memory in tier 4: {memory.get('id')}")
                         success = False
             
             return success

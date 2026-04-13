@@ -26,6 +26,12 @@ class Tier2Storage:
         self.preferences = self._load_file(self.preferences_file)
         self.corrections = self._load_file(self.corrections_file)
         
+        # Ensure files exist
+        if not os.path.exists(self.preferences_file):
+            self._save_file(self.preferences_file, self.preferences)
+        if not os.path.exists(self.corrections_file):
+            self._save_file(self.corrections_file, self.corrections)
+        
         # Comment in Chinese removed
         self._init_claude_md()
     
@@ -112,7 +118,8 @@ class Tier2Storage:
             True if the memory was stored successfully, False otherwise.
         """
         try:
-            memory_type = memory.get('type')
+            # Get memory type from either 'type' or 'memory_type' field
+            memory_type = memory.get('type') or memory.get('memory_type')
             current_time = get_current_time()
             
             # Comment in Chinese removednt
@@ -128,6 +135,9 @@ class Tier2Storage:
                 # Comment in Chinese removednt
                 if 'content' in memory:
                     memory['content'] = encryption_manager.encrypt(memory['content'])
+                # Ensure both type and memory_type are set
+                memory['type'] = 'user_preference'
+                memory['memory_type'] = 'user_preference'
                 self.preferences.append(memory)
                 self._save_file(self.preferences_file, self.preferences)
                 self._update_claude_md()
@@ -135,6 +145,9 @@ class Tier2Storage:
                 # Comment in Chinese removednt
                 if 'content' in memory:
                     memory['content'] = encryption_manager.encrypt(memory['content'])
+                # Ensure both type and memory_type are set
+                memory['type'] = 'correction'
+                memory['memory_type'] = 'correction'
                 self.corrections.append(memory)
                 self._save_file(self.corrections_file, self.corrections)
                 self._update_claude_md()
@@ -224,10 +237,10 @@ class Tier2Storage:
             True if the memory was updated successfully, False otherwise.
         """
         try:
-            # Comment in Chinese removeds
+            # Check preferences
             for i, memory in enumerate(self.preferences):
                 if memory.get('id') == memory_id:
-                    # Comment in Chinese removedd
+                    # Encrypt content if it's being updated
                     if 'content' in updates:
                         updates['content'] = encryption_manager.encrypt(updates['content'])
                     memory.update(updates)
@@ -236,10 +249,10 @@ class Tier2Storage:
                     self._update_claude_md()
                     return True
             
-            # Comment in Chinese removedctions
+            # Check corrections
             for i, memory in enumerate(self.corrections):
                 if memory.get('id') == memory_id:
-                    # Comment in Chinese removedd
+                    # Encrypt content if it's being updated
                     if 'content' in updates:
                         updates['content'] = encryption_manager.encrypt(updates['content'])
                     memory.update(updates)
@@ -284,6 +297,45 @@ class Tier2Storage:
             logger.error(f"Error deleting memory: {e}", exc_info=True)
             return False
     
+    def get_memory(self, memory_id: str) -> Optional[Dict[str, Any]]:
+        """Get a memory by ID from tier 2.
+        
+        Args:
+            memory_id: The ID of the memory to get.
+            
+        Returns:
+            The memory if found, None otherwise.
+        """
+        try:
+            # Check preferences
+            for memory in self.preferences:
+                if memory.get('id') == memory_id:
+                    # Decrypt content if needed
+                    content = memory.get('content', '')
+                    try:
+                        if content.startswith('gAAAAA'):
+                            memory['content'] = encryption_manager.decrypt(content)
+                    except Exception as e:
+                        logger.error(f"Error decrypting memory: {e}", exc_info=True)
+                    return memory
+            
+            # Check corrections
+            for memory in self.corrections:
+                if memory.get('id') == memory_id:
+                    # Decrypt content if needed
+                    content = memory.get('content', '')
+                    try:
+                        if content.startswith('gAAAAA'):
+                            memory['content'] = encryption_manager.decrypt(content)
+                    except Exception as e:
+                        logger.error(f"Error decrypting memory: {e}", exc_info=True)
+                    return memory
+            
+            return None
+        except Exception as e:
+            logger.error(f"Error getting memory: {e}", exc_info=True)
+            return None
+
     def get_stats(self) -> Dict[str, Any]:
         """Get statistics about tier 2 storage.
         

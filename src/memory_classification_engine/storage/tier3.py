@@ -555,16 +555,19 @@ class Tier3Storage:
             if not memories:
                 return True
             
-            current_time = get_current_time()
             processed_memories = []
             
             # Comment in Chinese removedirst
-            for memory in memories:
+            for i, memory in enumerate(memories):
                 # Comment in Chinese removednt
+                current_time = get_current_time()
                 if 'created_at' not in memory:
                     memory['created_at'] = current_time
                 memory['updated_at'] = current_time
-                memory['last_accessed'] = current_time
+                # Generate a slightly different last_accessed time for each memory
+                import time
+                time.sleep(0.001)  # Add a small delay to ensure different timestamps
+                memory['last_accessed'] = get_current_time()
                 memory['access_count'] = 1
                 memory['status'] = 'active'
                 memory['version'] = 1
@@ -579,6 +582,18 @@ class Tier3Storage:
                 # Comment in Chinese removednt
                 if 'memory_type' not in memory and 'type' in memory:
                     memory['memory_type'] = memory['type']
+                # Ensure memory has 'type' field
+                if 'type' not in memory and 'memory_type' in memory:
+                    memory['type'] = memory['memory_type']
+                # Default type if neither is present
+                if 'type' not in memory:
+                    memory['type'] = 'episodic_memory'
+                # Ensure memory has 'confidence' field
+                if 'confidence' not in memory:
+                    memory['confidence'] = 0.5
+                # Ensure memory has 'source' field
+                if 'source' not in memory:
+                    memory['source'] = 'unknown'
                 
                 # Comment in Chinese removed
                 content = memory.get('content', '')
@@ -1000,7 +1015,7 @@ class Tier3Storage:
                                 cursor.execute('''
                                     SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
                                     FROM episodic_memories 
-                                    WHERE status = 'active' AND content LIKE ? 
+                                    WHERE (status = 'active' OR status = 'compressed' OR status = 'super_compressed') AND content LIKE ? 
                                     ORDER BY last_accessed DESC 
                                     LIMIT ?
                                 ''', (f'%{query}%', limit))
@@ -1009,7 +1024,7 @@ class Tier3Storage:
                                 cursor.execute('''
                                     SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
                                     FROM episodic_memories 
-                                    WHERE status = 'active' 
+                                    WHERE status = 'active' OR status = 'compressed' OR status = 'super_compressed' 
                                     ORDER BY last_accessed DESC 
                                     LIMIT ?
                                 ''', (limit,))
@@ -1055,7 +1070,7 @@ class Tier3Storage:
                 cursor.execute('''
                     SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status, is_encrypted, encryption_key_id, privacy_level 
                     FROM episodic_memories 
-                    WHERE status = 'active' AND content LIKE ? 
+                    WHERE (status = 'active' OR status = 'compressed' OR status = 'super_compressed') AND content LIKE ? 
                     ORDER BY last_accessed DESC 
                     LIMIT ?
                 ''', (f'%{query}%', limit))
@@ -1064,7 +1079,7 @@ class Tier3Storage:
                 cursor.execute('''
                     SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status, is_encrypted, encryption_key_id, privacy_level 
                     FROM episodic_memories 
-                    WHERE status = 'active' 
+                    WHERE status = 'active' OR status = 'compressed' OR status = 'super_compressed' 
                     ORDER BY last_accessed DESC 
                     LIMIT ?
                 ''', (limit,))
@@ -1651,6 +1666,111 @@ class Tier3Storage:
         # Comment in Chinese removedr
         return f"[SUPER_COMPRESSED] {key_info}..."
     
+    def get_memory(self, memory_id: str) -> Optional[Dict[str, Any]]:
+        """Get a memory by ID from tier 3.
+        
+        Args:
+            memory_id: The ID of the memory to get.
+            
+        Returns:
+            The memory if found, None otherwise.
+        """
+        try:
+            # Check cache first
+            if self.enable_cache and hasattr(self, 'cache'):
+                cached_memory = self.cache.get(memory_id)
+                if cached_memory:
+                    return cached_memory
+            
+            # Check in-memory cache
+            if self.enable_in_memory_cache:
+                try:
+                    with self.in_memory_lock:
+                        cursor = self.in_memory_conn.cursor()
+                        cursor.execute('SELECT * FROM episodic_memories WHERE id = ? AND status = ?', (memory_id, 'active'))
+                        row = cursor.fetchone()
+                        if row:
+                            # Convert row to dictionary
+                            memory = dict(row)
+                            # Decrypt content if needed
+                            if memory.get('is_encrypted'):
+                                try:
+                                    content = memory.get('content', '')
+                                    if content and isinstance(content, str):
+                                        import json
+                                        import base64
+                                        try:
+                                            encrypted_data = json.loads(content)
+                                            if isinstance(encrypted_data, dict) and all(key in encrypted_data for key in ['ciphertext', 'nonce', 'tag']):
+                                                try:
+                                                    ciphertext = base64.b64decode(encrypted_data['ciphertext'])
+                                                    nonce = base64.b64decode(encrypted_data['nonce'])
+                                                    tag = base64.b64decode(encrypted_data['tag'])
+                                                    key_id = memory.get('encryption_key_id')
+                                                    if key_id:
+                                                        from memory_classification_engine.privacy.encryption import encryption_manager
+                                                        decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
+                                                        memory['content'] = str(decrypted_content)
+                                                except Exception as decrypt_error:
+                                                    logger.error(f"Error decrypting memory content: {decrypt_error}")
+                                        except (json.JSONDecodeError, TypeError, ValueError) as json_error:
+                                            logger.error(f"Error parsing JSON content: {json_error}")
+                                except Exception as e:
+                                    logger.error(f"Error decrypting memory: {e}")
+                            return memory
+                except Exception as e:
+                    logger.warning(f"Error getting memory from in-memory cache: {e}")
+            
+            # Check main database
+            conn = self.connection_pool.get_connection()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT * FROM episodic_memories WHERE id = ? AND status = ?', (memory_id, 'active'))
+            row = cursor.fetchone()
+            
+            if row:
+                memory = dict(row)
+                
+                # Decrypt content if needed
+                if memory.get('is_encrypted'):
+                    try:
+                        content = memory.get('content', '')
+                        if content and isinstance(content, str):
+                            import json
+                            import base64
+                            try:
+                                encrypted_data = json.loads(content)
+                                if isinstance(encrypted_data, dict) and all(key in encrypted_data for key in ['ciphertext', 'nonce', 'tag']):
+                                    try:
+                                        ciphertext = base64.b64decode(encrypted_data['ciphertext'])
+                                        nonce = base64.b64decode(encrypted_data['nonce'])
+                                        tag = base64.b64decode(encrypted_data['tag'])
+                                        key_id = memory.get('encryption_key_id')
+                                        if key_id:
+                                            from memory_classification_engine.privacy.encryption import encryption_manager
+                                            decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
+                                            memory['content'] = str(decrypted_content)
+                                    except Exception as decrypt_error:
+                                        logger.error(f"Error decrypting memory content: {decrypt_error}")
+                            except (json.JSONDecodeError, TypeError, ValueError) as json_error:
+                                logger.error(f"Error parsing JSON content: {json_error}")
+                    except Exception as e:
+                        logger.error(f"Error decrypting memory: {e}")
+                
+                # Update cache
+                if self.enable_cache and hasattr(self, 'cache'):
+                    self.cache.set(memory_id, memory)
+                
+                self.connection_pool.return_connection(conn)
+                return memory
+            
+            self.connection_pool.return_connection(conn)
+            return None
+        except Exception as e:
+            logger.error(f"Error getting memory: {e}", exc_info=True)
+            return None
+
     def get_stats(self) -> Dict[str, Any]:
         """Get statistics about tier 3 storage.
         

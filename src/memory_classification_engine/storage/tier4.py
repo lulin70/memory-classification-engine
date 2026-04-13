@@ -489,6 +489,18 @@ class Tier4Storage:
             # Comment in Chinese removednt
             if 'memory_type' not in memory and 'type' in memory:
                 memory['memory_type'] = memory['type']
+            # Ensure memory has 'type' field
+            if 'type' not in memory and 'memory_type' in memory:
+                memory['type'] = memory['memory_type']
+            # Default type if neither is present
+            if 'type' not in memory:
+                memory['type'] = 'semantic_memory'
+            # Ensure memory has 'confidence' field
+            if 'confidence' not in memory:
+                memory['confidence'] = 0.5
+            # Ensure memory has 'source' field
+            if 'source' not in memory:
+                memory['source'] = 'unknown'
             
             # Comment in Chinese removedtions
             entities_json = json.dumps(entities) if entities else '[]'
@@ -859,6 +871,78 @@ class Tier4Storage:
             logger.error(f"Error finding semantic path: {e}")
             return None
     
+    def get_memory(self, memory_id: str) -> Optional[Dict[str, Any]]:
+        """Get a memory by ID from tier 4.
+        
+        Args:
+            memory_id: The ID of the memory to get.
+            
+        Returns:
+            The memory if found, None otherwise.
+        """
+        try:
+            # Check cache first
+            with self.cache_lock:
+                if memory_id in self.memory_cache:
+                    return self.memory_cache[memory_id]
+            
+            # Check database
+            conn = self.connection_pool.get_connection()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            # Check if is_encrypted column exists
+            cursor.execute("PRAGMA table_info(semantic_memories)")
+            columns = [column[1] for column in cursor.fetchall()]
+            has_is_encrypted = 'is_encrypted' in columns
+            
+            if has_is_encrypted:
+                select_columns = 'id, type, memory_type, content, semantic_embedding, entities, relations, created_at, updated_at, last_accessed, access_count, confidence, source, context, status, is_encrypted, encryption_key_id, privacy_level'
+            else:
+                select_columns = 'id, type, memory_type, content, semantic_embedding, entities, relations, created_at, updated_at, last_accessed, access_count, confidence, source, context, status'
+            
+            cursor.execute(f"SELECT {select_columns} FROM semantic_memories WHERE id = ? AND status = 'active'", (memory_id,))
+            row = cursor.fetchone()
+            
+            if row:
+                memory = dict(row)
+                # Parse entities and relations
+                import json
+                memory['entities'] = json.loads(memory.get('entities', '[]'))
+                memory['relations'] = json.loads(memory.get('relations', '[]'))
+                # Decrypt content if needed
+                if has_is_encrypted and memory.get('is_encrypted'):
+                    try:
+                        content = memory.get('content', '')
+                        if content:
+                            import base64
+                            encrypted_data = json.loads(content)
+                            ciphertext = base64.b64decode(encrypted_data['ciphertext'])
+                            nonce = base64.b64decode(encrypted_data['nonce'])
+                            tag = base64.b64decode(encrypted_data['tag'])
+                            key_id = memory.get('encryption_key_id')
+                            if key_id:
+                                decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
+                                memory['content'] = decrypted_content
+                    except Exception as e:
+                        logger.error(f"Error decrypting memory: {e}")
+                # Update cache
+                with self.cache_lock:
+                    self.memory_cache[memory_id] = memory
+                    # Limit cache size
+                    if len(self.memory_cache) > self.cache_size:
+                        # Remove oldest item
+                        oldest_key = next(iter(self.memory_cache))
+                        del self.memory_cache[oldest_key]
+                self.connection_pool.return_connection(conn)
+                return memory
+            
+            self.connection_pool.return_connection(conn)
+            return None
+        except Exception as e:
+            logger.error(f"Error getting memory: {e}", exc_info=True)
+            return None
+
     def get_stats(self) -> Dict[str, Any]:
         """Get statistics about tier 4 storage.
         
