@@ -72,6 +72,12 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
             return self.handle_classify_message(params)
         elif tool_name == 'retrieve_memories':
             return self.handle_retrieve_memories(params)
+        elif tool_name == 'search_memories':
+            return self.handle_search_memories(params)
+        elif tool_name == 'get_memory_timeline':
+            return self.handle_get_memory_timeline(params)
+        elif tool_name == 'get_memory_details':
+            return self.handle_get_memory_details(params)
         elif tool_name == 'manage_forgetting':
             return self.handle_manage_forgetting(params)
         else:
@@ -157,6 +163,136 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             return {'error': f'Forgetting management failed: {str(e)}'}
     
+    def handle_search_memories(self, params):
+        """处理记忆搜索（紧凑索引）"""
+        query = params.get('query')
+        memory_type = params.get('memory_type')
+        limit = params.get('limit', 20)
+        
+        if not query:
+            return {'error': 'Missing required parameter: query'}
+        
+        try:
+            memories = engine.retrieve_memories(
+                query=query,
+                memory_type=memory_type,
+                limit=limit
+            )
+            
+            # 生成紧凑索引（~50 token/条）
+            compact_index = []
+            for memory in memories:
+                index_entry = {
+                    'id': memory.get('id'),
+                    'memory_type': memory.get('memory_type'),
+                    'summary': memory.get('content', '')[:100] + ('...' if len(memory.get('content', '')) > 100 else ''),
+                    'created_at': memory.get('created_at'),
+                    'confidence': memory.get('confidence', 0.0)
+                }
+                compact_index.append(index_entry)
+            
+            return {
+                'result': {
+                    'compact_index': compact_index,
+                    'total': len(compact_index),
+                    'query': query
+                }
+            }
+        except Exception as e:
+            return {'error': f'Search failed: {str(e)}'}
+    
+    def handle_get_memory_timeline(self, params):
+        """处理记忆时间线（时间线上下文）"""
+        memory_ids = params.get('memory_ids', [])
+        
+        if not memory_ids:
+            return {'error': 'Missing required parameter: memory_ids'}
+        
+        try:
+            timeline = []
+            for memory_id in memory_ids:
+                # 获取完整记忆
+                memory = None
+                for tier in [2, 3, 4]:
+                    tier_memories = engine.storage_coordinator.retrieve_memories('', limit=100, tier=tier)
+                    for mem in tier_memories:
+                        if mem.get('id') == memory_id:
+                            memory = mem
+                            break
+                    if memory:
+                        break
+                
+                if memory:
+                    # 生成时间线上下文（~200 token/条）
+                    timeline_entry = {
+                        'id': memory.get('id'),
+                        'memory_type': memory.get('memory_type'),
+                        'content': memory.get('content', ''),
+                        'created_at': memory.get('created_at'),
+                        'last_accessed': memory.get('last_accessed'),
+                        'confidence': memory.get('confidence', 0.0),
+                        'context': memory.get('context', '')
+                    }
+                    timeline.append(timeline_entry)
+            
+            return {
+                'result': {
+                    'timeline': timeline,
+                    'total': len(timeline)
+                }
+            }
+        except Exception as e:
+            return {'error': f'Timeline retrieval failed: {str(e)}'}
+    
+    def handle_get_memory_details(self, params):
+        """处理记忆详情（完整详情）"""
+        memory_id = params.get('memory_id')
+        
+        if not memory_id:
+            return {'error': 'Missing required parameter: memory_id'}
+        
+        try:
+            # 获取完整记忆
+            memory = None
+            for tier in [2, 3, 4]:
+                tier_memories = engine.storage_coordinator.retrieve_memories('', limit=100, tier=tier)
+                for mem in tier_memories:
+                    if mem.get('id') == memory_id:
+                        memory = mem
+                        break
+                if memory:
+                    break
+            
+            if memory:
+                # 生成完整详情（~500 token/条）
+                details = {
+                    'id': memory.get('id'),
+                    'memory_type': memory.get('memory_type'),
+                    'content': memory.get('content', ''),
+                    'created_at': memory.get('created_at'),
+                    'updated_at': memory.get('updated_at'),
+                    'last_accessed': memory.get('last_accessed'),
+                    'access_count': memory.get('access_count', 0),
+                    'confidence': memory.get('confidence', 0.0),
+                    'source': memory.get('source', 'unknown'),
+                    'context': memory.get('context', ''),
+                    'status': memory.get('status', 'active'),
+                    'weight': memory.get('weight', 1.0),
+                    'tenant_id': memory.get('tenant_id'),
+                    'language': memory.get('language', 'unknown'),
+                    'sensitivity_level': memory.get('sensitivity_level', 0)
+                }
+                
+                return {
+                    'result': {
+                        'details': details
+                    }
+                }
+            else:
+                return {'error': f'Memory {memory_id} not found'}
+        except Exception as e:
+            return {'error': f'Details retrieval failed: {str(e)}'}
+    
     def log_message(self, format, *args):
         """自定义日志格式"""
         logger.info(format % args)
@@ -193,6 +329,9 @@ def main():
     logger.info("Available tools:")
     logger.info("  - classify_message: Classify a message into memory types")
     logger.info("  - retrieve_memories: Retrieve relevant memories")
+    logger.info("  - search_memories: Search memories with compact index")
+    logger.info("  - get_memory_timeline: Get memory timeline context")
+    logger.info("  - get_memory_details: Get full memory details")
     logger.info("  - manage_forgetting: Manage memory forgetting process")
     
     try:

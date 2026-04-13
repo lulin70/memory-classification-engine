@@ -170,7 +170,7 @@ Add to your Claude Code config (`~/.claude/settings.json`):
 }
 ```
 
-Available tools: `classify_message`, `retrieve_memories`, `store_memory`, `search_memories`, `get_memory_stats`, `delete_memory`, `update_memory`, `export_memories`, `import_memories`.
+Available tools: `classify_message`, `retrieve_memories`, `search_memories`, `get_memory_timeline`, `get_memory_details`, `store_memory`, `get_memory_stats`, `delete_memory`, `update_memory`, `export_memories`, `import_memories`.
 
 Every message you send in Claude Code can be classified and stored automatically. Every new session starts with a structured recall of your memories.
 
@@ -227,17 +227,18 @@ Your usage patterns become free classification rules. No manual tuning required.
 
 ## Comparison
 
-| Feature | Mem0 | MemGPT | LangChain Memory | **MCE** |
-|---------|------|--------|------------------|---------|
-| When to write | Post-conversation | Context window | Manual/Hooks | **Real-time, per-message** |
-| Classification | Basic tags | None | None | **7 types + 3-layer pipeline** |
-| Storage tiers | 1 (vector) | 2 (mem + disk) | 1 (session) | **4 tiers (working / procedural / episodic / semantic)** |
-| Forgetting | None | Passive overflow | None | **Active decay + Nudge review** |
-| Learning | Static | None | None | **Patterns auto-promote to rules** |
-| LLM cost | Per-message | Medium | Low | **60%+ classified at zero cost** |
-| Cross-session | Export only | None | None | **Structured migration standard** |
-| MCP support | No | No | No | **Built-in MCP Server** |
-| High-level API | No | No | Basic | **MemoryOrchestrator (learn/recall/export/import)** |
+| Feature | Mem0 | MemGPT | LangChain Memory | claude-mem | **MCE** |
+|---------|------|--------|------------------|------------|---------|
+| When to write | Post-conversation | Context window | Manual/Hooks | Full recording | **Real-time, per-message** |
+| Classification | Basic tags | None | None | None (all observations) | **7 types + 3-layer pipeline** |
+| Storage tiers | 1 (vector) | 2 (mem + disk) | 1 (session) | 1 (SQLite + Chroma) | **4 tiers (working / procedural / episodic / semantic)** |
+| Forgetting | None | Passive overflow | None | AI compression | **Active decay + Nudge review** |
+| Learning | Static | None | None | None | **Patterns auto-promote to rules** |
+| LLM cost | Per-message | Medium | Low | High (compression) | **60%+ classified at zero cost** |
+| Cross-session | Export only | None | None | Yes | **Structured migration standard** |
+| MCP support | No | No | No | No | **Built-in MCP Server** |
+| High-level API | No | No | Basic | No | **MemoryOrchestrator (learn/recall/export/import)** |
+| Retrieval model | Full content | Full content | Full content | Progressive disclosure | **Progressive disclosure + typed memories** |
 
 ---
 

@@ -12,6 +12,7 @@ from memory_classification_engine.utils.helpers import get_current_time
 from memory_classification_engine.utils.logger import logger
 from memory_classification_engine.storage.neo4j_knowledge_graph import Neo4jKnowledgeGraph
 from memory_classification_engine.privacy.encryption import encryption_manager
+from memory_classification_engine.utils.encryption_helper import MemoryEncryptionHelper
 
 
 class ConnectionPool:
@@ -463,28 +464,7 @@ class Tier4Storage:
             memory['privacy_level'] = 0
             
             # Comment in Chinese removed
-            content = memory.get('content', '')
-            if content and encryption_manager.is_sensitive_data(content):
-                # Comment in Chinese removedy
-                key_id = memory.get('encryption_key_id')
-                if not key_id:
-                    # Comment in Chinese removedssion
-                    # Comment in Chinese removedy
-                    key_id = encryption_manager.create_key('default_password')
-                
-                # Comment in Chinese removednt
-                ciphertext, nonce, tag = encryption_manager.encrypt(content, key_id)
-                # Comment in Chinese removed
-                import base64
-                encrypted_data = {
-                    'ciphertext': base64.b64encode(ciphertext).decode(),
-                    'nonce': base64.b64encode(nonce).decode(),
-                    'tag': base64.b64encode(tag).decode()
-                }
-                memory['content'] = json.dumps(encrypted_data)
-                memory['is_encrypted'] = True
-                memory['encryption_key_id'] = key_id
-                memory['privacy_level'] = 1
+            MemoryEncryptionHelper.encrypt_memory_content(memory)
             
             # Comment in Chinese removednt
             if 'memory_type' not in memory and 'type' in memory:
@@ -734,20 +714,7 @@ class Tier4Storage:
                 memory['relations'] = json.loads(memory.get('relations', '[]'))
                 # Comment in Chinese removedd
                 if has_is_encrypted and memory.get('is_encrypted'):
-                    try:
-                        content = memory.get('content', '')
-                        if content:
-                            import base64
-                            encrypted_data = json.loads(content)
-                            ciphertext = base64.b64decode(encrypted_data['ciphertext'])
-                            nonce = base64.b64decode(encrypted_data['nonce'])
-                            tag = base64.b64decode(encrypted_data['tag'])
-                            key_id = memory.get('encryption_key_id')
-                            if key_id:
-                                decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
-                                memory['content'] = decrypted_content
-                    except Exception as e:
-                        logger.error(f"Error decrypting memory: {e}")
+                    MemoryEncryptionHelper.decrypt_memory_content(memory)
                 # Comment in Chinese removed
                 with self.cache_lock:
                     self.memory_cache[memory['id']] = memory
@@ -912,20 +879,7 @@ class Tier4Storage:
                 memory['relations'] = json.loads(memory.get('relations', '[]'))
                 # Decrypt content if needed
                 if has_is_encrypted and memory.get('is_encrypted'):
-                    try:
-                        content = memory.get('content', '')
-                        if content:
-                            import base64
-                            encrypted_data = json.loads(content)
-                            ciphertext = base64.b64decode(encrypted_data['ciphertext'])
-                            nonce = base64.b64decode(encrypted_data['nonce'])
-                            tag = base64.b64decode(encrypted_data['tag'])
-                            key_id = memory.get('encryption_key_id')
-                            if key_id:
-                                decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
-                                memory['content'] = decrypted_content
-                    except Exception as e:
-                        logger.error(f"Error decrypting memory: {e}")
+                    MemoryEncryptionHelper.decrypt_memory_content(memory)
                 # Update cache
                 with self.cache_lock:
                     self.memory_cache[memory_id] = memory

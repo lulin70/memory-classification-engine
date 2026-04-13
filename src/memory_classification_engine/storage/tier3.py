@@ -8,6 +8,7 @@ import threading
 from memory_classification_engine.utils.helpers import get_current_time
 from memory_classification_engine.utils.logger import logger
 from memory_classification_engine.privacy.encryption import encryption_manager
+from memory_classification_engine.utils.encryption_helper import MemoryEncryptionHelper
 
 class ConnectionPool:
     """Database connection pool for SQLite with thread safety."""
@@ -596,28 +597,7 @@ class Tier3Storage:
                     memory['source'] = 'unknown'
                 
                 # Comment in Chinese removed
-                content = memory.get('content', '')
-                if content and encryption_manager.is_sensitive_data(content):
-                    # Comment in Chinese removedy
-                    key_id = memory.get('encryption_key_id')
-                    if not key_id:
-                        # Comment in Chinese removedssion
-                        # Comment in Chinese removedy
-                        key_id = encryption_manager.create_key('default_password')
-                    
-                    # Comment in Chinese removednt
-                    ciphertext, nonce, tag = encryption_manager.encrypt(content, key_id)
-                    # Comment in Chinese removed
-                    import base64
-                    encrypted_data = {
-                        'ciphertext': base64.b64encode(ciphertext).decode(),
-                        'nonce': base64.b64encode(nonce).decode(),
-                        'tag': base64.b64encode(tag).decode()
-                    }
-                    memory['content'] = json.dumps(encrypted_data)
-                    memory['is_encrypted'] = True
-                    memory['encryption_key_id'] = key_id
-                    memory['privacy_level'] = 1
+                MemoryEncryptionHelper.encrypt_memory_content(memory)
                 
                 # Comment in Chinese removedlicts
                 conflicts = self._detect_conflicts(memory)
@@ -879,34 +859,7 @@ class Tier3Storage:
                 if 'type' in memory and 'memory_type' not in memory:
                     memory['memory_type'] = memory['type']
                 # Comment in Chinese removedd
-                if memory.get('is_encrypted'):
-                    try:
-                        content = memory.get('content', '')
-                        if content and isinstance(content, str):
-                            import json
-                            import base64
-                            try:
-                                encrypted_data = json.loads(content)
-                                if isinstance(encrypted_data, dict) and all(key in encrypted_data for key in ['ciphertext', 'nonce', 'tag']):
-                                    try:
-                                        ciphertext = base64.b64decode(encrypted_data['ciphertext'])
-                                        nonce = base64.b64decode(encrypted_data['nonce'])
-                                        tag = base64.b64decode(encrypted_data['tag'])
-                                        key_id = memory.get('encryption_key_id')
-                                        if key_id:
-                                            try:
-                                                decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
-                                                memory['content'] = decrypted_content
-                                            except Exception as decrypt_error:
-                                                logger.error(f"Error decrypting memory content: {decrypt_error}")
-                                    except Exception as decode_error:
-                                        logger.error(f"Error decoding base64 data: {decode_error}")
-                                else:
-                                    logger.error("Invalid encrypted data structure")
-                            except json.JSONDecodeError as json_error:
-                                logger.error(f"Error parsing JSON content: {json_error}")
-                    except Exception as e:
-                        logger.error(f"Error decrypting memory: {e}")
+                MemoryEncryptionHelper.decrypt_memory_content(memory)
                 memories.append(memory)
             
             # Comment in Chinese removed
@@ -1039,22 +992,7 @@ class Tier3Storage:
                                     if 'type' in memory and 'memory_type' not in memory:
                                         memory['memory_type'] = memory['type']
                                     # Comment in Chinese removedd
-                                    if memory.get('is_encrypted'):
-                                        try:
-                                            content = memory.get('content', '')
-                                            if content:
-                                                import json
-                                                import base64
-                                                encrypted_data = json.loads(content)
-                                                ciphertext = base64.b64decode(encrypted_data['ciphertext'])
-                                                nonce = base64.b64decode(encrypted_data['nonce'])
-                                                tag = base64.b64decode(encrypted_data['tag'])
-                                                key_id = memory.get('encryption_key_id')
-                                                if key_id:
-                                                    decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
-                                                    memory['content'] = decrypted_content
-                                        except Exception as e:
-                                            logger.error(f"Error decrypting memory: {e}")
+                                    MemoryEncryptionHelper.decrypt_memory_content(memory)
                                     memories.append(memory)
                                 return memories
                 except Exception as e:
@@ -1693,30 +1631,7 @@ class Tier3Storage:
                             # Convert row to dictionary
                             memory = dict(row)
                             # Decrypt content if needed
-                            if memory.get('is_encrypted'):
-                                try:
-                                    content = memory.get('content', '')
-                                    if content and isinstance(content, str):
-                                        import json
-                                        import base64
-                                        try:
-                                            encrypted_data = json.loads(content)
-                                            if isinstance(encrypted_data, dict) and all(key in encrypted_data for key in ['ciphertext', 'nonce', 'tag']):
-                                                try:
-                                                    ciphertext = base64.b64decode(encrypted_data['ciphertext'])
-                                                    nonce = base64.b64decode(encrypted_data['nonce'])
-                                                    tag = base64.b64decode(encrypted_data['tag'])
-                                                    key_id = memory.get('encryption_key_id')
-                                                    if key_id:
-                                                        from memory_classification_engine.privacy.encryption import encryption_manager
-                                                        decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
-                                                        memory['content'] = str(decrypted_content)
-                                                except Exception as decrypt_error:
-                                                    logger.error(f"Error decrypting memory content: {decrypt_error}")
-                                        except (json.JSONDecodeError, TypeError, ValueError) as json_error:
-                                            logger.error(f"Error parsing JSON content: {json_error}")
-                                except Exception as e:
-                                    logger.error(f"Error decrypting memory: {e}")
+                            MemoryEncryptionHelper.decrypt_memory_content(memory)
                             return memory
                 except Exception as e:
                     logger.warning(f"Error getting memory from in-memory cache: {e}")
@@ -1733,30 +1648,7 @@ class Tier3Storage:
                 memory = dict(row)
                 
                 # Decrypt content if needed
-                if memory.get('is_encrypted'):
-                    try:
-                        content = memory.get('content', '')
-                        if content and isinstance(content, str):
-                            import json
-                            import base64
-                            try:
-                                encrypted_data = json.loads(content)
-                                if isinstance(encrypted_data, dict) and all(key in encrypted_data for key in ['ciphertext', 'nonce', 'tag']):
-                                    try:
-                                        ciphertext = base64.b64decode(encrypted_data['ciphertext'])
-                                        nonce = base64.b64decode(encrypted_data['nonce'])
-                                        tag = base64.b64decode(encrypted_data['tag'])
-                                        key_id = memory.get('encryption_key_id')
-                                        if key_id:
-                                            from memory_classification_engine.privacy.encryption import encryption_manager
-                                            decrypted_content = encryption_manager.decrypt(ciphertext, nonce, tag, key_id)
-                                            memory['content'] = str(decrypted_content)
-                                    except Exception as decrypt_error:
-                                        logger.error(f"Error decrypting memory content: {decrypt_error}")
-                            except (json.JSONDecodeError, TypeError, ValueError) as json_error:
-                                logger.error(f"Error parsing JSON content: {json_error}")
-                    except Exception as e:
-                        logger.error(f"Error decrypting memory: {e}")
+                MemoryEncryptionHelper.decrypt_memory_content(memory)
                 
                 # Update cache
                 if self.enable_cache and hasattr(self, 'cache'):
