@@ -1,0 +1,67 @@
+{
+    "version": "1.0.0",
+    "rules": {
+        "preference_keywords": {
+            "en": ["prefer", "like", "favorite", "always", "never", "hate", "love", "want", "need", "best"],
+            "zh": ["喜欢", "偏好", "最爱", "总是", "从不", "讨厌", "爱", "想要", "需要", "最好"],
+            "ja": ["好き", "嫌い", "好み", "常に", "決して", "愛", "欲しい", "必要", "最高"]
+        },
+        "correction_keywords": {
+            "en": ["no,", "wrong", "incorrect", "actually", "correction", "fix", "mistake", "error"],
+            "zh": ["不对", "错误", "纠正", "修正", "其实", "实际上", "应该是"],
+            "ja": ["違う", "間違い", "訂正", "修正", "実は", "正しくは"]
+        },
+        "decision_keywords": {
+            "en": ["decided", "decision", "choose", "chosen", "will go with", "let's use", "agreed"],
+            "zh": ["决定", "选择", "选定", "就用", "同意", "确定"],
+            "ja": ["決定", "選択", "選んだ", "使う", "同意"]
+        },
+        "fact_keywords": {
+            "en": ["fact:", "note:", "remember:", "important:", "key point:"],
+            "zh": ["事实:", "注意:", "记住:", "重要:", "要点:"],
+            "ja": ["事実:", "注意:", "覚えて:", "重要:", "ポイント:"]
+        }
+    },
+    "classification_thresholds": {
+        "high_confidence": 0.9,
+        "medium_confidence": 0.7,
+        "low_confidence": 0.5
+    },
+    "memory_types": {
+        "user_preference": {
+            "priority": 1,
+            "storage_tier": 2,
+            "retention": "permanent"
+        },
+        "correction": {
+            "priority": 1,
+            "storage_tier": 2,
+            "retention": "permanent"
+        },
+        "decision": {
+            "priority": 2,
+            "storage_tier": 2,
+            "retention": "permanent"
+        },
+        "fact_declaration": {
+            "priority": 2,
+            "storage_tier": 3,
+            "retention": "long_term"
+        },
+        "relationship": {
+            "priority": 3,
+            "storage_tier": 4,
+            "retention": "long_term"
+        },
+        "task_pattern": {
+            "priority": 3,
+            "storage_tier": 3,
+            "retention": "medium_term"
+        },
+        "sentiment_marker": {
+            "priority": 4,
+            "storage_tier": 3,
+            "retention": "short_term"
+        }
+    }
+}

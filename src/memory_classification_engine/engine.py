@@ -344,8 +344,11 @@ class MemoryClassificationEngine:
         """Run nudge mechanism to review and validate memories."""
         logger.info("Running nudge mechanism...")
         try:
-            # Comment in Chinese removedntly
-            recent_memories = self.storage_coordinator.retrieve_memories(query="", limit=50)
+            try:
+                recent_memories = self.storage_coordinator.retrieve_memories(query="", limit=50)
+            except Exception as e:
+                logger.warning(f"Nudge: failed to retrieve memories, skipping: {e}")
+                return
             
             # Comment in Chinese removedys
             old_memories = []
@@ -489,7 +492,10 @@ class MemoryClassificationEngine:
         threading.Thread(target=self._check_archive_time).start()
         
         # Comment in Chinese removedlow)
-        threading.Thread(target=self._check_nudge_time).start()
+        try:
+            self._check_nudge_time()
+        except Exception as e:
+            logger.warning(f"Nudge check failed: {e}")
         
         # Comment in Chinese removedmory
         self._add_to_working_memory(message)

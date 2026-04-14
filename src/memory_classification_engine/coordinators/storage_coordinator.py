@@ -245,13 +245,22 @@ class StorageCoordinator:
         tier3_stats = self.tier3_storage.get_stats()
         tier4_stats = self.tier4_storage.get_stats()
         
+        # 安全地获取总记忆数，确保类型正确
+        def get_safe_total(stats):
+            if isinstance(stats, dict):
+                total = stats.get('total_memories', 0)
+                return int(total) if isinstance(total, (int, float)) else 0
+            return 0
+        
+        total_memories = (
+            get_safe_total(tier2_stats) +
+            get_safe_total(tier3_stats) +
+            get_safe_total(tier4_stats)
+        )
+        
         return {
             'tier2': tier2_stats,
             'tier3': tier3_stats,
             'tier4': tier4_stats,
-            'total_memories': (
-                tier2_stats.get('total_memories', 0) +
-                tier3_stats.get('total_memories', 0) +
-                tier4_stats.get('total_memories', 0)
-            )
+            'total_memories': total_memories
         }

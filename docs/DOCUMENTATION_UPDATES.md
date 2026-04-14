@@ -23,7 +23,7 @@
 - 解释为什么优先做 MCP Server
 - 更新快速开始指南，突出三层集成方式
 
-**文件路径：** `/Users/lin/Documents/trae_projects/memory-classification-engine/README.md`
+**文件路径：** `/Users/lin/trae_projects/memory-classification-engine/README.md`
 
 ---
 
@@ -42,7 +42,7 @@
 - 关键里程碑
 - 决策记录
 
-**文件路径：** `/Users/lin/Documents/trae_projects/memory-classification-engine/ROADMAP.md`
+**文件路径：** `/Users/lin/trae_projects/memory-classification-engine/ROADMAP.md`
 
 ---
 
@@ -65,7 +65,7 @@
   - AutoGen 适配器
 - 8.5 集成对比表
 
-**文件路径：** `/Users/lin/Documents/trae_projects/memory-classification-engine/docs/architecture/architecture.md`
+**文件路径：** `/Users/lin/trae_projects/memory-classification-engine/docs/architecture/architecture.md`
 
 ---
 
@@ -82,7 +82,7 @@
   - 阶段 6: 优化与扩展
 - 更新 3.6.2 集成方式，按三层架构重新组织
 
-**文件路径：** `/Users/lin/Documents/trae_projects/memory-classification-engine/docs/requirements.md`
+**文件路径：** `/Users/lin/trae_projects/memory-classification-engine/docs/requirements.md`
 
 ---
 
@@ -104,7 +104,7 @@
 - 更新 5.1 单元测试：新增 Layer 2 测试内容
 - 更新 5.2 集成测试：新增 Layer 2/3 测试内容
 
-**文件路径：** `/Users/lin/Documents/trae_projects/memory-classification-engine/docs/design.md`
+**文件路径：** `/Users/lin/trae_projects/memory-classification-engine/docs/design.md`
 
 ---
 
@@ -113,7 +113,7 @@
 **更新内容：**
 - 本文档，汇总所有文档更新情况
 
-**文件路径：** `/Users/lin/Documents/trae_projects/memory-classification-engine/docs/DOCUMENTATION_UPDATES.md`
+**文件路径：** `/Users/lin/trae_projects/memory-classification-engine/docs/DOCUMENTATION_UPDATES.md`
 
 ---
 

@@ -108,11 +108,11 @@ export HF_DATASETS_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 
 # 模型缓存路径
-export HF_HOME="/Users/lin/Documents/trae_projects/memory-classification-engine/models"
-export SENTENCE_TRANSFORMERS_HOME="/Users/lin/Documents/trae_projects/memory-classification-engine/models"
+export HF_HOME="/Users/lin/trae_projects/memory-classification-engine/models"
+export SENTENCE_TRANSFORMERS_HOME="/Users/lin/trae_projects/memory-classification-engine/models"
 
 # Python 路径
-export PYTHONPATH="/Users/lin/Documents/trae_projects/memory-classification-engine/src:$PYTHONPATH"
+export PYTHONPATH="/Users/lin/trae_projects/memory-classification-engine/src:$PYTHONPATH"
 ```
 
 ### 3.2 依赖版本
@@ -257,10 +257,10 @@ MCP Server 已经通过所有单元测试，满足发布标准：
 
 ```bash
 # 设置环境变量
-export PYTHONPATH="/Users/lin/Documents/trae_projects/memory-classification-engine/src:$PYTHONPATH"
+export PYTHONPATH="/Users/lin/trae_projects/memory-classification-engine/src:$PYTHONPATH"
 export HF_DATASETS_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
-export HF_HOME="/Users/lin/Documents/trae_projects/memory-classification-engine/models"
+export HF_HOME="/Users/lin/trae_projects/memory-classification-engine/models"
 
 # 运行测试
 python -m pytest tests/unit/integration/test_mcp_server.py -v
@@ -281,7 +281,7 @@ python -m pytest tests/unit/integration/test_mcp_server.py --cov=memory_classifi
 ```
 ============================= test session starts ==============================
 platform darwin -- Python 3.12.13, pytest-9.0.3, pluggy-9.0.0
-rootdir: /Users/lin/Documents/trae_projects/memory-classification-engine
+rootdir: /Users/lin/trae_projects/memory-classification-engine
 plugins: benchmark-5.2.3, asyncio-1.3.0, anyio-4.13.0
 collected 21 items
 
@@ -316,4 +316,4 @@ tests/unit/integration/test_mcp_server.py::TestMCPIntegration::test_full_workflo
 **测试日期**: 2026-04-11  
 **测试状态**: ✅ 全部通过  
 **发布建议**: ✅ 可以发布  
-**报告路径**: `/Users/lin/Documents/trae_projects/memory-classification-engine/docs/testing/MCP_SERVER_TEST_REPORT_FINAL.md`
+**报告路径**: `/Users/lin/trae_projects/memory-classification-engine/docs/testing/MCP_SERVER_TEST_REPORT_FINAL.md`

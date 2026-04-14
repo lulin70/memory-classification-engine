@@ -14,6 +14,7 @@ Flask  # For REST API
 aiohttp  # For async API server
 socketio  # For WebSocket support
 requests  # For LLM API calls
+urllib3==1.26.15  # For compatibility with LibreSSL 2.8.3
 
 # Testing
 pytest

@@ -19,24 +19,26 @@ class Logger:
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging.DEBUG)
         
-        # Comment in Chinese removedr
-        log_file = os.path.join(logs_dir, f"{datetime.now().strftime('%Y-%m-%d')}.log")
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setLevel(logging.INFO)
-        
-        # Comment in Chinese removedr
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.DEBUG)
-        
-        # Comment in Chinese removedr
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        console_handler.setFormatter(formatter)
-        
-        # Comment in Chinese removedr
+        # 确保每个logger只添加一次处理器
         if not self.logger.handlers:
+            # Comment in Chinese removedr
+            log_file = os.path.join(logs_dir, f"{datetime.now().strftime('%Y-%m-%d')}.log")
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setLevel(logging.INFO)
+            
+            # Comment in Chinese removedr
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.DEBUG)
+            
+            # Comment in Chinese removedr
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            file_handler.setFormatter(formatter)
+            console_handler.setFormatter(formatter)
+            
+            # Comment in Chinese removedr
             self.logger.addHandler(file_handler)
             self.logger.addHandler(console_handler)
+            self.logger.propagate = False
     
     def debug(self, message: str):
         """Log debug message.

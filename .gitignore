@@ -25,6 +25,9 @@ logs/
 
 # 忽略测试临时文件
 .pytest_cache/
+htmlcov/
+.coverage
+test_results*.log
 
 # 忽略操作系统文件
 .DS_Store
@@ -41,8 +44,13 @@ __pycache__/
 # 忽略 egg-info 目录
 *.egg-info/
 
-# 忽略测试文件
-test_*.py
+# 忽略构建产物
+dist/
+build/
+*.egg
+
+# 忽略加密密钥（敏感信息）
+config/encryption_keys.json
 
 # 忽略 .trae 目录
 .trae/

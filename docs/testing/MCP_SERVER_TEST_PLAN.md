@@ -504,4 +504,4 @@ if __name__ == "__main__":
 **测试计划版本**: v1.0.0  
 **创建日期**: 2026-04-11  
 **审核状态**: 待审核  
-**计划路径**: `/Users/lin/Documents/trae_projects/memory-classification-engine/docs/testing/MCP_SERVER_TEST_PLAN.md`
+**计划路径**: `/Users/lin/trae_projects/memory-classification-engine/docs/testing/MCP_SERVER_TEST_PLAN.md`

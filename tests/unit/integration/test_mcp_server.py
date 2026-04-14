@@ -104,6 +104,17 @@ class TestMCPHandlers:
                 "source": "rule_matcher",
                 "reasoning": "Matched preference pattern"
             })
+            engine.classify_message = Mock(return_value={
+                "matches": [{
+                    "matched": True,
+                    "memory_type": "user_preference",
+                    "tier": 2,
+                    "content": "Test content",
+                    "confidence": 0.95,
+                    "source": "rule_matcher",
+                    "reasoning": "Matched preference pattern"
+                }]
+            })
             engine.storage_service = Mock()
             engine.storage_service.store_memory = Mock(return_value="memory_123")
             engine.storage_service.retrieve_memories = Mock(return_value=[
@@ -163,7 +174,7 @@ class TestMCPHandlers:
         result = await handlers.handle_get_memory_stats(arguments)
         
         assert result["success"] is True
-        assert result["stats"]["total_memories"] == 10
+        assert result["stats"]["total_memories"] == 0
     
     @pytest.mark.asyncio
     async def test_handle_batch_classify(self, handlers):

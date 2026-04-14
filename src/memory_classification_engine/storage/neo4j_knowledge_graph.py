@@ -42,9 +42,10 @@ class Neo4jKnowledgeGraph:
                     self.uri,
                     auth=basic_auth(self.user, self.password),
                     max_connection_pool_size=neo4j_config.get('connection_pool_size', 10),
-                    max_transaction_retry_time=neo4j_config.get('max_transaction_retry_time', 30)
+                    max_transaction_retry_time=neo4j_config.get('max_transaction_retry_time', 5),
+                    connection_timeout=5.0,
+                    connection_acquisition_timeout=5.0
                 )
-                # Comment in Chinese removedction
                 with self.driver.session(database=self.database) as session:
                     session.run("RETURN 1")
                 logger.info("Neo4j connection established")
@@ -54,6 +55,12 @@ class Neo4jKnowledgeGraph:
             except Exception as e:
                 logger.error(f"Failed to connect to Neo4j: {e}")
                 self.neo4j_enabled = False
+                if hasattr(self, 'driver') and self.driver:
+                    try:
+                        self.driver.close()
+                    except:
+                        pass
+                    self.driver = None
         
         # Comment in Chinese removed
         if not self.neo4j_enabled:
@@ -63,6 +70,28 @@ class Neo4jKnowledgeGraph:
             self._load_graph()
         
         logger.info("Neo4jKnowledgeGraph initialized")
+    
+    def close(self):
+        """Close Neo4j driver connection."""
+        if self.neo4j_enabled and hasattr(self, 'driver') and self.driver:
+            try:
+                self.driver.close()
+                logger.info("Neo4j driver closed")
+            except Exception as e:
+                logger.warning(f"Error closing Neo4j driver: {e}")
+    
+    def __del__(self):
+        """Destructor to ensure Neo4j driver is closed."""
+        self.close()
+    
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        self.close()
+        return False
     
     def _init_schema(self):
         """Initialize Neo4j schema."""

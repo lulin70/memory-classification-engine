@@ -213,7 +213,7 @@ class Tier3Storage:
         """Initialize in-memory database cache."""
         try:
             # Comment in Chinese removed
-            self.in_memory_conn = sqlite3.connect(':memory:')
+            self.in_memory_conn = sqlite3.connect(':memory:', check_same_thread=False)
             cursor = self.in_memory_conn.cursor()
             
             # Comment in Chinese removed
@@ -603,17 +603,24 @@ class Tier3Storage:
                 processed_memories.append(memory)
             
             # Comment in Chinese removedction
-            conn = self.connection_pool.get_connection()
-            cursor = conn.cursor()
-            
-            # Comment in Chinese removedxist
-            cursor.execute('PRAGMA table_info(episodic_memories)')
-            columns = [column[1] for column in cursor.fetchall()]
-            
-            # Comment in Chinese removedction
-            cursor.execute('BEGIN TRANSACTION')
-            
+            conn = None
+            cursor = None
             try:
+                conn = self.connection_pool.get_connection()
+                if not conn:
+                    raise Exception("Failed to get database connection")
+                
+                cursor = conn.cursor()
+                if not cursor:
+                    raise Exception("Failed to create cursor")
+                
+                # Comment in Chinese removedxist
+                cursor.execute('PRAGMA table_info(episodic_memories)')
+                columns = [column[1] for column in cursor.fetchall()]
+                
+                # Comment in Chinese removedction
+                cursor.execute('BEGIN TRANSACTION')
+                
                 # Comment in Chinese removedrt
                 for memory in processed_memories:
                     # Comment in Chinese removedmns
@@ -657,6 +664,7 @@ class Tier3Storage:
                     # Comment in Chinese removednt
                     placeholders = ','.join(['?'] * len(insert_columns))
                     columns_str = ','.join(insert_columns)
+                    
                     cursor.execute(f'''
                         INSERT INTO episodic_memories 
                         ({columns_str})
@@ -667,10 +675,24 @@ class Tier3Storage:
                 conn.commit()
             except Exception as e:
                 # Comment in Chinese removedrror
-                conn.rollback()
-                raise e
+                if conn:
+                    try:
+                        conn.rollback()
+                    except:
+                        pass
+                logger.error(f"Error storing memories in batch: {e}", exc_info=True)
+                raise
             finally:
-                self.connection_pool.return_connection(conn)
+                if cursor:
+                    try:
+                        cursor.close()
+                    except:
+                        pass
+                if conn:
+                    try:
+                        self.connection_pool.return_connection(conn)
+                    except:
+                        pass
             
             # Comment in Chinese removed
             if self.enable_cache and hasattr(self, 'cache'):
@@ -679,7 +701,7 @@ class Tier3Storage:
                         self.cache.set(memory['id'], memory)
             
             # Comment in Chinese removedd
-            if self.enable_in_memory_cache:
+            if self.enable_in_memory_cache and hasattr(self, 'in_memory_conn') and hasattr(self, 'in_memory_lock'):
                 try:
                     with self.in_memory_lock:
                         cursor = self.in_memory_conn.cursor()
@@ -721,10 +743,13 @@ class Tier3Storage:
                     logger.warning(f"Error updating in-memory cache: {e}")
             
             # Comment in Chinese removedx
-            if self.enable_vector_search:
+            if self.enable_vector_search and hasattr(self, '_update_vector_index'):
                 for memory in processed_memories:
                     if memory.get('id') and memory.get('content'):
-                        self._update_vector_index(memory)
+                        try:
+                            self._update_vector_index(memory)
+                        except Exception as e:
+                            logger.warning(f"Error updating vector index: {e}")
             
             return True
         except Exception as e:
@@ -761,35 +786,24 @@ class Tier3Storage:
                     return vector_results
             
             # Comment in Chinese removedd
-            if self.enable_in_memory_cache:
+            if self.enable_in_memory_cache and hasattr(self, 'in_memory_conn') and hasattr(self, 'in_memory_lock'):
                 try:
-                    # Comment in Chinese removedd
-                    # Comment in Chinese removed
-                    if hasattr(self, '_in_memory_thread_id') and self._in_memory_thread_id != threading.get_ident():
-                        logger.debug("Skipping in-memory cache: thread mismatch")
-                    else:
-                        # Comment in Chinese removed
-                        if not hasattr(self, '_in_memory_thread_id'):
-                            self._in_memory_thread_id = threading.get_ident()
-                            
-                        with self.in_memory_lock:
-                            cursor = self.in_memory_conn.cursor()
-                            if self._is_english_query(query):
-                                # Comment in Chinese removeds
-                                cursor.execute('''
-                                    SELECT * FROM episodic_memories 
-                                    WHERE status = 'active' AND content LIKE ? 
-                                    ORDER BY last_accessed DESC 
-                                    LIMIT ?
-                                ''', (f'%{query}%', limit))
-                            else:
-                                # Comment in Chinese removeds
-                                cursor.execute('''
-                                    SELECT * FROM episodic_memories 
-                                    WHERE status = 'active' AND content LIKE ? 
-                                    ORDER BY last_accessed DESC 
-                                    LIMIT ?
-                                ''', (f'%{query}%', limit))
+                    with self.in_memory_lock:
+                        cursor = self.in_memory_conn.cursor()
+                        if self._is_english_query(query):
+                            cursor.execute('''
+                                SELECT * FROM episodic_memories 
+                                WHERE status = 'active' AND content LIKE ? 
+                                ORDER BY last_accessed DESC 
+                                LIMIT ?
+                            ''', (f'%{query}%', limit))
+                        else:
+                            cursor.execute('''
+                                SELECT * FROM episodic_memories 
+                                WHERE status = 'active' AND content LIKE ? 
+                                ORDER BY last_accessed DESC 
+                                LIMIT ?
+                            ''', (f'%{query}%', limit))
                             
                             rows = cursor.fetchall()
                             if rows:
@@ -947,39 +961,26 @@ class Tier3Storage:
         """
         try:
             # Comment in Chinese removedd
-            if self.enable_in_memory_cache:
+            if self.enable_in_memory_cache and hasattr(self, 'in_memory_conn') and hasattr(self, 'in_memory_lock'):
                 try:
-                    # Comment in Chinese removedd
-                    # Comment in Chinese removed
-                    if hasattr(self, '_in_memory_thread_id') and self._in_memory_thread_id != threading.get_ident():
-                        logger.debug("Skipping in-memory cache: thread mismatch")
-                    else:
-                        # Comment in Chinese removed
-                        if not hasattr(self, '_in_memory_thread_id'):
-                            self._in_memory_thread_id = threading.get_ident()
-                            
-                        with self.in_memory_lock:
-                            cursor = self.in_memory_conn.cursor()
-                            # Comment in Chinese removeds
-                            self.in_memory_conn.row_factory = sqlite3.Row
-                            if query:
-                                # Comment in Chinese removedry
-                                cursor.execute('''
-                                    SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
-                                    FROM episodic_memories 
-                                    WHERE (status = 'active' OR status = 'compressed' OR status = 'super_compressed') AND content LIKE ? 
-                                    ORDER BY last_accessed DESC 
-                                    LIMIT ?
-                                ''', (f'%{query}%', limit))
-                            else:
-                                # Comment in Chinese removedry
-                                cursor.execute('''
-                                    SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
-                                    FROM episodic_memories 
-                                    WHERE status = 'active' OR status = 'compressed' OR status = 'super_compressed' 
-                                    ORDER BY last_accessed DESC 
-                                    LIMIT ?
-                                ''', (limit,))
+                    with self.in_memory_lock:
+                        cursor = self.in_memory_conn.cursor()
+                        if query:
+                            cursor.execute('''
+                                SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
+                                FROM episodic_memories 
+                                WHERE (status = 'active' OR status = 'compressed' OR status = 'super_compressed') AND content LIKE ? 
+                                ORDER BY last_accessed DESC 
+                                LIMIT ?
+                            ''', (f'%{query}%', limit))
+                        else:
+                            cursor.execute('''
+                                SELECT id, type, memory_type, content, created_at, updated_at, last_accessed, access_count, confidence, source, context, status 
+                                FROM episodic_memories 
+                                WHERE status = 'active' OR status = 'compressed' OR status = 'super_compressed' 
+                                ORDER BY last_accessed DESC 
+                                LIMIT ?
+                            ''', (limit,))
                             
                             rows = cursor.fetchall()
                             if rows:
@@ -999,8 +1000,13 @@ class Tier3Storage:
             
             # Comment in Chinese removed
             conn = self.connection_pool.get_connection()
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+            try:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+            except Exception as e:
+                logger.warning(f"Failed to create cursor: {e}")
+                self.connection_pool.return_connection(conn)
+                return []
             
             if query:
                 # Comment in Chinese removedry
@@ -1332,15 +1338,15 @@ class Tier3Storage:
             
             # Comment in Chinese removedx
             if self.index is None:
-                # Comment in Chinese removed
                 dimension = vector.shape[1]
-                nlist = 10  # Comment in Chinese removedx
-                self.index = faiss.IndexIVFFlat(faiss.IndexFlatL2(dimension), dimension, nlist, faiss.METRIC_L2)
-                self.index.train(vector)
+                nlist = 10
+                if vector.shape[0] >= nlist:
+                    self.index = faiss.IndexIVFFlat(faiss.IndexFlatL2(dimension), dimension, nlist, faiss.METRIC_L2)
+                    self.index.train(vector)
+                else:
+                    self.index = faiss.IndexFlatL2(dimension)
             elif isinstance(self.index, faiss.IndexIVFFlat):
-                # Comment in Chinese removedin
-                if len(self.memory_ids) % 100 == 0:  # Comment in Chinese removeddditions
-                    # Comment in Chinese removedin
+                if len(self.memory_ids) % 100 == 0:
                     self._init_vector_index()
                     return
             

@@ -23,10 +23,11 @@ class PerformanceMonitor:
         self.enabled = enabled
         self.log_interval = log_interval
         self.alert_thresholds = alert_thresholds or {
-            'memory': 80,  # Comment in Chinese removed
-            'cpu': 90,     # Comment in Chinese removed
-            'response_time': 1.0,  # Comment in Chinese removedconds
-            'cache_hit_rate': 70   # Comment in Chinese removed
+            'memory': 80,
+            'cpu': 90,
+            'disk': 90,
+            'response_time': 1.0,
+            'cache_hit_rate': 70
         }
         self.metrics = {
             'memory': {
@@ -132,7 +133,7 @@ class PerformanceMonitor:
                 'timestamp': datetime.now().isoformat(),
                 'type': 'memory',
                 'message': f"Memory usage high: {memory_usage_percent:.2f}%",
-                'severity': 'warning' if memory_usage_percent < 90 else 'critical'
+                'severity': 'warning' if memory_usage_percent < 95 else 'critical'
             }
             self.metrics['memory']['alerts'].append(alert)
             alerts.append(alert)
@@ -144,14 +145,26 @@ class PerformanceMonitor:
                 'timestamp': datetime.now().isoformat(),
                 'type': 'cpu',
                 'message': f"CPU usage high: {cpu_usage:.2f}%",
-                'severity': 'warning' if cpu_usage < 95 else 'critical'
+                'severity': 'warning' if cpu_usage < 98 else 'critical'
             }
             self.metrics['cpu']['alerts'].append(alert)
             alerts.append(alert)
         
+        # Comment in Chinese removed
+        disk_usage_percent = psutil.disk_usage('.').percent
+        if disk_usage_percent > self.alert_thresholds['disk']:
+            alert = {
+                'timestamp': datetime.now().isoformat(),
+                'type': 'disk',
+                'message': f"Disk usage high: {disk_usage_percent:.2f}%",
+                'severity': 'warning' if disk_usage_percent < 98 else 'critical'
+            }
+            self.metrics['disk']['alerts'].append(alert)
+            alerts.append(alert)
+        
         # Comment in Chinese removeds
         for operation, times in self.metrics['response_times'].items():
-            if times:
+            if times and operation != 'alerts':
                 avg_time = sum(times) / len(times)
                 if avg_time > self.alert_thresholds['response_time']:
                     alert = {
@@ -165,14 +178,16 @@ class PerformanceMonitor:
         
         # Comment in Chinese removed
         if self.metrics['cache']['hit_rate'] < self.alert_thresholds['cache_hit_rate']:
-            alert = {
-                'timestamp': datetime.now().isoformat(),
-                'type': 'cache',
-                'message': f"Cache hit rate low: {self.metrics['cache']['hit_rate']:.2f}%",
-                'severity': 'warning'
-            }
-            self.metrics['cache']['alerts'].append(alert)
-            alerts.append(alert)
+            # 只在有实际缓存操作时才告警
+            if self.metrics['cache']['hit_count'] + self.metrics['cache']['miss_count'] > 0:
+                alert = {
+                    'timestamp': datetime.now().isoformat(),
+                    'type': 'cache',
+                    'message': f"Cache hit rate low: {self.metrics['cache']['hit_rate']:.2f}%",
+                    'severity': 'warning'
+                }
+                self.metrics['cache']['alerts'].append(alert)
+                alerts.append(alert)
         
         # Comment in Chinese removedrts
         for alert in alerts:
