@@ -628,7 +628,10 @@ class MemoryClassificationEngine:
         
         # Comment in Chinese removedlow)
         if stored_memories:
-            threading.Thread(target=self._run_forgetting).start()
+            try:
+                self._run_forgetting()
+            except Exception as e:
+                logger.warning(f"Forgetting process failed: {e}")
         
         # Comment in Chinese removedtrics
         duration = time.time() - start_time
@@ -820,42 +823,31 @@ class MemoryClassificationEngine:
             return {'error': str(e)}
     
     def _build_associations_async(self, memories: List[Dict[str, Any]], context: Optional[Dict[str, Any]]):
-        """Build memory associations asynchronously.
+        """Build memory associations synchronously to avoid SQLite thread safety issues.
         
         Args:
             memories: List of memories to build associations for.
             context: Optional context.
         """
-        def build_associations():
-            try:
-                # Comment in Chinese removedr
-                from memory_classification_engine.utils.memory_association import memory_association_manager
+        try:
+            from memory_classification_engine.utils.memory_association import memory_association_manager
 
-                # Comment in Chinese removed
-                batch_size = DEFAULT_BATCH_SIZE
-                for i in range(0, len(memories), batch_size):
-                    batch_memories = memories[i:i+batch_size]
+            batch_size = DEFAULT_BATCH_SIZE
+            for i in range(0, len(memories), batch_size):
+                batch_memories = memories[i:i+batch_size]
 
-                    # Comment in Chinese removed)
-                    all_memories = []
-                    all_memories.extend(self.storage_coordinator.retrieve_memories(query="", limit=DEFAULT_MEMORY_RETRIEVAL_LIMIT//2, tier=2))
-                    all_memories.extend(self.storage_coordinator.retrieve_memories(query="", limit=DEFAULT_MEMORY_RETRIEVAL_LIMIT, tier=3))
-                    all_memories.extend(self.storage_coordinator.retrieve_memories(query="", limit=DEFAULT_MEMORY_RETRIEVAL_LIMIT//2, tier=4))
+                all_memories = []
+                all_memories.extend(self.storage_coordinator.retrieve_memories(query="", limit=DEFAULT_MEMORY_RETRIEVAL_LIMIT//2, tier=2))
+                all_memories.extend(self.storage_coordinator.retrieve_memories(query="", limit=DEFAULT_MEMORY_RETRIEVAL_LIMIT, tier=3))
+                all_memories.extend(self.storage_coordinator.retrieve_memories(query="", limit=DEFAULT_MEMORY_RETRIEVAL_LIMIT//2, tier=4))
+                
+                for memory in batch_memories:
+                    memory_association_manager.update_memory_associations(memory, all_memories)
                     
-                    # Comment in Chinese removedtch
-                    for memory in batch_memories:
-                        memory_association_manager.update_memory_associations(memory, all_memories)
-                        
-                        # Comment in Chinese removedtion history
-                        if context and 'conversation_history' in context:
-                            self._build_context_aware_associations(memory, context['conversation_history'])
-            except Exception as e:
-                logger.error(f"Error building associations: {e}", exc_info=True)
-        
-        # Comment in Chinese removedvoid blocking
-        thread = threading.Thread(target=build_associations)
-        thread.daemon = True
-        thread.start()
+                    if context and 'conversation_history' in context:
+                        self._build_context_aware_associations(memory, context['conversation_history'])
+        except Exception as e:
+            logger.error(f"Error building associations: {e}", exc_info=True)
     
     def _build_context_aware_associations(self, memory: Dict[str, Any], conversation_history: List[Dict[str, Any]]):
         """Build context-aware associations based on conversation history.

@@ -984,14 +984,12 @@ class Tier3Storage:
                             
                             rows = cursor.fetchall()
                             if rows:
-                                # Comment in Chinese removeds
                                 memories = []
+                                columns = [desc[0] for desc in cursor.description]
                                 for row in rows:
-                                    memory = dict(row)
-                                    # Comment in Chinese removednt
+                                    memory = dict(zip(columns, row))
                                     if 'type' in memory and 'memory_type' not in memory:
                                         memory['memory_type'] = memory['type']
-                                    # Comment in Chinese removedd
                                     MemoryEncryptionHelper.decrypt_memory_content(memory)
                                     memories.append(memory)
                                 return memories
@@ -1028,13 +1026,13 @@ class Tier3Storage:
                 ''', (limit,))
             
             rows = cursor.fetchall()
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
             self.connection_pool.return_connection(conn)
             
-            # Comment in Chinese removeds
             memories = []
             for row in rows:
                 try:
-                    memory = dict(row)
+                    memory = dict(zip(columns, row))
                     if 'type' in memory and 'memory_type' not in memory:
                         memory['memory_type'] = memory['type']
                     
