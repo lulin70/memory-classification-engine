@@ -97,6 +97,22 @@ from memory_classification_engine import MemoryClassificationEngine
 
 engine = MemoryClassificationEngine()
 
+# Process a message — returns dict with 'matches' list
+result = engine.process_message(
+    "That last approach was too complex, let's go simpler"
+)
+
+# Access classification results:
+if result.get('matches'):
+    memory = result['matches'][0]
+    print(f"Type: {memory.get('type')}")       # e.g. 'correction'
+    print(f"Confidence: {memory.get('confidence')}")  # e.g. 0.89
+    print(f"Tier: {memory.get('tier')}")        # e.g. 3
+
+# Full return schema: {message, matches: [{id, content, type, memory_type,
+#   confidence, tier, ...}], plugin_results, working_memory_size,
+#   processing_time, tenant_id, language, language_confidence}
+
 # Scenario 1: User rejects a previous approach (implicit correction)
 engine.process_message(
     "That last approach was too complex, let's go simpler"
@@ -119,6 +135,35 @@ engine.process_message(
 # → [relationship] Alice→backend, Bob→frontend, User→arch lead
 #   confidence: 0.95, tier: semantic
 ```
+
+### Adaptive Retrieval Modes (v2.0)
+
+MCE v2.0 introduces three retrieval modes to match different scenarios:
+
+```python
+from memory_classification_engine import MemoryClassificationEngine
+
+engine = MemoryClassificationEngine()
+
+# Compact mode: keyword-only match, <10ms latency, no LLM cost
+memories = engine.retrieve_memories("deployment checklist", limit=5,
+                                     retrieval_mode='compact')
+
+# Balanced mode: default — semantic sorting with optimized pipeline (recommended)
+memories = engine.retrieve_memories("deployment checklist", limit=5,
+                                     retrieval_mode='balanced')
+
+# Comprehensive mode: deep analysis with associations and composite scoring
+memories = engine.retrieve_memories("deployment checklist", limit=5,
+                                     retrieval_mode='comprehensive',
+                                     include_associations=True)
+```
+
+| Mode | Latency | Use Case |
+|------|---------|----------|
+| `compact` | <10ms | High-frequency lookups, keyword-heavy queries |
+| `balanced` | ~15-50ms | General purpose (default) |
+| `comprehensive` | 50-200ms | Deep research, decision review |
 
 ### Recall Across Sessions
 
@@ -149,7 +194,7 @@ for m in memories:
 
 ## MCP Server: Claude Code Integration in 2 Minutes
 
-MCE ships with a built-in MCP server. This is the fastest way to use it with Claude Code, Cursor, or any MCP-compatible tool.
+MCE ships with a built-in MCP server (**Production v1.0.0**). This is the fastest way to use it with Claude Code, Cursor, or any MCP-compatible tool.
 
 ```bash
 cd mce-mcp
@@ -174,7 +219,7 @@ Available tools: `classify_message`, `retrieve_memories`, `search_memories`, `ge
 
 Every message you send in Claude Code can be classified and stored automatically. Every new session starts with a structured recall of your memories.
 
-See [BETA_TESTING_GUIDE_EN.md](./BETA_TESTING_GUIDE_EN.md) for full setup instructions.
+See [API Reference](./docs/api/API_REFERENCE_V1.md) for full documentation.
 
 ---
 
@@ -223,6 +268,41 @@ Auto-generated rules look like this:
 
 Your usage patterns become free classification rules. No manual tuning required.
 
+### Feedback Loop Automation (v2.0)
+
+MCE v2.0 includes an automated feedback loop that continuously improves classification accuracy:
+
+- **FeedbackAnalyzer**: Detects patterns from user corrections (min 3 occurrences)
+- **RuleTuner**: Generates rule suggestions from detected patterns
+- **Auto-apply**: Rules with confidence > threshold are applied automatically
+
+```python
+result = engine.process_feedback(memory_id="mem_001",
+                                feedback={"type": "wrong_type",
+                                           "correct_type": "decision"})
+# → Pattern detected: 3rd occurrence of user correcting episodic→decision
+# → Rule suggestion generated, awaiting auto-apply (confidence: 0.85)
+```
+
+> **API Note**: `process_feedback(memory_id, feedback)` takes 2 arguments — `feedback` is a dict containing correction details. See [API Reference](./docs/api/API_REFERENCE_V1.md) for full signature.
+
+### Model Distillation Interface (v2.0)
+
+For production deployments requiring cost optimization:
+
+```python
+from memory_classification_engine.layers.distillation import DistillationRouter
+
+router = DistillationRouter()
+request = ClassificationRequest(message="User preference about code style")
+
+# Routes based on estimated confidence:
+# >0.85 → embedding only (zero LLM)
+# 0.5-0.85 → weak model (low cost)
+# <0.5 → strong model (high accuracy)
+result = router.classify(request)
+```
+
 ---
 
 ## Comparison
@@ -233,12 +313,13 @@ Your usage patterns become free classification rules. No manual tuning required.
 | Classification | Basic tags | None | None | None (all observations) | **7 types + 3-layer pipeline** |
 | Storage tiers | 1 (vector) | 2 (mem + disk) | 1 (session) | 1 (SQLite + Chroma) | **4 tiers (working / procedural / episodic / semantic)** |
 | Forgetting | None | Passive overflow | None | AI compression | **Active decay + Nudge review** |
-| Learning | Static | None | None | None | **Patterns auto-promote to rules** |
+| Learning | Static | None | None | None | **Patterns auto-promote to rules + feedback loop** |
 | LLM cost | Per-message | Medium | Low | High (compression) | **60%+ classified at zero cost** |
 | Cross-session | Export only | None | None | Yes | **Structured migration standard** |
-| MCP support | No | No | No | No | **Built-in MCP Server** |
+| MCP support | No | No | No | No | **Built-in MCP Server (v1.0.0 Production)** |
 | High-level API | No | No | Basic | No | **MemoryOrchestrator (learn/recall/export/import)** |
-| Retrieval model | Full content | Full content | Full content | Progressive disclosure | **Progressive disclosure + typed memories** |
+| Retrieval model | Full content | Full content | Full content | Progressive disclosure | **3 adaptive modes + typed memories** |
+| Feedback loop | No | No | No | No | **Automated pattern detection & rule tuning** |
 
 ---
 
@@ -257,15 +338,27 @@ Core dependency: **only PyYAML**. Vector DBs, graph DBs, and LLM are all optiona
 
 ## Performance
 
-| Metric | Result |
-|--------|--------|
-| Message processing (Layer 1/2) | ~10ms |
-| Message processing (Layer 3) | <500ms |
-| Retrieval latency | ~15ms |
-| Concurrent throughput | 626 msg/s |
-| Memory compression | 87-90% noise reduction |
-| Memory footprint | <100MB (basic mode) |
-| LLM call ratio | **<10%** |
+Benchmark results from `benchmarks/baseline_benchmark.py` (after Phase 1 optimization):
+
+| Metric | Before Optimization | After Optimization | Improvement |
+|--------|-------------------|-------------------|-------------|
+| `process_message` P99 latency | 5,669 ms | 1,452 ms | **-74%** |
+| `retrieve_memories` long-sentence P99 | 85 ms | 50 ms | **-41%** |
+| Cache hit rate (warmup) | 0% | 97.83% | **+97.83pp** |
+| Test suite | 696 tests | 874 tests | **+178 tests** |
+| Message processing (Layer 1/2) | ~10ms | ~10ms | Baseline |
+| Retrieval latency (balanced mode) | ~15ms | ~15ms | Baseline |
+| Concurrent throughput | 626 msg/s | 626 msg/s | Baseline |
+| Memory footprint | <100MB | <100MB | Baseline |
+| LLM call ratio | <10% | <10% | Baseline |
+| Memory compression | 87-90% noise reduction | 87-90% | Baseline |
+
+**Key optimizations delivered:**
+- FAISS dimension mismatch fix (eliminated AssertionError on every call)
+- SmartCache rewrite: OrderedDict-based O(1) LRU eviction + startup warmup
+- Parallel query via ThreadPoolExecutor across storage tiers
+- Hash index for O(1) `get_memory` lookups
+- Batch vector encoding + pre-computed sort keys for semantic ranking
 
 ---
 
@@ -278,6 +371,7 @@ Core dependency: **only PyYAML**. Vector DBs, graph DBs, and LLM are all optiona
 | Knowledge graph (T4) | In-memory | Neo4j |
 | Semantic classifier (L3) | Small model API | Ollama local model |
 | Agent adapters | Standalone SDK | Plugin extension |
+| Caching | OrderedDict SmartCache (LRU + warmup) | Redis (external) |
 
 ---
 
@@ -285,26 +379,36 @@ Core dependency: **only PyYAML**. Vector DBs, graph DBs, and LLM are all optiona
 
 ```
 memory-classification-engine/
-├── mce-mcp/                    # MCP Server (Claude Code / Cursor integration)
-│   ├── server.py               #   Server entry point
-│   ├── tools/                  #   MCP tool implementations
-│   └── config.yaml             #   Server configuration
+├── mce-mcp/                         # MCP Server (Claude Code / Cursor integration)
+│   ├── server.py                    #   Server entry point (v1.0.0 Production)
+│   ├── tools/                       #   MCP tool implementations
+│   └── config.yaml                  #   Server configuration
 │
 ├── src/memory_classification_engine/
-│   ├── engine.py               # Core coordinator
-│   ├── layers/                 # 3-layer pipeline
-│   │   ├── rule_matcher.py     #   Layer 1: Rule matching
-│   │   ├── pattern_analyzer.py #   Layer 2: Structure analysis
-│   │   └── semantic_classifier.py # Layer 3: LLM fallback
-│   ├── storage/                # Tiered storage (T2-T4)
-│   ├── orchestrator.py         # MemoryOrchestrator (high-level API)
-│   ├── privacy/
-│   └── utils/
+│   ├── engine.py                    # Core coordinator (adaptive retrieval modes)
+│   ├── layers/
+│   │   ├── rule_matcher.py          #   Layer 1: Rule matching
+│   │   ├── pattern_analyzer.py      #   Layer 2: Structure analysis
+│   │   ├── semantic_classifier.py   #   Layer 3: LLM fallback
+│   │   ├── feedback_loop.py         #   v2.0: Automated feedback & rule tuning
+│   │   └── distillation.py          #   v2.0: Model distillation routing
+│   ├── storage/
+│   │   └── tier3.py                 #   FAISS vector index (dimension-safe)
+│   ├── coordinators/
+│   │   └── storage_coordinator.py   #   Parallel query + hash index
+│   ├── utils/
+│   │   └── memory_manager.py        #   SmartCache (OrderedDict + warmup)
+│   ├── orchestrator.py              # MemoryOrchestrator (high-level API)
+│   └── privacy/
 │
-├── examples/                   # Ready-to-run examples
-├── tests/                      # Test suite
-├── config/rules.yaml           # Classification rules
-├── setup.py                    # PyPI package config
+├── benchmarks/
+│   ├── baseline_benchmark.py        # Performance measurement tool
+│   └── final_results.json           # Optimized benchmark data
+│
+├── examples/                        # Ready-to-run examples
+├── tests/                           # Test suite (874 tests passing)
+├── config/rules.yaml                # Classification rules
+├── setup.py                         # PyPI package config
 └── README.md
 ```
 
@@ -324,6 +428,9 @@ pip install -e ".[llm]"
 export MCE_LLM_API_KEY="your-key"
 export MCE_LLM_ENABLED=true
 
+# With scikit-learn (for vector encoding optimizations)
+pip install scikit-learn
+
 # Run tests
 pip install -e ".[testing]"
 pytest
@@ -341,6 +448,7 @@ MIT
 
 - Repository: [github.com/lulin70/memory-classification-engine](https://github.com/lulin70/memory-classification-engine)
 - Roadmap: [ROADMAP.md](./ROADMAP.md)
-- Beta Testing Guide: [BETA_TESTING_GUIDE_EN.md](./BETA_TESTING_GUIDE_EN.md)
+- API Reference: [docs/api/API_REFERENCE_V1.md](./docs/api/API_REFERENCE_V1.md)
+- Optimization Roadmap: [docs/OPTIMIZATION_ROADMAP_V1.md](./docs/OPTIMIZATION_ROADMAP_V1.md)
 - MCP Setup for Claude Code: [docs/claude_code_mcp_config.md](./docs/claude_code_mcp_config.md)
 - Issues / Discussions

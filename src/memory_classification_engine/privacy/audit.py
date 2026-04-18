@@ -26,7 +26,10 @@ class AuditManager:
             logs = []
             for line in f:
                 if line.strip():
-                    logs.append(json.loads(line))
+                    try:
+                        logs.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue  # Skip corrupted log lines
             return logs
     
     def _save_logs(self):

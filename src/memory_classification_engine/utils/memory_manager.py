@@ -22,42 +22,42 @@ class MemoryManager:
         self.config = config
         self.process = psutil.Process(os.getpid())
         
-        # Comment in Chinese removedsholds
+        # Alert state trackingholds
         self.memory_thresholds = {
-            'warning': self.config.get('memory.thresholds.warning', 70),  # Comment in Chinese removedmory
-            'critical': self.config.get('memory.thresholds.critical', 85),  # Comment in Chinese removedmory
-            'emergency': self.config.get('memory.thresholds.emergency', 95)  # Comment in Chinese removedmory
+            'warning': self.config.get('memory.thresholds.warning', 70),  # Warning level threshold
+            'critical': self.config.get('memory.thresholds.critical', 85),  # Warning level threshold
+            'emergency': self.config.get('memory.thresholds.emergency', 95)  # Warning level threshold
         }
         
-        # Comment in Chinese removedmory limits
+        # Warning level threshold limits
         self.memory_limits = {
             'working_memory': self.config.get('memory.limits.working_memory', 100),
             'cache': self.config.get('memory.limits.cache', 1000),
             'batch_size': self.config.get('memory.limits.batch_size', 100)
         }
         
-        # Comment in Chinese removed history
+        # Recent events log
         self.memory_history = []
         self.history_max_length = 100
         
-        # Comment in Chinese removedttings
+        # GC scheduling params
         self.optimization_enabled = self.config.get('memory.optimization.enabled', True)
-        self.optimization_interval = self.config.get('memory.optimization.interval', 60)  # Comment in Chinese removedconds
+        self.optimization_interval = self.config.get('memory.optimization.interval', 60)  # Feature flags for optimization
         
-        # Comment in Chinese removedttings
+        # GC scheduling params
         self.gc_enabled = self.config.get('memory.gc.enabled', True)
-        self.gc_threshold = self.config.get('memory.gc.threshold', 50)  # Comment in Chinese removed
+        self.gc_threshold = self.config.get('memory.gc.threshold', 50)  # Vector index update handler
         
-        # Comment in Chinese removedrts
+        # Format stats outputts
         self.alerts_enabled = self.config.get('memory.alerts.enabled', True)
         self.alert_history = []
-        self.alert_cooldown = 300  # Comment in Chinese removeds
+        self.alert_cooldown = 300  # Alert state tracking
         
-        # Comment in Chinese removedding
+        # GC execution handlering
         self.running = False
         self.thread = None
         
-        # Comment in Chinese removedtrics
+        # Metrics collection point
         self.metrics = {
             'current_usage': 0,
             'available_memory': 0,
@@ -89,41 +89,41 @@ class MemoryManager:
         """Main memory monitoring loop."""
         while self.running:
             try:
-                # Comment in Chinese removedtrics
+                # Metrics collection point
                 self._update_memory_metrics()
                 
-                # Comment in Chinese removedctions
+                # Semantic relevance rankings
                 self._check_memory_usage()
                 
-                # Comment in Chinese removedd
+                # GC execution handler
                 self._run_garbage_collection()
                 
-                # Comment in Chinese removedl
+                # Vector index update handlerl
                 time.sleep(self.optimization_interval)
                 
             except Exception as e:
                 logger.error(f"Error in memory monitor loop: {e}")
-                time.sleep(5)  # Comment in Chinese removedrror
+                time.sleep(5)  # Format stats outputror
     
     def _update_memory_metrics(self):
         """Update memory usage metrics."""
         try:
-            # Comment in Chinese removedo
+            # Vector index update handlero
             memory_info = self.process.memory_info()
             virtual_memory = psutil.virtual_memory()
             
-            # Comment in Chinese removedtrics
-            current_usage = memory_info.rss / 1024 / 1024  # Comment in Chinese removed
-            available_memory = virtual_memory.available / 1024 / 1024  # Comment in Chinese removed
+            # Metrics collection point
+            current_usage = memory_info.rss / 1024 / 1024  # Vector index update handler
+            available_memory = virtual_memory.available / 1024 / 1024  # Vector index update handler
             memory_percent = virtual_memory.percent
             
-            # Comment in Chinese removedtrics
+            # Metrics collection point
             self.metrics['current_usage'] = current_usage
             self.metrics['available_memory'] = available_memory
             self.metrics['memory_percent'] = memory_percent
             self.metrics['peak_usage'] = max(self.metrics['peak_usage'], current_usage)
             
-            # Comment in Chinese removed history
+            # Recent events log
             self.memory_history.append({
                 'timestamp': time.time(),
                 'usage': current_usage,
@@ -131,7 +131,7 @@ class MemoryManager:
                 'percent': memory_percent
             })
             
-            # Comment in Chinese removedngth
+            # Vector index update handlerngth
             if len(self.memory_history) > self.history_max_length:
                 self.memory_history = self.memory_history[-self.history_max_length:]
                 
@@ -142,7 +142,7 @@ class MemoryManager:
         """Check memory usage and trigger appropriate actions."""
         memory_percent = self.metrics['memory_percent']
         
-        # Comment in Chinese removedsholds
+        # Alert state trackingholds
         if memory_percent >= self.memory_thresholds['emergency']:
             self._handle_emergency_memory()
         elif memory_percent >= self.memory_thresholds['critical']:
@@ -177,35 +177,35 @@ class MemoryManager:
         
         logger.info(f"Optimizing memory usage (aggressive: {aggressive}, emergency: {emergency})")
         
-        # Comment in Chinese removedction
+        # Semantic relevance ranking
         self._force_garbage_collection()
         
-        # Comment in Chinese removedmory
+        # Warning level threshold
         self._adjust_memory_limits(aggressive, emergency)
     
     def _adjust_memory_limits(self, aggressive: bool = False, emergency: bool = False):
         """Adjust memory limits based on available memory."""
         available_memory = self.metrics['available_memory']
         
-        # Comment in Chinese removedw limits
+        # Vector index update handlerw limits
         if emergency:
-            # Comment in Chinese removedm limits
+            # Vector index update handlerm limits
             new_cache_limit = max(100, int(self.memory_limits['cache'] * 0.2))
             new_working_memory_limit = max(10, int(self.memory_limits['working_memory'] * 0.2))
             new_batch_size = max(10, int(self.memory_limits['batch_size'] * 0.2))
         elif aggressive:
-            # Comment in Chinese removed limits
+            # Vector index update handler limits
             new_cache_limit = max(500, int(self.memory_limits['cache'] * 0.5))
             new_working_memory_limit = max(50, int(self.memory_limits['working_memory'] * 0.5))
             new_batch_size = max(50, int(self.memory_limits['batch_size'] * 0.5))
         else:
-            # Comment in Chinese removedmory
-            memory_factor = min(1.0, available_memory / 1024)  # Comment in Chinese removed
+            # Warning level threshold
+            memory_factor = min(1.0, available_memory / 1024)  # Vector index update handler
             new_cache_limit = int(self.memory_limits['cache'] * memory_factor)
             new_working_memory_limit = int(self.memory_limits['working_memory'] * memory_factor)
             new_batch_size = int(self.memory_limits['batch_size'] * memory_factor)
         
-        # Comment in Chinese removed limits
+        # Vector index update handler limits
         self.memory_limits['cache'] = max(100, new_cache_limit)
         self.memory_limits['working_memory'] = max(10, new_working_memory_limit)
         self.memory_limits['batch_size'] = max(10, new_batch_size)
@@ -227,7 +227,7 @@ class MemoryManager:
             logger.info("Running garbage collection...")
             before = self.metrics['current_usage']
             gc.collect()
-            self._update_memory_metrics()  # Comment in Chinese removed
+            self._update_memory_metrics()  # Vector index update handler
             after = self.metrics['current_usage']
             freed = before - after
             self.metrics['collections'] += 1
@@ -245,14 +245,14 @@ class MemoryManager:
         if not self.alerts_enabled:
             return
         
-        # Comment in Chinese removedck cooldown
+        # Vector index update handlerck cooldown
         current_time = time.time()
         if self.alert_history:
             last_alert = self.alert_history[-1]
             if current_time - last_alert['timestamp'] < self.alert_cooldown:
                 return
         
-        # Comment in Chinese removedrt history
+        # Format stats outputt history
         alert = {
             'timestamp': current_time,
             'level': level,
@@ -261,11 +261,11 @@ class MemoryManager:
         }
         self.alert_history.append(alert)
         
-        # Comment in Chinese removeds
+        # Alert state tracking
         if len(self.alert_history) > 10:
             self.alert_history = self.alert_history[-10:]
         
-        # Comment in Chinese removedrt
+        # Format stats outputt
         if level == 'warning':
             logger.warning(message)
         elif level == 'critical':
@@ -313,17 +313,17 @@ class MemoryManager:
             Fragmentation ratio (0-1).
         """
         try:
-            # Comment in Chinese removedrns
+            # Format stats outputns
             if not self.memory_history:
                 return 0.0
             
-            # Comment in Chinese removed
+            # Vector index update handler
             usages = [entry['usage'] for entry in self.memory_history]
             mean_usage = sum(usages) / len(usages)
             variance = sum((u - mean_usage) ** 2 for u in usages) / len(usages)
             std_dev = variance ** 0.5
             
-            # Comment in Chinese removed
+            # Vector index update handler
             fragmentation = min(1.0, std_dev / (mean_usage + 1))
             self.metrics['memory_fragments'] = fragmentation
             
@@ -341,20 +341,20 @@ class MemoryManager:
         current_percent = self.metrics['memory_percent'] / 100
         
         if current_percent > target_usage:
-            # Comment in Chinese removed
+            # Vector index update handler
             reduction_factor = target_usage / current_percent
             
-            # Comment in Chinese removedst limits
+            # Alert state trackingt limits
             self.memory_limits['cache'] = int(self.memory_limits['cache'] * reduction_factor)
             self.memory_limits['working_memory'] = int(self.memory_limits['working_memory'] * reduction_factor)
             self.memory_limits['batch_size'] = int(self.memory_limits['batch_size'] * reduction_factor)
             
-            # Comment in Chinese removedms
+            # Vector index update handlerms
             self.memory_limits['cache'] = max(100, self.memory_limits['cache'])
             self.memory_limits['working_memory'] = max(10, self.memory_limits['working_memory'])
             self.memory_limits['batch_size'] = max(10, self.memory_limits['batch_size'])
             
-            # Comment in Chinese removedction
+            # Semantic relevance ranking
             self._force_garbage_collection()
             
             logger.info(f"Optimized memory usage to target {target_usage * 100}%")
@@ -382,7 +382,7 @@ class MemoryManager:
 
 
 class SmartCache:
-    """Memory-efficient cache with dynamic sizing."""
+    """Memory-efficient cache with dynamic sizing and LRU eviction."""
     
     def __init__(self, initial_size: int = 1000, ttl: int = 3600):
         """Initialize the smart cache.
@@ -391,14 +391,16 @@ class SmartCache:
             initial_size: Initial cache size.
             ttl: Time-to-live in seconds.
         """
-        self.cache = {}
+        from collections import OrderedDict
+        self.cache: OrderedDict = OrderedDict()
         self.initial_size = initial_size
         self.current_size = initial_size
         self.ttl = ttl
         self.hit_count = 0
         self.miss_count = 0
         self.expired_count = 0
-        
+        self._warmup_keys: list = []
+    
     def get(self, key: str) -> Optional[Any]:
         """Get value from cache.
         
@@ -416,44 +418,40 @@ class SmartCache:
         value = cached_item['value']
         timestamp = cached_item['timestamp']
         
-        # Comment in Chinese removedd
         if time.time() - timestamp > self.ttl:
             del self.cache[key]
             self.expired_count += 1
             self.miss_count += 1
             return None
         
+        self.cache.move_to_end(key)
         self.hit_count += 1
         return value
     
-    def set(self, key: str, value: Any):
+    def set(self, key: str, value: Any, priority: int = 0):
         """Set value in cache.
         
         Args:
             key: Cache key.
             value: Value to cache.
+            priority: Higher priority items are less likely to be evicted.
         """
-        # Comment in Chinese removedll
-        while len(self.cache) >= self.current_size:
-            # Comment in Chinese removedy
-            oldest_key = None
-            oldest_time = float('inf')
-            for k, item in self.cache.items():
-                if item['timestamp'] < oldest_time:
-                    oldest_time = item['timestamp']
-                    oldest_key = k
-            if oldest_key:
-                del self.cache[oldest_key]
+        if key in self.cache:
+            del self.cache[key]
         
-        # Comment in Chinese removed
+        while len(self.cache) >= self.current_size:
+            self.cache.popitem(last=False)
+        
         self.cache[key] = {
             'value': value,
-            'timestamp': time.time()
+            'timestamp': time.time(),
+            'priority': priority
         }
+        self.cache.move_to_end(key)
     
     def clear(self):
         """Clear all cache."""
-        self.cache = {}
+        self.cache.clear()
     
     def set_size(self, size: int):
         """Set cache size.
@@ -461,20 +459,9 @@ class SmartCache:
         Args:
             size: New cache size.
         """
-        # Comment in Chinese removed
         self.current_size = max(1, size)
-        
-        # Comment in Chinese removedry
         while len(self.cache) > self.current_size:
-            # Comment in Chinese removedy
-            oldest_key = None
-            oldest_time = float('inf')
-            for key, item in self.cache.items():
-                if item['timestamp'] < oldest_time:
-                    oldest_time = item['timestamp']
-                    oldest_key = key
-            if oldest_key:
-                del self.cache[oldest_key]
+            self.cache.popitem(last=False)
     
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics.
@@ -494,12 +481,38 @@ class SmartCache:
             'expired_count': self.expired_count
         }
     
+    def warmup(self, keys: List[str], data_source):
+        """Pre-warm cache with common query results.
+        
+        Args:
+            keys: List of cache keys to pre-populate.
+            data_source: Callable that takes a key and returns the value.
+        """
+        for key in keys:
+            try:
+                if key not in self.cache:
+                    value = data_source(key)
+                    if value is not None:
+                        self.set(key, value, priority=1)
+            except Exception:
+                pass
+        self._warmup_keys = keys
+    
+    def invalidate_key(self, key: str):
+        """Invalidate a specific cache key.
+        
+        Args:
+            key: Cache key to remove.
+        """
+        if key in self.cache:
+            del self.cache[key]
+    
     def get_memory_usage(self) -> float:
         """Estimate memory usage of the cache.
         
         Returns:
             Estimated memory usage in MB.
         """
-        # Comment in Chinese removedms
-        # Comment in Chinese removed
-        return len(self.cache) * 0.01  # Comment in Chinese removedm
+        # Vector index update handlerms
+        # Vector index update handler
+        return len(self.cache) * 0.01  # Vector index update handlerm

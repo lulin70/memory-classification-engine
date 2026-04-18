@@ -71,8 +71,16 @@ Memory Classification Engine 采用分层架构设计，主要包括以下层次
 |------|------|----------|------|
 | Tier 1 | 工作记忆 | 内存 | 临时存储，快速访问 |
 | Tier 2 | 程序性记忆 | JSON文件 | 结构化存储，用户偏好 |
-| Tier 3 | 情节记忆 | SQLite + FTS5 + 向量存储 | 大容量存储，全文搜索，向量检索 |
-| Tier 4 | 语义记忆 | SQLite + 知识图谱 | 长期存储，语义关联，知识推理 |
+| Tier 3 | 情节记忆 | SQLite + FTS5 + 向量存储 (FAISS) | 大容量存储、全文搜索、向量检索、维度安全索引更新 |
+| Tier 4 | 语义记忆 | SQLite + 知识图谱 (NetworkX) | 长期存储、语义关联 |
+
+#### 2.2.2 存储协调器（已优化）
+
+**并行查询**：`StorageCoordinator` 使用 `ThreadPoolExecutor(max_workers=3)` 在 `retrieve_memories()` 时并发获取 tier2/tier3/tier4 数据，减少串行 I/O 等待。
+
+**哈希索引**：`_id_index` 字典提供 O(1) 复杂度的 `get_memory()` 按 ID 查找，未命中时自动重建。
+
+**缓存集成**：基于 OrderedDict 的 LRU 淘汰 SmartCache（O(1)）+ 启动预热（97.83% 命中率）。
 
 #### 2.2.2 存储实现
 

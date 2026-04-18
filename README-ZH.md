@@ -8,7 +8,7 @@
 <p align="center">
   <a href="./README.md">English</a> ·
   <a href="./README-JP.md">日本語</a> ·
-  <a href="./ROADMAP.md">路线图</a> ·
+  <a href="./ROADMAP-ZH.md">路线图</a> ·
   <a href="https://github.com/lulin70/memory-classification-engine/issues">问题反馈</a>
 </p>
 
@@ -119,6 +119,35 @@ engine.process_message(
 #   置信度: 0.95, 层级: semantic
 ```
 
+### 自适应检索模式 (v2.0)
+
+MCE v2.0 引入三种检索模式以适配不同场景：
+
+```python
+from memory_classification_engine import MemoryClassificationEngine
+
+engine = MemoryClassificationEngine()
+
+# 紧凑模式：仅关键词匹配，延迟 <10ms，零 LLM 成本
+memories = engine.retrieve_memories("部署检查清单", limit=5,
+                                     retrieval_mode='compact')
+
+# 均衡模式：默认 — 语义排序 + 优化流水线（推荐）
+memories = engine.retrieve_memories("部署检查清单", limit=5,
+                                     retrieval_mode='balanced')
+
+# 全面模式：深度分析 + 关联查询 + 复合评分
+memories = engine.retrieve_memories("部署检查清单", limit=5,
+                                     retrieval_mode='comprehensive',
+                                     include_associations=True)
+```
+
+| 模式 | 延迟 | 适用场景 |
+|------|------|---------|
+| `compact` | <10ms | 高频查询、关键词为主的场景 |
+| `balanced` | ~15-50ms | 通用场景（默认） |
+| `comprehensive` | 50-200ms | 深度研究、决策回顾 |
+
 ### 跨会话记忆回放
 
 用户真正感知到的价值：新开一个对话，Agent **记得**之前重要的事。
@@ -148,7 +177,7 @@ for m in memories:
 
 ## MCP Server：2 分钟接入 Claude Code
 
-MCE 内置 MCP Server，这是在 Claude Code / Cursor 等 MCP 兼容工具中使用 MCE 最快的方式。
+MCE 内置 MCP Server（**生产版 v1.0.0**）。这是在 Claude Code / Cursor 等 MCP 兼容工具中使用 MCE 最快的方式。
 
 ```bash
 cd mce-mcp
@@ -173,7 +202,7 @@ python3 server.py
 
 你在 Claude Code 里发送的每条消息都可以被自动分类和存储。每次新会话都会加载结构化的记忆摘要。
 
-完整配置说明见 [BETA_TESTING_GUIDE_ZH.md](./BETA_TESTING_GUIDE_ZH.md)。
+完整文档见 [API Reference](./docs/api/API_REFERENCE_V1.md)。
 
 ---
 
@@ -222,6 +251,39 @@ python3 server.py
 
 你的使用模式会自动变成免费的分类规则。无需手动调优。
 
+### 反馈循环自动化 (v2.0)
+
+MCE v2.0 内置自动化反馈循环，持续提升分类准确率：
+
+- **FeedbackAnalyzer**：检测用户纠正中的模式（最少出现 3 次）
+- **RuleTuner**：根据检测到的模式生成规则建议
+- **Auto-apply**：置信度超过阈值的规则自动生效
+
+```python
+result = engine.process_feedback(memory_id="mem_001",
+                                  correction_type="wrong_type",
+                                  suggested_type="decision")
+# → 模式检测到：第 3 次用户将 episodic 纠正为 decision
+# → 规则建议已生成，等待自动应用（置信度: 0.85）
+```
+
+### 模型蒸馏接口 (v2.0)
+
+面向需要成本优化的生产环境部署：
+
+```python
+from memory_classification_engine.layers.distillation import DistillationRouter
+
+router = DistillationRouter()
+request = ClassificationRequest(message="关于代码风格的用户偏好")
+
+# 根据预估置信度路由：
+# >0.85 → 仅 embedding（零 LLM）
+# 0.5-0.85 → 弱模型（低成本）
+# <0.5 → 强模型（高精度）
+result = router.classify(request)
+```
+
 ---
 
 ## 与其他方案对比
@@ -232,11 +294,13 @@ python3 server.py
 | 记忆分类 | 基础标签 | 无 | 无 | **7 种类型 + 三层管道** |
 | 记忆层级 | 单层（向量库） | 两层（内存+磁盘） | 单层（会话） | **四层（工作/程序性/情节/语义）** |
 | 遗忘机制 | 无 | 被动溢出 | 无 | **主动衰减 + Nudge 审查** |
-| 学习能力 | 静态 | 无 | 无 | **模式自动晋升为规则** |
+| 学习能力 | 静态 | 无 | 无 | **模式自动晋升 + 反馈循环** |
 | LLM 成本 | 每条消息 | 中等 | 低 | **60%+ 零成本分类** |
 | 跨会话 | 仅导出 | 无 | 无 | **结构化迁移标准** |
-| MCP 支持 | 无 | 无 | 无 | **内置 MCP Server** |
+| MCP 支持 | 无 | 无 | 无 | **内置 MCP Server (v1.0.0 生产版)** |
 | 高级 API | 无 | 无 | 基础 | **MemoryOrchestrator（学习/回放/导入/导出）** |
+| 检索模式 | 全量内容 | 全量内容 | 全量内容 | **3 种自适应模式 + 类型化记忆** |
+| 反馈循环 | 无 | 无 | 无 | **自动化模式检测与规则调优** |
 
 ---
 
@@ -255,15 +319,27 @@ python3 server.py
 
 ## 性能表现
 
-| 指标 | 数据 |
-|------|------|
-| 单条消息处理（Layer 1/2） | ~10ms |
-| 单条消息处理（Layer 3） | <500ms |
-| 检索延迟 | ~15ms |
-| 并发吞吐 | 626 msg/s |
-| 记忆压缩率 | 87-90% 噪声消除 |
-| 内存占用 | <100MB（基础模式） |
-| LLM 调用比例 | **<10%** |
+基准测试数据来自 `benchmarks/baseline_benchmark.py`（Phase 1 优化后）：
+
+| 指标 | 优化前 | 优化后 | 提升幅度 |
+|------|--------|--------|---------|
+| `process_message` P99 延迟 | 5,669 ms | 1,452 ms | **-74%** |
+| `retrieve_memories` 长句 P99 | 85 ms | 50 ms | **-41%** |
+| 缓存命中率（预热后） | 0% | 97.83% | **+97.83pp** |
+| 测试套件 | 661 个测试 | 696 个测试 | **+35 个测试** |
+| 单条消息处理（Layer 1/2） | ~10ms | ~10ms | 基线 |
+| 检索延迟（均衡模式） | ~15ms | ~15ms | 基线 |
+| 并发吞吐 | 626 msg/s | 626 msg/s | 基线 |
+| 内存占用 | <100MB | <100MB | 基线 |
+| LLM 调用比例 | <10% | <10% | 基线 |
+| 记忆压缩率 | 87-90% 噪声消除 | 87-90% | 基线 |
+
+**关键优化项：**
+- FAISS 维度不匹配修复（消除每次调用时的 AssertionError）
+- SmartCache 重写：基于 OrderedDict 的 O(1) LRU 淘汰 + 启动预热
+- 并行查询：ThreadPoolExecutor 跨存储层并发获取
+- 哈希索引：O(1) 复杂度的 `get_memory` 查找
+- 批量向量编码 + 预计算排序键用于语义排名
 
 ---
 
@@ -276,6 +352,7 @@ python3 server.py
 | 知识图谱（T4） | 内存图 | Neo4j |
 | 语义分类器（L3） | 小模型 API | Ollama 本地模型 |
 | Agent 适配 | 独立 SDK | 插件扩展 |
+| 缓存 | OrderedDict SmartCache（LRU + 预热） | Redis（外部） |
 
 ---
 
@@ -283,26 +360,36 @@ python3 server.py
 
 ```
 memory-classification-engine/
-├── mce-mcp/                    # MCP Server（Claude Code / Cursor 集成）
-│   ├── server.py               #   服务入口
-│   ├── tools/                  #   MCP 工具实现
-│   └── config.yaml             #   服务配置
+├── mce-mcp/                         # MCP Server（Claude Code / Cursor 集成）
+│   ├── server.py                    #   服务入口（v1.0.0 生产版）
+│   ├── tools/                       #   MCP 工具实现
+│   └── config.yaml                  #   服务配置
 │
 ├── src/memory_classification_engine/
-│   ├── engine.py               # 核心协调器
-│   ├── layers/                 # 三层分类管道
-│   │   ├── rule_matcher.py     #   Layer 1: 规则匹配
-│   │   ├── pattern_analyzer.py #   Layer 2: 结构分析
-│   │   └── semantic_classifier.py # Layer 3: LLM 兜底
-│   ├── storage/                # 分层存储（T2-T4）
-│   ├── orchestrator.py         # MemoryOrchestrator 高级 API
-│   ├── privacy/
-│   └── utils/
+│   ├── engine.py                    # 核心协调器（自适应检索模式）
+│   ├── layers/
+│   │   ├── rule_matcher.py          #   Layer 1: 规则匹配
+│   │   ├── pattern_analyzer.py      #   Layer 2: 结构分析
+│   │   ├── semantic_classifier.py   #   Layer 3: LLM 兜底
+│   │   ├── feedback_loop.py         #   v2.0: 自动反馈与规则调优
+│   │   └── distillation.py          #   v2.0: 模型蒸馏路由
+│   ├── storage/
+│   │   └── tier3.py                 #   FAISS 向量索引（维度安全）
+│   ├── coordinators/
+│   │   └── storage_coordinator.py   #   并行查询 + 哈希索引
+│   ├── utils/
+│   │   └── memory_manager.py        #   SmartCache（OrderedDict + 预热）
+│   ├── orchestrator.py              # MemoryOrchestrator 高级 API
+│   └── privacy/
 │
-├── examples/                   # 可运行示例
-├── tests/                      # 测试套件
-├── config/rules.yaml           # 分类规则配置
-├── setup.py                    # PyPI 包配置
+├── benchmarks/
+│   ├── baseline_benchmark.py        # 性能测量工具
+│   └── final_results.json           # 优化后的基准数据
+│
+├── examples/                        # 可运行示例
+├── tests/                           # 测试套件（696 测试全部通过）
+├── config/rules.yaml                # 分类规则配置
+├── setup.py                         # PyPI 包配置
 └── README.md
 ```
 
@@ -322,6 +409,9 @@ pip install -e ".[llm]"
 export MCE_LLM_API_KEY="your-key"
 export MCE_LLM_ENABLED=true
 
+# 安装 scikit-learn（用于向量编码优化）
+pip install scikit-learn
+
 # 运行测试
 pip install -e ".[testing]"
 pytest
@@ -338,7 +428,8 @@ MIT
 ## 链接
 
 - 项目主页：[github.com/lulin70/memory-classification-engine](https://github.com/lulin70/memory-classification-engine)
-- 路线图：[ROADMAP.md](./ROADMAP.md)
-- Beta 测试指南：[BETA_TESTING_GUIDE_ZH.md](./BETA_TESTING_GUIDE_ZH.md)
+- 路线图：[ROADMAP-ZH.md](./ROADMAP-ZH.md)
+- API 文档：[docs/api/API_REFERENCE_V1.md](./docs/api/API_REFERENCE_V1.md)
+- 优化路线图：[docs/OPTIMIZATION_ROADMAP_V1.md](./docs/OPTIMIZATION_ROADMAP_V1.md)
 - Claude Code MCP 配置：[docs/claude_code_mcp_config.md](./docs/claude_code_mcp_config.md)
 - 问题反馈 / 讨论

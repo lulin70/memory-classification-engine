@@ -267,6 +267,56 @@ rules:
 頻度スコア = log(1 + アクセス回数)            # 対数成長、限界減少
 ```
 
+### 2.3.5 フィードバックループモジュール (v2.0)
+
+**目的**: ユーザーフィードバックを通じて分類精度を自動的に向上させる
+
+**コアコンポーネント**:
+
+| コンポーネント | 機能 |
+|--------------|------|
+| `FeedbackEvent` | 単一フィードバックイベントの記録（memory_id, correction_type, suggested_type） |
+| `FeedbackAnalyzer` | 累積フィードバックからのパターン検出（最低 3 回出現） |
+| `RuleTuner` | 検出されたパターンに基づくルール提案の生成 |
+| `FeedbackLoop` | 完全パイプラインの編成：記録 → 分析 → チューニング → 自動適用 |
+
+**パイプラインフロー**:
+```
+ユーザー訂正 → FeedbackEvent → FeedbackAnalyzer(パターン検出, min=3)
+    → RuleTuner(ルール生成) → 自動適用(confidence > threshold)
+```
+
+**設定**: 自動適用閾値はデフォルト 0.8、`feedback_loop.auto_apply_threshold` で設定可能
+
+**ファイル場所**: [layers/feedback_loop.py](../src/memory_classification_engine/layers/feedback_loop.py)
+
+### 2.3.6 モデル蒸留インターフェース (v2.0)
+
+**目的**: 本番環境向けのコスト認識ルーティング、異なるモデル階層に対応
+
+**コアコンポーネント**:
+
+| コンポーネント | 機能 |
+|--------------|------|
+| `DistillationMode` 列挙型 | `EMBEDDING_ONLY`, `WEAK_MODEL`, `STRONG_MODEL` |
+| `ModelTier` 列挙型 | `EMBEDDING`, `SMALL_LLM`, `LARGE_LLM` |
+| `ClassificationRequest` | 入力: メッセージ + オプションコンテキスト + メタデータ |
+| `ConfidenceEstimator` | 分類困難度の推定（0.0–1.0） |
+| `DistillationRouter` | 信頼度に基づく適切なモデル階層へのルーティング |
+
+**ルーティングロジック**:
+| 信頼度範囲 | ルート | コスト |
+|-----------|--------|------|
+| > 0.85 | embedding のみ | ゼロ LLM コスト |
+| 0.50 – 0.85 | 弱/小モデル | 低コスト |
+| < 0.50 | 強/大モデル | 高いコスト |
+
+**追加機能**:
+- `export_training_data()`: オフラインモデル蒸馏用の分類データエクスポート
+- ランタイムモード切り替え via `set_mode()`
+
+**ファイル場所**: [layers/distillation.py](../src/memory_classification_engine/layers/distillation.py)
+
 ### 2.4 ストレージ層モジュール
 
 #### 2.4.1 作業メモリー

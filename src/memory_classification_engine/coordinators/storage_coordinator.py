@@ -1,6 +1,8 @@
 """Storage coordinator for managing all storage tiers."""
 
+import threading
 from typing import Dict, List, Optional, Any, Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from memory_classification_engine.storage.tier2 import Tier2Storage
 from memory_classification_engine.storage.tier3 import Tier3Storage
 from memory_classification_engine.storage.tier4 import Tier4Storage
@@ -19,13 +21,18 @@ class StorageCoordinator:
         self.config = config
         storage_path = config.get('storage.data_path', './data')
         
-        # Comment in Chinese removedrs
+        # Format stats outputs
         self.tier2_storage = Tier2Storage(config.get('storage.tier2_path', './data/tier2'))
         self.tier3_storage = Tier3Storage(config.get('storage.tier3_path', './data/tier3'))
         self.tier4_storage = Tier4Storage(config.get('storage.tier4_path', './data/tier4'))
         
-        # Comment in Chinese removedttings
+        # GC scheduling params
         self.min_weight = config.get('memory.forgetting.min_weight', 0.1)
+        
+        # Thread-safe hash index for O(1) get_memory lookups
+        self._id_index: Dict[str, tuple] = {}
+        self._index_dirty = True
+        self._index_lock = threading.RLock()
     
     def store_memory(self, memory: Dict[str, Any]) -> bool:
         """Store a memory in the appropriate tier.
@@ -39,14 +46,21 @@ class StorageCoordinator:
         tier = memory.get('tier', 3)
         
         if tier == 2:
-            return self.tier2_storage.store_memory(memory)
+            result = self.tier2_storage.store_memory(memory)
         elif tier == 3:
-            return self.tier3_storage.store_memory(memory)
+            result = self.tier3_storage.store_memory(memory)
         elif tier == 4:
-            return self.tier4_storage.store_memory(memory)
+            result = self.tier4_storage.store_memory(memory)
         else:
             logger.warning(f"Unknown tier {tier}, defaulting to tier 3")
-            return self.tier3_storage.store_memory(memory)
+            result = self.tier3_storage.store_memory(memory)
+        
+        if result and memory.get('id'):
+            storage_map = {2: self.tier2_storage, 3: self.tier3_storage, 4: self.tier4_storage}
+            with self._index_lock:
+                self._id_index[memory['id']] = (storage_map.get(tier, self.tier3_storage), tier)
+        
+        return result
     
     def store_memories_batch(self, memories: List[Dict[str, Any]]) -> bool:
         """Store multiple memories in batch to reduce I/O operations.
@@ -58,7 +72,7 @@ class StorageCoordinator:
             True if all memories were stored successfully, False otherwise.
         """
         try:
-            # Comment in Chinese removedr
+            # Format stats output
             tiered_memories = {
                 2: [],
                 3: [],
@@ -114,17 +128,46 @@ class StorageCoordinator:
         elif tier == 4:
             memories = self.tier4_storage.retrieve_memories(query, limit)
         else:
-            # Comment in Chinese removedrs
-            tier2_memories = self.tier2_storage.retrieve_memories(query, limit)
-            tier3_memories = self.tier3_storage.retrieve_memories(query, limit)
-            tier4_memories = self.tier4_storage.retrieve_memories(query, limit)
-            memories = tier2_memories + tier3_memories + tier4_memories
+            # Format stats outputs - parallel retrieval
+            memories = self._retrieve_parallel(query, limit)
         
-        # Comment in Chinese removedd
+        # GC execution handler
         if memory_type:
             memories = [memory for memory in memories if memory.get('memory_type') == memory_type]
         
         return memories
+    
+    def _retrieve_parallel(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Retrieve memories from all tiers in parallel."""
+        def _fetch(tier_storage, lim):
+            try:
+                return tier_storage.retrieve_memories(query, lim)
+            except Exception as e:
+                logger.warning(f"Parallel retrieval error: {e}")
+                return []
+        
+        all_memories = []
+        seen_ids = set()
+        
+        with ThreadPoolExecutor(max_workers=3, thread_name_prefix='mce_tier') as executor:
+            futures = {
+                executor.submit(_fetch, self.tier2_storage, limit // 3): 'tier2',
+                executor.submit(_fetch, self.tier3_storage, limit // 3 * 2): 'tier3',
+                executor.submit(_fetch, self.tier4_storage, limit // 3): 'tier4',
+            }
+            
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    for memory in result:
+                        mid = memory.get('id')
+                        if mid and mid not in seen_ids:
+                            seen_ids.add(mid)
+                            all_memories.append(memory)
+                except Exception as e:
+                    logger.warning(f"Parallel retrieval future error: {e}")
+        
+        return all_memories
     
     def archive_low_weight_memories(self, weight_calculator: Callable[[Dict[str, Any]], float]):
         """Archive low-weight memories across all tiers.
@@ -159,7 +202,10 @@ class StorageCoordinator:
             logger.error(f"Error archiving memories from {storage.__class__.__name__}: {e}", exc_info=True)
     
     def get_memory(self, memory_id: str) -> Optional[Dict[str, Any]]:
-        """Get a specific memory by ID.
+        """Get a specific memory by ID using hash index (O(1)).
+        
+        Thread-safe: uses RLock to protect _id_index and _index_dirty
+        against concurrent access from MCP Server multi-request scenarios.
         
         Args:
             memory_id: The memory ID.
@@ -167,22 +213,53 @@ class StorageCoordinator:
         Returns:
             The memory if found, None otherwise.
         """
-        # Comment in Chinese removed
-        for memory in self.tier2_storage.retrieve_memories():
-            if memory.get('id') == memory_id:
-                return memory
+        with self._index_lock:
+            if not self._index_dirty and memory_id in self._id_index:
+                storage, _ = self._id_index[memory_id]
+                try:
+                    return storage.get_memory_by_id(memory_id)
+                except AttributeError:
+                    self._index_dirty = True
         
-        # Comment in Chinese removed
-        for memory in self.tier3_storage.retrieve_memories():
-            if memory.get('id') == memory_id:
-                return memory
+        if self._index_dirty:
+            self._rebuild_index()
         
-        # Comment in Chinese removed
-        for memory in self.tier4_storage.retrieve_memories():
-            if memory.get('id') == memory_id:
-                return memory
+        with self._index_lock:
+            if memory_id in self._id_index:
+                storage, _ = self._id_index[memory_id]
+                try:
+                    return storage.get_memory_by_id(memory_id)
+                except AttributeError:
+                    pass
+        
+        # Fallback: linear scan (only when index misses)
+        for storage in [self.tier2_storage, self.tier3_storage, self.tier4_storage]:
+            try:
+                memories = storage.retrieve_memories()
+                for memory in memories:
+                    if memory.get('id') == memory_id:
+                        with self._index_lock:
+                            self._id_index[memory_id] = (storage, memory.get('tier', 3))
+                        return memory
+            except Exception as e:
+                logger.warning(f"Error searching {storage.__class__.__name__}: {e}")
         
         return None
+    
+    def _rebuild_index(self):
+        """Rebuild the ID-to-storage hash index. Thread-safe: caller must hold _index_lock or call from single-threaded context."""
+        with self._index_lock:
+            self._id_index.clear()
+            for storage, tier_val in [(self.tier2_storage, 2), (self.tier3_storage, 3), (self.tier4_storage, 4)]:
+                try:
+                    memories = storage.retrieve_memories()
+                    for m in memories:
+                        mid = m.get('id')
+                        if mid:
+                            self._id_index[mid] = (storage, tier_val)
+                except Exception:
+                    pass
+            self._index_dirty = False
     
     def update_memory(self, memory_id: str, updates: Dict[str, Any]) -> bool:
         """Update a memory.
@@ -194,12 +271,20 @@ class StorageCoordinator:
         Returns:
             True if successful, False otherwise.
         """
-        # Comment in Chinese removed
+        result = self._update_memory_internal(memory_id, updates)
+        if result:
+            with self._index_lock:
+                self._id_index.pop(memory_id, None)
+                self._index_dirty = True
+        return result
+    
+    def _update_memory_internal(self, memory_id: str, updates: Dict[str, Any]) -> bool:
+        # Vector index update handler
         memory = self.get_memory(memory_id)
         if not memory:
             return False
         
-        # Comment in Chinese removed
+        # Vector index update handler
         tier = memory.get('tier', 3)
         if tier == 2:
             return self.tier2_storage.update_memory(memory_id, updates)
@@ -219,21 +304,26 @@ class StorageCoordinator:
         Returns:
             True if successful, False otherwise.
         """
-        # Comment in Chinese removed
+        # Vector index update handler
         memory = self.get_memory(memory_id)
         if not memory:
             return False
         
-        # Comment in Chinese removed
+        # Vector index update handler
         tier = memory.get('tier', 3)
+        result = False
         if tier == 2:
-            return self.tier2_storage.delete_memory(memory_id)
+            result = self.tier2_storage.delete_memory(memory_id)
         elif tier == 3:
-            return self.tier3_storage.delete_memory(memory_id)
+            result = self.tier3_storage.delete_memory(memory_id)
         elif tier == 4:
-            return self.tier4_storage.delete_memory(memory_id)
+            result = self.tier4_storage.delete_memory(memory_id)
         
-        return False
+        if result:
+            with self._index_lock:
+                self._id_index.pop(memory_id, None)
+        
+        return result
     
     def get_stats(self) -> Dict[str, Any]:
         """Get storage statistics.

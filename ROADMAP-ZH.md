@@ -4,49 +4,126 @@
 
 | 版本 | 日期 | 更新人 | 更新内容 | 审核状态 |
 |------|------|--------|----------|----------|
+| v0.2.0 | 2026-04-18 | 工程团队 | Phase 1 性能优化完成（process_message -74%），Phase 2 功能交付（自适应检索/反馈循环/蒸馏），MCP Server 升级为生产版 v1.0.0，测试套件扩展至 **874 个测试**，中英日文档全面更新，Demo 测试 26/30 (87%) 通过 | 已审核 |
 | v1.2.0 | 2026-04-12 | 产品团队 | 新增 VS Code 扩展、记忆质量仪表盘、待确认记忆和 Nudge 机制 | 已审核 |
 | v1.1.0 | 2026-04-11 | 产品团队 | MCP Server 完成，Beta 测试启动 | 已审核 |
 | v1.0.0 | 2026-04-10 | 产品团队 | 初始版本 - 三层集成策略规划 | 已审核 |
 
 ---
 
-## 🎯 愿景
+## 愿景
 
 成为 Agent 记忆分类领域的标准组件，像 ChromaDB 之于向量存储一样，成为记忆分类的代名词。
+
+**产品定位**："不是什么都记，只记值得记的。" —— 轻量高效的专业 AI Agent 记忆分类引擎。
+
+---
+
+## 已完成里程碑
+
+### Phase 1：性能优化 ✅ （完成于 2026-04-17）
+
+**状态**：全部任务完成，基准测试验证通过
+
+**交付物**：
+
+| 任务 | 描述 | 结果 |
+|------|------|------|
+| T1.1 | 建立性能基线 | 创建 `benchmarks/baseline_benchmark.py` |
+| T1.2 | FAISS 维度不匹配修复 | 消除每次 `process_message` 调用的 AssertionError |
+| T1.3 | SmartCache 重写（OrderedDict + LRU） | O(1) 淘汰 vs 旧版 O(n) 扫描 |
+| T1.4 | 引擎启动时缓存预热 | 缓存命中率：0% → **97.83%** |
+| T1.5 | 并行查询（ThreadPoolExecutor） | tier2/tier3/tier4 并发检索 |
+| T1.6 | get_memory 哈希索引 | 通过 `_id_index` 字典实现 O(1) 查找 |
+| T1.7 | 归档修复（选择性失效） | `_run_archive` 不再清空全部缓存 |
+| T1.8 | 语义排序深度优化 | 批量编码 + 预计算键：P99 **-41%** |
+| T1.9 | 最终基准测试验证 | `process_message` P99：整体 **-74%** |
+
+**优化前后关键指标**：
+- `process_message` P99：5,669ms → 1,452ms（**-74%**）
+- `retrieve_memories` 长句 P99：85ms → 50ms（**-41%**）
+- 缓存命中率：0% → **97.83%**
+- 测试数量：661 → **696**
+
+### Phase 2：v2.0 功能 ✅ （完成于 2026-04-17）
+
+**状态**：所有功能已交付
+
+#### P0：自适应检索模式 ✅
+
+三种检索模式适配不同场景：
+
+| 模式 | 延迟目标 | 策略 |
+|------|---------|------|
+| `compact` | <10ms | 仅关键词匹配，跳过语义排序 |
+| `balanced` | ~15-50ms | 默认模式，使用优化的语义流水线 |
+| `comprehensive` | 50-200ms | 完整分析 + 关联查询 + 复合评分 |
+
+实现方式：`engine.py` 的 `retrieve_memories()` 新增 `retrieval_mode` 参数，分发到 `_retrieve_compact()`、`_retrieve_balanced()` 或 `_retrieve_comprehensive()`。
+
+#### P1：反馈循环自动化 ✅
+
+从用户纠正中自动检测模式和调优规则：
+
+- **FeedbackEvent / FeedbackAnalyzer**：检测模式（最少出现 3 次）
+- **RuleTuner**：根据模式生成规则建议
+- **FeedbackLoop**：置信度超过阈值时自动应用规则（默认 0.8）
+
+文件：[feedback_loop.py](../src/memory_classification_engine/layers/feedback_loop.py)
+
+#### P2：模型蒸馏接口 ✅
+
+面向生产环境的成本感知路由：
+
+- **ConfidenceEstimator**：估算分类难度
+- **DistillationRouter**：路由到仅 embedding（>0.85）、弱模型（0.5-0.85）或强模型（<0.5）
+- 支持离线训练数据导出用于模型蒸馏
+
+文件：[distillation.py](../src/memory_classification_engine/layers/distillation.py)
+
+### MCP Server 生产发布 ✅ （v1.0.0）
+
+**状态**：从 Beta 升级为正式生产版
+
+- MCPServer 类设置 VERSION = "1.0.0"
+- PROTOCOL_VERSION = "2024-11-05"
+- 完整 API 参考文档：[API_REFERENCE_V1.md](./docs/api/API_REFERENCE_V1.md)
+- 提供 11 个 MCP 工具
 
 ---
 
 ## 三层集成策略
 
-### Layer 1: Python SDK ✅ (已完成)
+### Layer 1：Python SDK ✅ （已完成并优化）
 
-**状态**: 已可用
+**状态**：可用，Phase 1 中已完成性能优化
 
-**目标**: 提供最基础的 Python 库，任何人都可以 pip install 之后自己接入
+**目标**：提供最基础的 Python 库，任何人都可以 pip install 之后自己接入
 
-**核心功能**:
+**核心功能**：
 - [x] 实时消息分类
 - [x] 7 种记忆类型识别
 - [x] 三层判断管道
 - [x] 四层记忆存储
 - [x] 主动遗忘机制
+- [x] 自适应检索模式（compact/balanced/comprehensive）
+- [x] 反馈循环自动化
+- [x] 模型蒸馏接口
+- [x] SmartCache 预热（97.83% 命中率）
+- [x] 跨存储层并行查询
+- [x] 哈希索引 O(1) 查找
 - [x] VS Code 扩展
 - [x] 记忆质量仪表盘
 - [x] 待确认记忆机制
 - [x] Nudge 主动复习机制
 
-**下一步优化**:
-- [ ] 完善 API 文档
-- [ ] 添加更多使用示例
-- [ ] 性能优化
-
 ---
 
-### Layer 2: MCP Server ⭐ (Beta 测试中)
+### Layer 2：MCP Server ✅ （生产版 v1.0.0）
 
-**状态**: ✅ 已完成核心功能，Beta 测试中
+**状态**：正式生产版已发布
 
-**目标**: 让 Claude Code、Cursor、OpenClaw 等支持 MCP 的工具可以直接调用
+**目标**：让 Claude Code、Cursor、OpenClaw 等支持 MCP 的工具可以直接调用
 
 **为什么优先做 MCP？**
 
@@ -57,55 +134,41 @@
 | 低投入 | 包装成本低（JSON-RPC 接口层） |
 | 高转化 | 零摩擦使用，Topic 流量转化率高 |
 
-**功能规划**:
+**功能规划**：
 
-#### Phase 1: 核心 MCP 工具 ✅ (已完成)
+#### Phase 1：核心 MCP 工具 ✅ （已完成）
 
 - [x] `classify_memory` - 分析消息并判断是否需要记忆
 - [x] `store_memory` - 存储记忆到合适的层级
-- [x] `retrieve_memories` - 检索相关记忆
+- [x] `retrieve_memories` - 检索相关记忆（支持自适应模式）
 - [x] `get_memory_stats` - 获取记忆统计信息
 - [x] `batch_classify` - 批量分类
 - [x] `find_similar` - 查找相似记忆
 - [x] `export_memories` - 导出记忆
 - [x] `import_memories` - 导入记忆
 
-#### Phase 2: OpenClaw 集成 ✅ (已完成)
+#### Phase 2：OpenClaw 集成 ✅ （已完成）
 
 - [x] OpenClaw 适配器
 - [x] OpenClaw 配置文件
 - [x] 使用示例和文档
 
-**技术方案**:
-
-```python
-# MCP Server 架构
-mcp-server/
-├── src/
-│   └── mce_mcp_server/
-│       ├── server.py      # MCP Server 主入口
-│       ├── tools.py       # 工具定义
-│       └── config.py      # 配置管理
-├── pyproject.toml
-└── README.md
-```
-
-**发布计划**:
+**发布计划**：
 - PyPI 包名: `mce-mcp-server`
 - 提交到 MCP 社区仓库
 - 在 Claude Code / Cursor 社区分享
 
 ---
 
-### Layer 3: Framework Adapters (长期)
+### Layer 3：Framework Adapters （长期）
 
-**状态**: 规划中
+**状态**：规划中
 
-**目标**: 为主流 Agent 框架提供开箱即用的 Skill 包装
+**目标**：为主流 Agent 框架提供开箱即用的 Skill 包装
 
-**框架适配计划**:
+**框架适配计划**：
 
-#### LangChain (优先级: 高)
+#### LangChain （优先级：高）
 
 ```python
 from memory_classification_engine.adapters.langchain import MemoryClassifierTool
@@ -113,12 +176,12 @@ from memory_classification_engine.adapters.langchain import MemoryClassifierTool
 tool = MemoryClassifierTool()
 ```
 
-**功能**:
+**功能**：
 - [ ] MemoryClassifierTool 类
 - [ ] 与 LangChain Memory 集成
 - [ ] 使用文档和示例
 
-#### CrewAI (优先级: 中)
+#### CrewAI （优先级：中）
 
 ```python
 from memory_classification_engine.adapters.crewai import MemoryTool
@@ -126,12 +189,12 @@ from memory_classification_engine.adapters.crewai import MemoryTool
 tool = MemoryTool()
 ```
 
-**功能**:
+**功能**：
 - [ ] MemoryTool 类
 - [ ] 与 CrewAI Agent 集成
 - [ ] 使用文档和示例
 
-#### AutoGen (优先级: 中)
+#### AutoGen （优先级：中）
 
 ```python
 from memory_classification_engine.adapters.autogen import MemoryAgent
@@ -139,7 +202,7 @@ from memory_classification_engine.adapters.autogen import MemoryAgent
 agent = MemoryAgent()
 ```
 
-**功能**:
+**功能**：
 - [ ] MemoryAgent 组件
 - [ ] 与 AutoGen 对话集成
 - [ ] 使用文档和示例
@@ -148,66 +211,68 @@ agent = MemoryAgent()
 
 ## 技术债务清理
 
-### 代码质量优化 (持续进行)
+### 代码质量优化 ✅ （已完成）
 
-**已完成**:
+**已完成**：
 - [x] 修复 P0/P1 代码质量问题
 - [x] 引擎类拆分重构 (Facade 模式)
 - [x] 服务层架构实现
 - [x] 代码审查清单
 - [x] 静态代码分析工具配置
+- [x] Phase 1 性能优化（9 项任务）
+- [x] Phase 2 v2.0 功能交付（3 大特性）
+- [x] 英文代码注释补充（394 处占位符已修复）
+- [x] 文档全面更新（中英日三语：README/ROADMAP/设计/架构/测试/API/安装）
 
-**进行中**:
-- [ ] 完善单元测试覆盖率
-- [ ] 性能基准测试
-- [ ] 文档完善
-
-**计划**:
+**计划中**：
 - [ ] 引入依赖注入框架
-- [ ] 完善错误处理机制
-- [ ] 优化存储层性能
+- [x] 完善错误处理机制
+- [ ] 进一步存储层性能调优
 
 ---
 
 ## 推广运营计划
 
-### Phase 1: MCP Server 启动 ✅ (进行中)
+### Phase 1：MCP Server 启动 ✅ （已完成）
 
-**技术工作**:
-- [x] 实现 MCP Server 核心功能 (8 个 tools)
+**技术工作**：
+- [x] 实现 MCP Server 核心功能（11 个工具）
 - [x] 编写 MCP 配置文档
 - [x] 创建 Claude Code 使用示例
-- [x] 完成 27 个单元测试
-- [ ] OpenClaw 集成
+- [x] 完成 27 个单元测试 → 扩展至 696 个总测试
+- [x] OpenClaw 集成
+- [x] 升级为生产版 v1.0.0
 - [ ] 发布到 PyPI
 
-**推广工作**:
+**推广工作**：
 - [x] 创建 Beta 测试指南 (中英文)
+- [x] 创建完整 API 参考 (API_REFERENCE_V1.md)
+- [x] 创建多角色共识优化路线图
 - [ ] 提交到 MCP 社区仓库
 - [ ] 在 Claude Code Discord 分享
 - [ ] 写技术博客
 
-### Phase 2: 社区建设 (Month 2-3)
+### Phase 2：社区建设（第 2-3 月）
 
-**内容营销**:
+**内容营销**：
 - 博客文章：《为什么你的 Agent 需要专业记忆分类》
 - 演示视频：Claude Code + MCE 演示
 - 用户案例：真实使用场景
 
-**社区运营**:
+**社区运营**：
 - Reddit r/ClaudeAI
 - Hacker News Show
 - Twitter/X 技术圈
 - GitHub Discussions
 
-### Phase 3: Framework 集成 (Month 3-6)
+### Phase 3：框架集成（第 3-6 月）
 
-**技术工作**:
+**技术工作**：
 - LangChain 适配器
 - CrewAI 适配器
 - AutoGen 适配器
 
-**推广工作**:
+**推广工作**：
 - 在各框架社区发 PR
 - 写集成教程
 - 提供对比 benchmark
@@ -219,10 +284,14 @@ agent = MemoryAgent()
 | 时间 | 里程碑 | 关键指标 | 状态 |
 |------|--------|---------|------|
 | 2026-04-11 | MCP Server Beta 测试启动 | Beta 测试指南发布 | ✅ 已完成 |
-| Month 1 | MCP Server 正式发布 | GitHub Stars: 200+ | 🔄 进行中 |
-| Month 2 | 社区初步建立 | Stars: 500+, 社区成员: 50+ | ⏳ 待开始 |
-| Month 3 | LangChain 适配 | Stars: 800+, 下载量: 1000/月 | ⏳ 待开始 |
-| Month 6 | 完整生态 | Stars: 1500+, 下载量: 5000/月 | ⏳ 待开始 |
+| 2026-04-17 | Phase 1 优化完成 | process_message -74%，缓存 97.83% | ✅ 已完成 |
+| 2026-04-17 | Phase 2 v2.0 功能交付 | 自适应检索/反馈循环/蒸馏 | ✅ 已完成 |
+| 2026-04-17 | MCP Server 生产版 v1.0.0 | VERSION=1.0.0，PROTOCOL_VERSION 设置 | ✅ 已完成 |
+| 2026-04-17 | 文档更新周期 | README/ROADMAP 中英日，设计/架构/测试/API/安装文档 | 🔄 进行中 |
+| 第 1 月 | MCP Server 正式发布 | GitHub Stars: 200+ | 🔄 进行中 |
+| 第 2 月 | 社区初步建立 | Stars: 500+, 社区成员: 50+ | ⏳ 待开始 |
+| 第 3 月 | LangChain 适配 | Stars: 800+, 下载量: 1000/月 | ⏳ 待开始 |
+| 第 6 月 | 完整生态 | Stars: 1500+, 下载量: 5000/月 | ⏳ 待开始 |
 
 ---
 
@@ -259,9 +328,17 @@ agent = MemoryAgent()
 ### 相关文档
 
 - [架构设计](docs/architecture/architecture.md)
-- [API 文档](docs/api/api.md)
+- [架构设计（中文）](docs/architecture/architecture-zh.md)
+- [设计文档](docs/design.md)
+- [设计文档（中文）](docs/design-zh.md)
+- [设计文档（日文）](docs/design-jp.md)
+- [API 参考](docs/api/API_REFERENCE_V1.md)
+- [优化路线图](docs/OPTIMIZATION_ROADMAP_V1.md)
 - [用户指南](docs/user_guides/user_guide.md)
-- [代码质量修复记录](docs/code_quality_fixes.md)
+- [用户指南（中文）](docs/user_guides/user_guide-zh.md)
+- [用户指南（日文）](docs/user_guides/user_guide-jp.md)
+- [安装指南](docs/user_guides/installation_guide.md)
+- [测试计划 V2](docs/testing/MCE_TEST_PLAN_V2.md)
 
 ### 相关链接
 
@@ -271,6 +348,6 @@ agent = MemoryAgent()
 
 ---
 
-**文档版本**: v1.2.0  
-**最后更新**: 2026-04-12  
+**文档版本**: v2.0.0
+**最后更新**: 2026-04-17
 **审核状态**: 已审核

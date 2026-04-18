@@ -47,10 +47,9 @@ class SemanticClassifier:
         if not self.llm_enabled:
             return None
         
-        # Comment in Chinese removed客户端
-        # Comment in Chinese removed等
+        # Attempt to initialize LLM client from available providers
+        # Supports ZhipuAI (GLM) as primary LLM backend
         try:
-            # Comment in Chinese removed客户端
             from zhipuai import ZhipuAI
             if self.llm_api_key:
                 return ZhipuAI(api_key=self.llm_api_key)

@@ -5,4 +5,4 @@ This module provides integrations with various frameworks and protocols,
 including MCP Server, OpenClaw, and framework adapters.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

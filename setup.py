@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="memory-classification-engine",
-    version="0.4.0",
+    version="0.2.0",
     description="Real-time memory classification engine for AI Agents. 60%+ zero LLM cost. Classify, store, and recall what matters.",
     author="lulin70",
     author_email="lulin70@example.com",

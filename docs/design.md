@@ -270,6 +270,56 @@ recency_score = exp(-λ × days_since_last_access)  # Exponential decay
 frequency_score = log(1 + access_count)            # Logarithmic growth, marginal decrease
 ```
 
+### 2.3.5 Feedback Loop Module (v2.0)
+
+**Purpose**: Automatically improve classification accuracy through user feedback
+
+**Core Components**:
+
+| Component | Function |
+|-----------|----------|
+| `FeedbackEvent` | Records a single feedback event (memory_id, correction_type, suggested_type) |
+| `FeedbackAnalyzer` | Detects patterns from accumulated feedback (min 3 occurrences) |
+| `RuleTuner` | Generates rule suggestions based on detected patterns |
+| `FeedbackLoop` | Orchestrates the full pipeline: record → analyze → tune → auto-apply |
+
+**Pipeline Flow**:
+```
+User Correction → FeedbackEvent → FeedbackAnalyzer(pattern detection, min=3)
+    → RuleTuner(rule generation) → Auto-apply(confidence > threshold)
+```
+
+**Configuration**: Auto-apply threshold defaults to 0.8, configurable via `feedback_loop.auto_apply_threshold`
+
+**File Location**: [layers/feedback_loop.py](../src/memory_classification_engine/layers/feedback_loop.py)
+
+### 2.3.6 Model Distillation Interface (v2.0)
+
+**Purpose**: Cost-aware routing for production deployments with different model tiers
+
+**Core Components**:
+
+| Component | Function |
+|-----------|----------|
+| `DistillationMode` enum | `EMBEDDING_ONLY`, `WEAK_MODEL`, `STRONG_MODEL` |
+| `ModelTier` enum | `EMBEDDING`, `SMALL_LLM`, `LARGE_LLM` |
+| `ClassificationRequest` | Input: message + optional context + metadata |
+| `ConfidenceEstimator` | Estimates classification difficulty (0.0–1.0) |
+| `DistillationRouter` | Routes to appropriate model tier based on confidence |
+
+**Routing Logic**:
+| Confidence Range | Route | Cost |
+|------------------|-------|------|
+| > 0.85 | Embedding only | Zero LLM cost |
+| 0.50 – 0.85 | Weak/small model | Low cost |
+| < 0.50 | Strong/large model | Higher cost |
+
+**Additional Features**:
+- `export_training_data()`: Export classified data for offline model distillation
+- Runtime mode switching via `set_mode()`
+
+**File Location**: [layers/distillation.py](../src/memory_classification_engine/layers/distillation.py)
+
 ### 2.4 Storage Layer Module
 
 #### 2.4.1 Working Memory

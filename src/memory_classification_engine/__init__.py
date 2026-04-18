@@ -19,7 +19,7 @@ from memory_classification_engine.utils.logger import logger
 from memory_classification_engine.utils.encryption import EncryptionManager, encryption_manager
 from memory_classification_engine.utils.access_control import AccessControlManager, access_control_manager
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = [
     "MemoryClassificationEngine",
     "MemoryClassificationEngineFacade",

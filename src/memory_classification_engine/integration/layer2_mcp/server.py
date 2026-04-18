@@ -30,7 +30,13 @@ class MCPServer:
     MCP Server for Memory Classification Engine.
     
     Implements JSON-RPC over stdio for MCP protocol compliance.
+    
+    Version: 1.0.0 (Production)
+    Protocol: MCP 2024-11-05
     """
+    
+    VERSION = "1.0.0"
+    PROTOCOL_VERSION = "2024-11-05"
     
     def __init__(self, config_path: Optional[str] = None, data_path: Optional[str] = None):
         """

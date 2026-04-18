@@ -17,5 +17,5 @@ from .server import MCPServer
 from .tools import TOOLS
 from .handlers import Handlers
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = ["MCPServer", "TOOLS", "Handlers"]

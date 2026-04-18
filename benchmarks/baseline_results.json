@@ -1,0 +1,124 @@
+{
+  "metadata": {
+    "timestamp": "2026-04-16T23:42:25.524762",
+    "iterations": 500,
+    "python_version": "3.9.6",
+    "engine_init_ms": 753.86,
+    "seeded_memories": 32
+  },
+  "retrieve_memories": {
+    "total_calls": 500,
+    "p50_ms": 0.0101,
+    "p90_ms": 36.203,
+    "p95_ms": 36.7358,
+    "p99_ms": 39.7368,
+    "avg_ms": 9.5516,
+    "min_ms": 0.004,
+    "max_ms": 74.904,
+    "std_ms": 16.1369,
+    "total_ms": 4775.7978,
+    "by_pattern": {
+      "empty_query": {
+        "calls": 63,
+        "p50_ms": 0.0045,
+        "p99_ms": 74.904,
+        "avg_ms": 1.1937
+      },
+      "short_keyword": {
+        "calls": 63,
+        "p50_ms": 0.0047,
+        "p99_ms": 42.8205,
+        "avg_ms": 0.6845
+      },
+      "medium_phrase": {
+        "calls": 63,
+        "p50_ms": 0.0051,
+        "p99_ms": 40.8538,
+        "avg_ms": 0.6536
+      },
+      "long_sentence": {
+        "calls": 63,
+        "p50_ms": 35.272,
+        "p99_ms": 38.3319,
+        "avg_ms": 35.482
+      },
+      "type_filter_pref": {
+        "calls": 62,
+        "p50_ms": 36.2695,
+        "p99_ms": 42.2207,
+        "avg_ms": 36.4916
+      },
+      "type_filter_decision": {
+        "calls": 62,
+        "p50_ms": 0.0272,
+        "p99_ms": 39.6395,
+        "avg_ms": 0.6668
+      },
+      "with_limit_10": {
+        "calls": 62,
+        "p50_ms": 0.0069,
+        "p99_ms": 39.7368,
+        "avg_ms": 0.6477
+      },
+      "with_limit_50": {
+        "calls": 62,
+        "p50_ms": 0.0109,
+        "p99_ms": 36.2807,
+        "avg_ms": 0.596
+      }
+    }
+  },
+  "process_message": {
+    "total_calls": 500,
+    "p50_ms": 576.7787,
+    "p90_ms": 1270.8933,
+    "p95_ms": 1743.0146,
+    "p99_ms": 5668.5938,
+    "avg_ms": 787.1127,
+    "min_ms": 85.8407,
+    "max_ms": 6406.1843,
+    "std_ms": 861.8685,
+    "total_ms": 393556.3714
+  },
+  "cache_efficiency": {
+    "hit_count": 887,
+    "miss_count": 13,
+    "hit_rate_pct": 9855.56,
+    "size": 5
+  },
+  "memory_usage": {
+    "peak_kb": 0,
+    "top_allocation_kb": 1515.41,
+    "top_allocation_location": "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/encoder.py:341: size=1515 KiB (+1515 KiB), count=9236 (+9236), average=168 B"
+  },
+  "summary": {
+    "baseline_date": "2026-04-17T00:47:23.793127",
+    "optimization_target": "+30% query efficiency",
+    "retrieve_memories_baseline": {
+      "p99_ms": 39.7368,
+      "target_p99_ms": 27.8158,
+      "improvement_needed_ms": 11.921,
+      "improvement_pct": 30.0
+    },
+    "process_message_baseline": {
+      "p99_ms": 5668.5938,
+      "avg_ms": 787.1127
+    },
+    "cache_baseline": {
+      "hit_count": 887,
+      "miss_count": 13,
+      "hit_rate_pct": 9855.56,
+      "size": 5
+    },
+    "next_steps": [
+      "T1.2: SmartCache预热机制实现",
+      "T1.3: LRU缓存参数动态调整",
+      "T1.4: 多级缓存穿透优化",
+      "T1.5: 记忆ID哈希索引实现",
+      "T1.6: 类型+时间复合索引",
+      "T1.7: 关联关系预构建",
+      "T1.8: 批量查询并行化改造",
+      "T1.9: 性能回归验证（对比本基线）"
+    ]
+  }
+}

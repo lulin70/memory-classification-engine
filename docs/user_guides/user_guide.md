@@ -28,10 +28,38 @@ print(result)
 ### 2.3 Retrieving Memories
 
 ```python
-# Retrieve memories
+# Retrieve memories (default: balanced mode)
 memories = engine.retrieve_memories("code style")
 print(memories)
 ```
+
+### 2.3b Adaptive Retrieval Modes (v2.0)
+
+MCE v2.0 provides three retrieval modes to match different use cases:
+
+```python
+# Compact mode: keyword-only match, <10ms latency, zero LLM cost
+# Best for high-frequency lookups and keyword-heavy queries
+memories = engine.retrieve_memories("deployment checklist", limit=5,
+                                     retrieval_mode='compact')
+
+# Balanced mode: default — semantic sorting with optimized pipeline
+# Recommended for general-purpose use
+memories = engine.retrieve_memories("deployment checklist", limit=5,
+                                     retrieval_mode='balanced')
+
+# Comprehensive mode: deep analysis with associations and composite scoring
+# Best for deep research, decision review, or when full context matters
+memories = engine.retrieve_memories("deployment checklist", limit=5,
+                                     retrieval_mode='comprehensive',
+                                     include_associations=True)
+```
+
+| Mode | Latency | Use Case |
+|------|---------|----------|
+| `compact` | <10ms | High-frequency lookups, keyword-heavy queries |
+| `balanced` | ~15-50ms | General purpose (default) |
+| `comprehensive` | 50-200ms | Deep research, decision review |
 
 ### 2.4 Processing Feedback
 

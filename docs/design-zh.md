@@ -267,6 +267,56 @@ rules:
 频率分数 = log(1 + 访问次数)            # 对数增长，边际递减
 ```
 
+### 2.3.5 反馈循环模块 (v2.0)
+
+**目的**：通过用户反馈自动提升分类准确率
+
+**核心组件**：
+
+| 组件 | 功能 |
+|------|------|
+| `FeedbackEvent` | 记录单次反馈事件（memory_id, correction_type, suggested_type） |
+| `FeedbackAnalyzer` | 从累积反馈中检测模式（最少出现 3 次） |
+| `RuleTuner` | 根据检测到的模式生成规则建议 |
+| `FeedbackLoop` | 编排完整流水线：记录 → 分析 → 调优 → 自动应用 |
+
+**流水线流程**：
+```
+用户纠正 → FeedbackEvent → FeedbackAnalyzer(模式检测, min=3)
+    → RuleTuner(规则生成) → 自动应用(confidence > threshold)
+```
+
+**配置**：自动应用阈值默认 0.8，可通过 `feedback_loop.auto_apply_threshold` 配置
+
+**文件位置**：[layers/feedback_loop.py](../src/memory_classification_engine/layers/feedback_loop.py)
+
+### 2.3.6 模型蒸馏接口 (v2.0)
+
+**目的**：面向生产环境的成本感知路由，支持不同模型层级
+
+**核心组件**：
+
+| 组件 | 功能 |
+|------|------|
+| `DistillationMode` 枚举 | `EMBEDDING_ONLY`, `WEAK_MODEL`, `STRONG_MODEL` |
+| `ModelTier` 枚举 | `EMBEDDING`, `SMALL_LLM`, `LARGE_LLM` |
+| `ClassificationRequest` | 输入：消息 + 可选上下文 + 元数据 |
+| `ConfidenceEstimator` | 估算分类难度（0.0–1.0） |
+| `DistillationRouter` | 根据置信度路由到合适的模型层级 |
+
+**路由逻辑**：
+| 置信度范围 | 路由 | 成本 |
+|-----------|------|------|
+| > 0.85 | 仅 embedding | 零 LLM 成本 |
+| 0.50 – 0.85 | 弱/小模型 | 低成本 |
+| < 0.50 | 强/大模型 | 较高成本 |
+
+**附加功能**：
+- `export_training_data()`：导出分类数据用于离线模型蒸馏
+- 运行时模式切换 via `set_mode()`
+
+**文件位置**：[layers/distillation.py](../src/memory_classification_engine/layers/distillation.py)
+
 ### 2.4 存储层模块
 
 #### 2.4.1 工作记忆

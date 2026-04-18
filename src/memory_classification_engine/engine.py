@@ -73,46 +73,46 @@ class MemoryClassificationEngine:
         Args:
             config_path: Path to the configuration file.
         """
-        # Comment in Chinese removedtion
+        # Build response dictionary
         self.config = ConfigManager(config_path)
         
-        # Comment in Chinese removedrns)
+        # Setup storage coordinator
         self.storage_coordinator = StorageCoordinator(self.config)
         self.classification_pipeline = ClassificationPipeline(self.config)
         self.deduplication_service = DeduplicationService(self.config)
         
-        # Comment in Chinese removedr
+        # Format stats output
         plugins_dir = self.config.get('plugins.dir', None)
         self.plugin_manager = PluginManager(plugins_dir)
         self.plugin_manager.load_plugins()
         plugin_config = self.config.get('plugins', {})
         self.plugin_manager.initialize_plugins(plugin_config)
         
-        # Comment in Chinese removedr
+        # Format stats output
         self.tenant_manager = TenantManager()
         
-        # Comment in Chinese removedmory
+        # Warning level threshold
         self.working_memory = []
         self.max_work_memory_size = self.config.get('storage.max_work_memory_size', DEFAULT_WORK_MEMORY_SIZE)
         
-        # Comment in Chinese removeds
+        # Alert state tracking
         self.forgetting_enabled = self.config.get('memory.forgetting.enabled', True)
         self.decay_factor = self.config.get('memory.forgetting.decay_factor', DEFAULT_DECAY_FACTOR)
         self.min_weight = self.config.get('memory.forgetting.min_weight', DEFAULT_MIN_WEIGHT)
         self.archive_interval = self.config.get('memory.forgetting.archive_interval', DEFAULT_ARCHIVE_INTERVAL)
 
-        # Comment in Chinese removed
+        # Vector index update handler
         cache_size = self.config.get('memory.limits.cache', DEFAULT_CACHE_SIZE)
         cache_ttl = self.config.get('memory.cache.ttl', DEFAULT_CACHE_TTL)
         self.cache = SmartCache(initial_size=cache_size, ttl=cache_ttl)
 
-        # Comment in Chinese removed monitor
+        # Start performance monitoring
         perf_enabled = self.config.get('performance.enabled', True)
         log_interval = self.config.get('performance.log_interval', 60)
         self.performance_monitor = PerformanceMonitor(enabled=perf_enabled, log_interval=log_interval)
         self.performance_monitor.start()
 
-        # Comment in Chinese removedl)
+        # Setup distributed system if enabled
         distributed_enabled = self.config.get('distributed.enabled', False)
         if distributed_enabled:
             node_id = self.config.get('distributed.node_id', None)
@@ -123,41 +123,41 @@ class MemoryClassificationEngine:
         else:
             self.distributed_manager = None
         
-        # Comment in Chinese removed
+        # Vector index update handler
         self.last_archive_time = get_current_time()
         
-        # Comment in Chinese removednism
+        # Track last archive timestamp
         self.last_nudge_time = time.time()
         self.message_history = []
         
-        # Comment in Chinese removedr
+        # Format stats output
         self.memory_manager = MemoryManager(self.config)
         self.memory_manager.start()
         
-        # Comment in Chinese removedl)
+        # Setup distributed system if enabled
         self.semantic_utility = semantic_utility
         
-        # Comment in Chinese removeds
+        # Alert state tracking
         self.encryption_manager = encryption_manager
         self.access_control_manager = access_control_manager
         self.privacy_manager = privacy_manager
         self.compliance_manager = compliance_manager
         self.audit_manager = audit_manager
         
-        # Comment in Chinese removed
+        # Vector index update handler
         self.sensitivity_analyzer = SensitivityAnalyzer(self.config)
         self.visibility_manager = VisibilityManager(self.config)
         self.scenario_validator = ScenarioValidator(self.config)
         
-        # Comment in Chinese removed
+        # Vector index update handler
         self.forgetting_manager = ForgettingManager(self.config)
         self.evolution_manager = EvolutionManager(self.config)
         self.intelligent_memory_manager = IntelligentMemoryManager(self.config)
         
-        # Comment in Chinese removed
+        # Vector index update handler
         self._run_archive()
         
-        # Comment in Chinese removed
+        # Vector index update handler
         self.agent_manager = AgentManager(self.config)
         self.knowledge_manager = KnowledgeManager(self.config)
         
@@ -166,20 +166,164 @@ class MemoryClassificationEngine:
         
         # Initialize nudge mechanism
         self.nudge_manager = NudgeManager(self.storage_coordinator)
+        
+        # Initialize feedback loop for self-improving classification
+        try:
+            from memory_classification_engine.layers.feedback_loop import FeedbackLoop
+            rule_matcher = None
+            if hasattr(self, 'pipeline') and self.pipeline and hasattr(self.pipeline, 'rule_matcher'):
+                rule_matcher = self.pipeline.rule_matcher
+            self.feedback_loop = FeedbackLoop(rule_matcher=rule_matcher)
+            logger.info("Feedback loop initialized")
+        except Exception as e:
+            self.feedback_loop = None
+            logger.debug(f"Feedback loop initialization deferred: {e}")
+        
+        # Auto-warm cache with common query patterns at startup
+        self._warmup_enabled = self.config.get('cache.warmup.enabled', True)
+        if self._warmup_enabled:
+            try:
+                self._do_cache_warmup()
+            except Exception as e:
+                logger.debug(f"Cache warmup skipped: {e}")
     
     def _run_archive(self):
         """Run memory archive process to remove low-weight memories."""
         if not self.forgetting_enabled:
             return
         
-        # Comment in Chinese removed)
+        # Sort by composite score
         self.storage_coordinator.archive_low_weight_memories(self._calculate_memory_weight)
         
-        # Comment in Chinese removedd
-        self.cache.clear()
+        # Invalidate expired entries only, preserve valid cache
+        self._invalidate_stale_cache()
         
-        # Comment in Chinese removed
+        # Vector index update handler
         self.last_archive_time = get_current_time()
+    
+    def _invalidate_stale_cache(self):
+        """Invalidate only cache entries that may reference archived memories."""
+        try:
+            if hasattr(self.cache, 'cache') and self.cache.cache:
+                keys_to_remove = []
+                for key, item in list(self.cache.cache.items()):
+                    if isinstance(item, dict) and 'timestamp' in item:
+                        age = time.time() - item['timestamp']
+                        if age > self.cache.ttl * 0.9:
+                            keys_to_remove.append(key)
+                for key in keys_to_remove:
+                    self.cache.invalidate_key(key) if hasattr(self.cache, 'invalidate_key') else self.cache.cache.pop(key, None)
+        except Exception as e:
+            logger.debug(f"Cache invalidation skipped: {e}")
+    
+    def _do_cache_warmup(self):
+        """Pre-warm cache with common query patterns at startup."""
+        from memory_classification_engine.utils.performance import PerformanceOptimizer
+        
+        warmup_queries = [
+            (None, 5),
+            ('user', 5),
+            ('decision', 5),
+            ('preference', 5),
+            ('task', 5),
+        ]
+        
+        warmup_count = 0
+        for query, limit in warmup_queries:
+            try:
+                cache_key = PerformanceOptimizer.cache_key_generator(
+                    'retrieve', query=query, limit=limit
+                )
+                if cache_key not in self.cache.cache:
+                    result = self._retrieve_uncached(query, limit)
+                    if result:
+                        self.cache.set(cache_key, result, priority=1)
+                        warmup_count += 1
+            except Exception:
+                pass
+        
+        if warmup_count > 0:
+            logger.info(f"Cache warmed up with {warmup_count} hot query patterns")
+    
+    def _retrieve_uncached(self, query: str = None, limit: int = 5) -> List[Dict[str, Any]]:
+        """Internal retrieve that bypasses cache (for warmup)."""
+        tier2_memories = self.storage_coordinator.retrieve_memories(query, limit // 3, tier=2)
+        tier3_memories = self.storage_coordinator.retrieve_memories(query, limit // 3 * 2, tier=3)
+        tier4_memories = self.storage_coordinator.retrieve_memories(query, limit // 3, tier=4)
+        
+        all_memories = []
+        seen_ids = set()
+        for memory in tier2_memories + tier3_memories + tier4_memories:
+            memory_id = memory.get('id')
+            if memory_id and memory_id not in seen_ids:
+                seen_ids.add(memory_id)
+                all_memories.append(memory)
+        
+        if query:
+            max_candidates = min(len(all_memories), max(limit * 3, 25))
+            candidates = all_memories[:max_candidates]
+            
+            ranked = []
+            contents = []
+            valid_indices = []
+            for idx, memory in enumerate(candidates):
+                content = memory.get('content', '')
+                if content:
+                    contents.append((query, content, idx))
+                    valid_indices.append(idx)
+            
+            if contents and self.semantic_utility.embedding_model:
+                try:
+                    all_texts = [query] + [c[1] for c in contents]
+                    embeddings = self.semantic_utility.embedding_model.encode(all_texts)
+                    query_embedding = embeddings[0]
+                    
+                    from sklearn.metrics.pairwise import cosine_similarity
+                    for i, (_, _, orig_idx) in enumerate(contents):
+                        sim = float(cosine_similarity([query_embedding], [embeddings[i + 1]])[0][0])
+                        candidates[orig_idx]['semantic_similarity'] = sim
+                        ranked.append(candidates[orig_idx])
+                except Exception:
+                    pass
+            else:
+                for idx, memory in enumerate(candidates):
+                    content = memory.get('content', '')
+                    if content:
+                        similarity = self.semantic_utility.calculate_similarity(query, content)
+                        memory['semantic_similarity'] = similarity
+                        ranked.append(memory)
+            
+            precomputed_keys = []
+            for x in ranked:
+                semantic_similarity = x.get('semantic_similarity', 0)
+                try: semantic_similarity = float(semantic_similarity)
+                except (ValueError, TypeError): semantic_similarity = 0
+                confidence = x.get('confidence', 0)
+                try: confidence = float(confidence)
+                except (ValueError, TypeError): confidence = 0
+                last_accessed = x.get('last_accessed', '1970-01-01T00:00:00Z')
+                if not isinstance(last_accessed, str): last_accessed = '1970-01-01T00:00:00Z'
+                created_at = x.get('created_at', '1970-01-01T00:00:00Z')
+                if not isinstance(created_at, str): created_at = '1970-01-01T00:00:00Z'
+                precomputed_keys.append((semantic_similarity, confidence, last_accessed, created_at))
+            
+            paired = list(zip(precomputed_keys, ranked))
+            paired.sort(key=lambda p: p[0], reverse=True)
+            all_memories = [p[1] for p in paired[:limit]]
+        
+        return all_memories[:limit]
+    
+    def _warmup_cache(self):
+        """Pre-warm cache with common query patterns."""
+        common_queries = [
+            ('retrieve:query::limit:5', lambda k: self.retrieve_memories(limit=5)),
+            ('retrieve:query:user:limit:5', lambda k: self.retrieve_memories(query='user', limit=5)),
+            ('retrieve:query:decision:limit:5', lambda k: self.retrieve_memories(query='decision', limit=5)),
+            ('retrieve:query:preference:limit:5', lambda k: self.retrieve_memories(query='preference', limit=5)),
+        ]
+        
+        if hasattr(self.cache, 'warmup'):
+            self.cache.warmup([k for k, _ in common_queries], lambda k: next(v for qk, v in common_queries if qk == k)(k))
     
     def _calculate_memory_weight(self, memory: Dict[str, Any]) -> float:
         """Calculate memory weight based on confidence, recency, and frequency.
@@ -192,12 +336,12 @@ class MemoryClassificationEngine:
         """
         from datetime import datetime, timezone
         
-        # Comment in Chinese removeds
+        # Alert state tracking
         confidence = memory.get('confidence', 1.0)
         last_accessed = memory.get('last_accessed', memory.get('created_at', get_current_time()))
         access_count = memory.get('access_count', 1)
         
-        # Comment in Chinese removedss
+        # Alert state trackings
         try:
             if isinstance(last_accessed, float):
                 # Handle timestamp float
@@ -208,12 +352,12 @@ class MemoryClassificationEngine:
             current_dt = datetime.now(timezone.utc)
             days_since_last_access = (current_dt - last_accessed_dt).days
         except (ValueError, TypeError):
-            days_since_last_access = 30  # Comment in Chinese removedils
+            days_since_last_access = 30  # Default fallback for missing timestamps
         
-        # Comment in Chinese removedncy
+        # Determine confidence level
         recency_score = 2 ** (-DEFAULT_RECENCY_DECAY_RATE * days_since_last_access)
 
-        # Comment in Chinese removedncy (边际递减)
+        # Determine confidence level (边际递减)
         frequency_score = 1 + DEFAULT_FREQUENCY_MULTIPLIER * (access_count ** DEFAULT_FREQUENCY_EXPONENT)
         
         # Calculate final weight
@@ -333,7 +477,7 @@ class MemoryClassificationEngine:
     def _check_nudge_time(self):
         """Check if it's time to run nudge."""
         try:
-            # Comment in Chinese removedy
+            # Apply type filter
             if len(self.message_history) % 50 == 0 or time.time() - self.last_nudge_time > 86400:
                 self._run_nudge()
         except Exception as e:
@@ -350,7 +494,7 @@ class MemoryClassificationEngine:
                 logger.warning(f"Nudge: failed to retrieve memories, skipping: {e}")
                 return
             
-            # Comment in Chinese removedys
+            # Apply type filters
             old_memories = []
             current_time = time.time()
             for memory in recent_memories:
@@ -361,12 +505,12 @@ class MemoryClassificationEngine:
                     except:
                         continue
                 
-                if current_time - last_accessed > 604800:  # Comment in Chinese removedys
+                if current_time - last_accessed > 604800:  # Apply type filters
                     old_memories.append(memory)
             
             logger.info(f"Found {len(old_memories)} old memories for review")
             
-            # Comment in Chinese removedmory
+            # Warning level threshold
             for memory in old_memories:
                 self._nudge_review_memory(memory)
             
@@ -397,32 +541,32 @@ class MemoryClassificationEngine:
             current_time = time.time()
             age_days = (current_time - created_at) / 86400
             
-            # Comment in Chinese removedd
+            # GC execution handler
             if self._is_memory_outdated(memory_type, content, age_days):
                 logger.info(f"Nudge: Memory likely outdated - {content[:50]}...")
-                # Comment in Chinese removedst
+                # Alert state trackingt
                 self._mark_memory_for_review(memory)
             
-            # Comment in Chinese removedd)
+            # GC execution handler)
             if last_accessed == 0 and age_days > 30:
                 logger.info(f"Nudge: Low value memory (never accessed) - {content[:50]}...")
-                # Comment in Chinese removedrchiving
-                self._adjust_memory_weight(memory, 0.5)  # Comment in Chinese removed%
+                # Format stats outputchiving
+                self._adjust_memory_weight(memory, 0.5)  # Apply weight decay factor
                 
         except Exception as e:
             logger.error(f"Error reviewing memory: {e}", exc_info=True)
     
     def _is_memory_outdated(self, memory_type, content, age_days):
         """Determine if a memory is likely outdated."""
-        # Comment in Chinese removedd
+        # GC execution handler
         if memory_type == 'fact_declaration' and age_days > 90:
             return True
         
-        # Comment in Chinese removed
+        # Vector index update handler
         if memory_type == 'task_pattern' and age_days > 60:
             return True
         
-        # Comment in Chinese removednt
+        # Check execution context
         time_keywords = ['今天', '明天', '本周', '本月', '今年', '现在', '当前', '最新',
                        'today', 'tomorrow', 'this week', 'this month', 'this year', 'now', 'current', 'latest']
         
@@ -437,10 +581,10 @@ class MemoryClassificationEngine:
         try:
             memory_id = memory.get('id')
             if memory_id:
-                # Comment in Chinese removedmory
+                # Warning level threshold
                 memory['needs_review'] = True
                 memory['review_timestamp'] = time.time()
-                # Comment in Chinese removed
+                # Vector index update handler
                 self.storage_coordinator.update_memory(memory_id, memory)
                 logger.info(f"Marked memory {memory_id} for review")
         except Exception as e:
@@ -452,10 +596,10 @@ class MemoryClassificationEngine:
             memory_id = memory.get('id')
             if memory_id:
                 current_weight = memory.get('weight', 1.0)
-                new_weight = max(0.1, current_weight * factor)  # Comment in Chinese removed
+                new_weight = max(0.1, current_weight * factor)  # Vector index update handler
                 memory['weight'] = new_weight
                 memory['weight_adjusted_at'] = time.time()
-                # Comment in Chinese removed
+                # Vector index update handler
                 self.storage_coordinator.update_memory(memory_id, memory)
                 logger.info(f"Adjusted memory {memory_id} weight from {current_weight:.2f} to {new_weight:.2f}")
         except Exception as e:
@@ -474,7 +618,7 @@ class MemoryClassificationEngine:
         """
         start_time = time.time()
         
-        # Comment in Chinese removedmpty
+        # Skip empty messages early
         if not message or not message.strip():
             duration = time.time() - start_time
             return {
@@ -488,19 +632,19 @@ class MemoryClassificationEngine:
                 'language_confidence': 0.0
             }
         
-        # Comment in Chinese removedlow)
+        # Return error response
         threading.Thread(target=self._check_archive_time).start()
         
-        # Comment in Chinese removedlow)
+        # Return error response
         try:
             self._check_nudge_time()
         except Exception as e:
             logger.warning(f"Nudge check failed: {e}")
         
-        # Comment in Chinese removedmory
+        # Warning level threshold
         self._add_to_working_memory(message)
         
-        # Comment in Chinese removednt
+        # Check execution context
         tenant_id = context.get('tenant_id') if context else None
         tenant = None
         
@@ -516,10 +660,10 @@ class MemoryClassificationEngine:
                 user_id=tenant_id
             )
         
-        # Comment in Chinese removed
+        # Vector index update handler
         language, lang_confidence = language_manager.detect_language(message)
         
-        # Comment in Chinese removedss control
+        # Alert state trackings control
         user_id = context.get('user_id') if context else tenant_id
         if not self.access_control_manager.check_permission(user_id, 'memory', 'write'):
             self.audit_manager.log(user_id, 'access_denied', 'process_message', {'message': 'Access denied'})
@@ -535,61 +679,61 @@ class MemoryClassificationEngine:
                 'error': 'Access denied'
             }
         
-        # Comment in Chinese removedgins
+        # Run classification pipeline
         plugin_results = self.plugin_manager.process_message(message, context)
         
-        # Comment in Chinese removed)
+        # Sort by composite score
         matches = self.classification_pipeline.classify_with_defaults(message, language, context, execution_context)
         
-        # Comment in Chinese removed)
+        # Sort by composite score
         unique_matches = self.deduplication_service.deduplicate(matches)
         
-        # Comment in Chinese removedtions
+        # Build response dictionarys
         stored_memories = []
         batch_memories = []
         
         for match in unique_matches:
-            # Comment in Chinese removed
+            # Vector index update handler
             memory_id = generate_memory_id()
             match['id'] = memory_id
             
-            # Comment in Chinese removedd
+            # GC execution handler
             if context:
                 match['context'] = context.get('conversation_id', '')
-                # Comment in Chinese removed
+                # Vector index update handler
                 conversation_history = context.get('conversation_history', [])
                 if len(conversation_history) > DEFAULT_CONVERSATION_HISTORY_LIMIT:
                     match['conversation_history'] = conversation_history[-DEFAULT_CONVERSATION_HISTORY_LIMIT:]
                 else:
                     match['conversation_history'] = conversation_history
             
-            # Comment in Chinese removedtion
+            # Build response dictionary
             match['tenant_id'] = tenant.tenant_id
             
-            # Comment in Chinese removedtion
+            # Build response dictionary
             match['language'] = language
             match['language_confidence'] = lang_confidence
             
-            # Comment in Chinese removedld
+            # Vector index update handlerld
             if 'memory_type' in match:
                 match['type'] = match['memory_type']
             if 'type' in match and 'memory_type' not in match:
                 match['memory_type'] = match['type']
             
-            # Comment in Chinese removedgins
+            # Run classification pipeline
             processed_match = self.plugin_manager.process_memory(match)
             
-            # Comment in Chinese removedtion
+            # Build response dictionary
             processed_match['created_by'] = user_id
             
-            # Comment in Chinese removednsitivity
+            # Vector index update handlernsitivity
             sensitivity_level = self.sensitivity_analyzer.analyze_memory_sensitivity(processed_match)
             processed_match['sensitivity_level'] = sensitivity_level
             
-            # Comment in Chinese removed)
+            # Sort by composite score
             processed_match['visibility'] = 'private'
             
-            # Comment in Chinese removedd
+            # GC execution handler
             if self.encryption_manager.is_sensitive_data(str(processed_match)):
                 # 简化处理，暂时不加密，因为需要密钥
                 stored_memories.append(processed_match)
@@ -598,15 +742,15 @@ class MemoryClassificationEngine:
                 stored_memories.append(processed_match)
                 batch_memories.append(processed_match)
         
-        # Comment in Chinese removedtor)
+        # Post-processing hook
         if batch_memories:
             self.storage_coordinator.store_memories_batch(batch_memories)
             
-            # Comment in Chinese removedmory list
+            # Warning level threshold list
             for memory in batch_memories:
                 tenant.add_memory(memory)
             
-            # Comment in Chinese removed
+            # Vector index update handler
             if self.distributed_manager:
                 for memory in batch_memories:
                     sync_item = {
@@ -616,35 +760,35 @@ class MemoryClassificationEngine:
                     }
                     self.distributed_manager.add_sync_item(sync_item)
         
-        # Comment in Chinese removedsync)
+        # Alert state trackingync)
         if stored_memories:
             self._build_associations_async(stored_memories, context)
         
-        # Comment in Chinese removedly
+        # Log completion metrics
         if stored_memories:
-            # Comment in Chinese removed
-            # Comment in Chinese removed
+            # Vector index update handler
+            # Vector index update handler
             self.cache.clear()
         
-        # Comment in Chinese removedlow)
+        # Return error response
         if stored_memories:
             try:
                 self._run_forgetting()
             except Exception as e:
                 logger.warning(f"Forgetting process failed: {e}")
         
-        # Comment in Chinese removedtrics
+        # Metrics collection point
         duration = time.time() - start_time
         self.performance_monitor.record_response_time('process_message', duration)
         self.performance_monitor.increment_throughput('messages_processed')
-        # Comment in Chinese removednt
+        # Check execution context
         for _ in range(len(stored_memories)):
             self.performance_monitor.increment_throughput('memories_stored')
         
-        # Comment in Chinese removedr
+        # Format stats output
         self.evolution_manager.record_performance('process_message', duration)
         
-        # Comment in Chinese removedtion
+        # Build response dictionary
         self.audit_manager.log(user_id, 'success', 'process_message', {
             'message_length': len(message),
             'memories_stored': len(stored_memories),
@@ -664,7 +808,7 @@ class MemoryClassificationEngine:
     
     def process_message_with_agent(self, agent_name: str, message: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """使用Agent处理消息"""
-        # Comment in Chinese removednt处理消息
+        # Check execution context处理消息
         agent_result = self.agent_manager.process_message(agent_name, message, context)
         
         # 然后使用引擎处理消息
@@ -861,12 +1005,12 @@ class MemoryClassificationEngine:
         if not conversation_history:
             return
         
-        # Comment in Chinese removednt
+        # Check execution context
         memory_content = memory.get('content', '')
         if not memory_content:
             return
         
-        # Comment in Chinese removedtion history
+        # Build response dictionary history
         recent_memories = []
         for msg in conversation_history[-DEFAULT_CONVERSATION_HISTORY_LIMIT:]:
             msg_content = msg.get('content', '')
@@ -879,11 +1023,11 @@ class MemoryClassificationEngine:
                 }
                 recent_memories.append(temp_memory)
 
-        # Comment in Chinese removeds
+        # Alert state tracking
         if recent_memories:
             memory_association_manager.update_memory_associations(memory, recent_memories, min_similarity=DEFAULT_MIN_SIMILARITY)
         
-        # Comment in Chinese removedity
+        # Validate input quality
         self._detect_topic_continuity(memory, conversation_history)
     
     def _detect_topic_continuity(self, memory: Dict[str, Any], conversation_history: List[Dict[str, Any]]):
@@ -898,28 +1042,28 @@ class MemoryClassificationEngine:
         if not conversation_history or len(conversation_history) < 2:
             return
         
-        # Comment in Chinese removednt
+        # Check execution context
         memory_content = memory.get('content', '')
         if not memory_content:
             return
         
-        # Comment in Chinese removeds
+        # Alert state tracking
         previous_messages = conversation_history[-5:]
         topic_continuity_score = 0
         
         for i, msg in enumerate(previous_messages):
             msg_content = msg.get('content', '')
             if msg_content:
-                # Comment in Chinese removedrity
+                # Format stats outputity
                 similarity = self.semantic_utility.calculate_similarity(memory_content, msg_content)
-                # Comment in Chinese removedncy
+                # Determine confidence level
                 weight = (len(previous_messages) - i) / len(previous_messages)
                 topic_continuity_score += similarity * weight
         
-        # Comment in Chinese removed
+        # Vector index update handler
         topic_continuity_score /= len(previous_messages)
         
-        # Comment in Chinese removedtion
+        # Build response dictionary
         if topic_continuity_score > DEFAULT_TOPIC_CONTINUITY_THRESHOLD:
             most_recent_msg = previous_messages[-1]
             most_recent_content = most_recent_msg.get('content', '')
@@ -959,13 +1103,17 @@ class MemoryClassificationEngine:
             logger.error(f"Error running forgetting mechanism: {e}")
     
     def process_feedback(self, memory_id, feedback):
-        """处理用户反馈"""
-        # 查找记忆
+        """Process user feedback with automatic feedback loop integration."""
         memory = None
+        original_type = None
+        content = ''
+        
         for tenant in self.tenant_manager.tenants.values():
             for m in tenant.memories:
                 if m.get('id') == memory_id:
                     memory = m
+                    original_type = m.get('memory_type')
+                    content = m.get('content', '')
                     break
             if memory:
                 break
@@ -973,12 +1121,30 @@ class MemoryClassificationEngine:
         if not memory:
             return {'error': 'Memory not found'}
         
-        # 处理反馈
         updated_memory = self.evolution_manager.process_feedback(memory, feedback)
         
-        # 更新存储
         updates = {k: v for k, v in updated_memory.items() if k != 'id'}
         self.storage_coordinator.update_memory(memory_id, updates)
+        
+        if hasattr(self, 'feedback_loop') and self.feedback_loop:
+            try:
+                fb_type = feedback.get('type', 'general') if isinstance(feedback, dict) else str(feedback)
+                fb_value = feedback.get('value', 'neutral') if isinstance(feedback, dict) else 'positive'
+                fb_comment = feedback.get('comment', '') if isinstance(feedback, dict) else ''
+                
+                loop_result = self.feedback_loop.record_feedback(
+                    memory_id=memory_id,
+                    original_type=original_type or '',
+                    feedback_type=fb_type,
+                    feedback_value=fb_value,
+                    content=content,
+                    comment=fb_comment,
+                )
+                
+                if 'auto_tune' in loop_result:
+                    logger.info(f"FeedbackLoop auto-tune: {loop_result['auto_tune']}")
+            except Exception as e:
+                logger.debug(f"FeedbackLoop recording skipped: {e}")
         
         return {'success': True, 'memory': updated_memory}
     
@@ -1039,12 +1205,12 @@ class MemoryClassificationEngine:
             Result of the forgetting operation.
         """
         try:
-            # Comment in Chinese removedss control
+            # Alert state trackings control
             if not self.access_control_manager.check_permission(user_id or tenant_id, 'memory', 'update'):
                 self.audit_manager.log(user_id or tenant_id, 'access_denied', 'manage_forgetting', {'memory_id': memory_id, 'action': action})
                 return {'success': False, 'message': 'Access denied'}
             
-            # Comment in Chinese removedrs
+            # Format stats outputs
             memory = None
             for tier in [2, 3, 4]:
                 tier_memories = self.storage_coordinator.retrieve_memories('', limit=100, tier=tier)
@@ -1058,28 +1224,28 @@ class MemoryClassificationEngine:
             if not memory:
                 return {'success': False, 'message': f'Memory {memory_id} not found'}
             
-            # Comment in Chinese removedction
+            # Semantic relevance ranking
             if action == 'decrease_weight':
-                # Comment in Chinese removedight
+                # Pre-compute sort keys for efficiency
                 current_weight = memory.get('weight', 0.5)
                 new_weight = max(0.1, current_weight - weight_adjustment)
                 memory['weight'] = new_weight
-                # Comment in Chinese removedmory
+                # Warning level threshold
                 self.storage_coordinator.store_memories_batch([memory])
                 return {'success': True, 'message': f'Weight decreased to {new_weight}'}
             
             elif action == 'mark_expired':
-                # Comment in Chinese removedd
+                # GC execution handler
                 memory['status'] = 'expired'
                 self.storage_coordinator.store_memories_batch([memory])
                 return {'success': True, 'message': 'Memory marked as expired'}
             
             elif action == 'delete':
-                # Comment in Chinese removed)
+                # Sort by composite score
                 return {'success': False, 'message': 'Delete action not implemented'}
             
             elif action == 'refresh':
-                # Comment in Chinese removedight)
+                # Pre-compute sort keys for efficiency)
                 current_weight = memory.get('weight', 0.5)
                 new_weight = min(1.0, current_weight + weight_adjustment)
                 memory['weight'] = new_weight
@@ -1094,8 +1260,8 @@ class MemoryClassificationEngine:
             logger.error(f"Error managing forgetting: {e}", exc_info=True)
             return {'success': False, 'message': f'Error: {str(e)}'}
     
-    def retrieve_memories(self, query: str = None, limit: int = 5, memory_type: str = None, tenant_id: str = None, include_associations: bool = False, user_id: str = None, scenario: str = None) -> List[Dict[str, Any]]:
-        """Retrieve memories based on query.
+    def retrieve_memories(self, query: str = None, limit: int = 5, memory_type: str = None, tenant_id: str = None, include_associations: bool = False, user_id: str = None, scenario: str = None, retrieval_mode: str = 'balanced') -> List[Dict[str, Any]]:
+        """Retrieve memories based on query with adaptive retrieval modes.
         
         Args:
             query: Optional query string to filter memories.
@@ -1105,23 +1271,154 @@ class MemoryClassificationEngine:
             include_associations: Whether to include associated memories in the results.
             user_id: Optional user ID for access control.
             scenario: Optional scenario for memory validation.
+            retrieval_mode: Retrieval strategy - 'compact' (fast), 'balanced' (default), or 'comprehensive' (deep).
             
         Returns:
-            A list of matching memories sorted by semantic relevance.
+            A list of matching memories sorted by relevance.
         """
-        start_time = time.time()
+        if retrieval_mode == 'compact':
+            return self._retrieve_compact(query, limit, memory_type, tenant_id)
+        elif retrieval_mode == 'comprehensive':
+            return self._retrieve_comprehensive(query, limit, memory_type, tenant_id, include_associations, user_id, scenario)
+        else:
+            return self._retrieve_balanced(query, limit, memory_type, tenant_id, include_associations, user_id, scenario)
+    
+    def _retrieve_compact(self, query: str = None, limit: int = 5, memory_type: str = None, tenant_id: str = None) -> List[Dict[str, Any]]:
+        """Compact retrieval mode - fastest path, keyword match only, no semantic sort.
         
-        # Comment in Chinese removedss control
+        Skips semantic similarity computation entirely. Uses cache + keyword filtering
+        for sub-millisecond response on cached queries.
+        
+        Performance target: P99 < 10ms
+        """
+        all_memories = []
+        seen_ids = set()
+        
+        for tier in [2, 3, 4]:
+            tier_memories = self.storage_coordinator.retrieve_memories(query or '', min(limit * 3, 15), tier=tier)
+            for mem in tier_memories:
+                mid = mem.get('id')
+                if mid and mid not in seen_ids:
+                    if memory_type and mem.get('memory_type') != memory_type:
+                        continue
+                    seen_ids.add(mid)
+                    all_memories.append(mem)
+                    if len(all_memories) >= limit:
+                        return all_memories
+        
+        if not query:
+            precomputed_keys = []
+            for x in all_memories[:limit * 2]:
+                confidence = x.get('confidence', 0)
+                try: confidence = float(confidence)
+                except (ValueError, TypeError): confidence = 0
+                last_accessed = x.get('last_accessed', '1970-01-01T00:00:00Z')
+                if not isinstance(last_accessed, str): last_accessed = '1970-01-01T00:00:00Z'
+                created_at = x.get('created_at', '1970-01-01T00:00:00Z')
+                if not isinstance(created_at, str): created_at = '1970-01-01T00:00:00Z'
+                tier = x.get('tier', 0)
+                try: tier = int(tier)
+                except (ValueError, TypeError): tier = 0
+                precomputed_keys.append((confidence, last_accessed, created_at, tier))
+            
+            paired = list(zip(precomputed_keys, all_memories[:len(precomputed_keys)]))
+            paired.sort(key=lambda p: p[0], reverse=True)
+            return [p[1] for p in paired[:limit]]
+        
+        if query and len(query) > 2:
+            query_lower = query.lower()
+            scored = []
+            for m in all_memories:
+                content = (m.get('content') or '').lower()
+                score = 0
+                if query_lower in content:
+                    score += 2.0
+                elif any(qw in content for qw in query_lower.split() if len(qw) > 2):
+                    score += 1.0
+                m['_compact_score'] = score
+                scored.append(m)
+            scored.sort(key=lambda x: x.get('_compact_score', 0), reverse=True)
+            return [m for m in scored if m.get('_compact_score', 0) > 0][:limit]
+        
+        return all_memories[:limit]
+    
+    def _retrieve_comprehensive(self, query: str = None, limit: int = 5, memory_type: str = None, tenant_id: str = None, include_associations: bool = False, user_id: str = None, scenario: str = None) -> List[Dict[str, Any]]:
+        """Comprehensive retrieval mode - deep analysis with associations and full context.
+        
+        Includes: full semantic ranking, association expansion, scenario validation,
+        cross-tier deduplication, and relevance scoring.
+        
+        Performance target: P99 < 200ms (acceptable for analysis tasks)
+        """
+        base_results = self._retrieve_balanced(query, max(limit, 10), memory_type, tenant_id, False, user_id, scenario)
+        
+        if not base_results:
+            return []
+        
+        if include_associations:
+            expanded = []
+            seen_ids = {m.get('id') for m in base_results}
+            for memory in base_results:
+                expanded.append(memory)
+                assoc_ids = memory.get('associated_memory_ids') or memory.get('associations') or []
+                if isinstance(assoc_ids, list):
+                    for aid in assoc_ids:
+                        if aid and aid not in seen_ids:
+                            am = self.storage_coordinator.get_memory(aid)
+                            if am:
+                                expanded.append(am)
+                                seen_ids.add(aid)
+            base_results = expanded
+        
+        enriched = []
+        for memory in base_results:
+            enriched_memory = dict(memory)
+            if query and memory.get('content'):
+                sim = self.semantic_utility.calculate_similarity(query, memory['content'])
+                enriched_memory['semantic_similarity'] = sim
+            
+            weight = memory.get('weight', memory.get('confidence', 0.5))
+            try: weight = float(weight)
+            except (ValueError, TypeError): weight = 0.5
+            access_count = memory.get('access_count', 0)
+            try: access_count = int(access_count)
+            except (ValueError, TypeError): access_count = 0
+            
+            recency_score = 1.0 / (1.0 + max(0, (time.time() - parse_iso_time(memory.get('last_accessed', ''))) / 86400))
+            frequency_score = min(1.0, access_count / 10.0)
+            enriched_memory['composite_score'] = round(
+                weight * 0.4 +
+                enriched_memory.get('semantic_similarity', 0.5) * 0.3 +
+                recency_score * 0.15 +
+                frequency_score * 0.15,
+                6
+            )
+            enriched.append(enriched_memory)
+        
+        enriched.sort(key=lambda x: x.get('composite_score', 0), reverse=True)
+        
+        result = enriched[:limit]
+        
+        for memory in result:
+            memory.pop('_compact_score', None)
+        
+        return result
+    
+    def _retrieve_balanced(self, query: str = None, limit: int = 5, memory_type: str = None, tenant_id: str = None, include_associations: bool = False, user_id: str = None, scenario: str = None) -> List[Dict[str, Any]]:
+        
+        # Alert state trackings control
         if not self.access_control_manager.check_permission(user_id or tenant_id, 'memory', 'read'):
             self.audit_manager.log(user_id or tenant_id, 'access_denied', 'retrieve_memories', {'query': query, 'tenant_id': tenant_id, 'memory_type': memory_type})
             return []
         
-        # Comment in Chinese removedry
+        start_time = time.time()
+        
+        # Format stats outputy
         if query:
             from memory_classification_engine.utils.performance import PerformanceOptimizer
             query = PerformanceOptimizer.optimize_query(query)
         
-        # Comment in Chinese removedy
+        # Apply type filter
         from memory_classification_engine.utils.performance import PerformanceOptimizer
         try:
             cache_key = PerformanceOptimizer.cache_key_generator('retrieve', query=query, limit=limit, tenant_id=tenant_id, include_associations=include_associations, user_id=user_id)
@@ -1129,11 +1426,11 @@ class MemoryClassificationEngine:
             logger.error(f"Cache key generation failed: {e}, query={query}, limit={limit}, tenant_id={tenant_id}")
             cache_key = f"retrieve:query:{query}:limit:{limit}"
         
-        # Comment in Chinese removed
+        # Vector index update handler
         try:
             cached_result = self.cache.get(cache_key)
             if cached_result:
-                # Comment in Chinese removedd
+                # GC execution handler
                 decrypted_result = []
                 for memory in cached_result:
                     if memory.get('is_encrypted'):
@@ -1146,13 +1443,13 @@ class MemoryClassificationEngine:
         except Exception as e:
             logger.warning(f"Cache get failed: {e}, cache_key={cache_key}")
         
-        # Comment in Chinese removedtor)
-        # Comment in Chinese removed
+        # Post-processing hook
+        # Vector index update handler
         tier2_memories = self.storage_coordinator.retrieve_memories(query, limit // 3, tier=2, memory_type=memory_type)
         tier3_memories = self.storage_coordinator.retrieve_memories(query, limit // 3 * 2, tier=3, memory_type=memory_type)
         tier4_memories = self.storage_coordinator.retrieve_memories(query, limit // 3, tier=4, memory_type=memory_type)
         
-        # Comment in Chinese removeds
+        # Alert state tracking
         all_memories = []
         seen_ids = set()
         for memory in tier2_memories + tier3_memories + tier4_memories:
@@ -1161,39 +1458,67 @@ class MemoryClassificationEngine:
                 seen_ids.add(memory_id)
                 all_memories.append(memory)
         
-        # Comment in Chinese removedd
+        # GC execution handler
         if tenant_id:
             all_memories = [memory for memory in all_memories if memory.get('tenant_id') == tenant_id]
         
-        # Comment in Chinese removedr by visibility
+        # Format stats output by visibility
         if user_id:
             all_memories = self.visibility_manager.filter_by_visibility(all_memories, user_id)
         
-        # Comment in Chinese removedrity
+        # Format stats outputity
         if query:
+            # Vector index update handler - pre-truncate to reduce similarity computation
+            max_candidates = min(len(all_memories), max(limit * 5, 50))
+            candidates = all_memories[:max_candidates]
+            
             ranked_memories = []
-            for memory in all_memories:
+            contents = []
+            valid_indices = []
+            
+            for idx, memory in enumerate(candidates):
                 content = memory.get('content', '')
                 if content:
-                    # Comment in Chinese removedtion
-                    similarity = self.semantic_utility.calculate_similarity(query, content)
-                    memory['semantic_similarity'] = similarity
-                    ranked_memories.append(memory)
+                    contents.append((query, content, idx))
+                    valid_indices.append(idx)
             
-            # Comment in Chinese removedncy
-            # 确保排序时所有值都是兼容的类型
-            def get_sort_key(x):
-                semantic_similarity = x.get('semantic_similarity', 0)
+            if contents and self.semantic_utility.embedding_model:
                 try:
-                    semantic_similarity = float(semantic_similarity)
-                except (ValueError, TypeError):
-                    semantic_similarity = 0
+                    all_texts = [query] + [c[1] for c in contents]
+                    embeddings = self.semantic_utility.embedding_model.encode(all_texts)
+                    query_embedding = embeddings[0]
+                    
+                    from sklearn.metrics.pairwise import cosine_similarity
+                    for i, (_, _, orig_idx) in enumerate(contents):
+                        sim = cosine_similarity([query_embedding], [embeddings[i + 1]])[0][0]
+                        candidates[orig_idx]['semantic_similarity'] = float(sim)
+                        ranked_memories.append(candidates[orig_idx])
+                except Exception as e:
+                    logger.debug(f"Batch encoding failed, fallback to per-item: {e}")
+                    for idx, memory in enumerate(candidates):
+                        content = memory.get('content', '')
+                        if content:
+                            similarity = self.semantic_utility.calculate_similarity(query, content)
+                            memory['semantic_similarity'] = similarity
+                            ranked_memories.append(memory)
+            else:
+                for idx, memory in enumerate(candidates):
+                    content = memory.get('content', '')
+                    if content:
+                        similarity = self.semantic_utility.calculate_similarity(query, content)
+                        memory['semantic_similarity'] = similarity
+                        ranked_memories.append(memory)
+            
+            # Determine confidence level - pre-compute keys once
+            precomputed_keys = []
+            for x in ranked_memories:
+                semantic_similarity = x.get('semantic_similarity', 0)
+                try: semantic_similarity = float(semantic_similarity)
+                except (ValueError, TypeError): semantic_similarity = 0
                 
                 confidence = x.get('confidence', 0)
-                try:
-                    confidence = float(confidence)
-                except (ValueError, TypeError):
-                    confidence = 0
+                try: confidence = float(confidence)
+                except (ValueError, TypeError): confidence = 0
                 
                 last_accessed = x.get('last_accessed', '1970-01-01T00:00:00Z')
                 if not isinstance(last_accessed, str):
@@ -1203,19 +1528,18 @@ class MemoryClassificationEngine:
                 if not isinstance(created_at, str):
                     created_at = '1970-01-01T00:00:00Z'
                 
-                return (semantic_similarity, confidence, last_accessed, created_at)
+                precomputed_keys.append((semantic_similarity, confidence, last_accessed, created_at))
             
-            ranked_memories.sort(key=get_sort_key, reverse=True)
-            all_memories = ranked_memories
+            paired = list(zip(precomputed_keys, ranked_memories))
+            paired.sort(key=lambda p: p[0], reverse=True)
+            all_memories = [p[1] for p in paired[:limit * 2]]
         else:
-            # Comment in Chinese removedr priority
-            # 确保排序时所有值都是兼容的类型
-            def get_sort_key(x):
+            # Format stats output priority - pre-compute keys once
+            precomputed_keys = []
+            for x in all_memories:
                 confidence = x.get('confidence', 0)
-                try:
-                    confidence = float(confidence)
-                except (ValueError, TypeError):
-                    confidence = 0
+                try: confidence = float(confidence)
+                except (ValueError, TypeError): confidence = 0
                 
                 last_accessed = x.get('last_accessed', '1970-01-01T00:00:00Z')
                 if not isinstance(last_accessed, str):
@@ -1226,19 +1550,19 @@ class MemoryClassificationEngine:
                     created_at = '1970-01-01T00:00:00Z'
                 
                 tier = x.get('tier', 0)
-                try:
-                    tier = int(tier)
-                except (ValueError, TypeError):
-                    tier = 0
+                try: tier = int(tier)
+                except (ValueError, TypeError): tier = 0
                 
-                return (confidence, last_accessed, created_at, tier)
+                precomputed_keys.append((confidence, last_accessed, created_at, tier))
             
-            all_memories.sort(key=get_sort_key, reverse=True)
+            paired = list(zip(precomputed_keys, all_memories))
+            paired.sort(key=lambda p: p[0], reverse=True)
+            all_memories = [p[1] for p in paired[:limit * 2]]
         
-        # Comment in Chinese removedlts
+        # Vector index update handlerlts
         top_memories = all_memories[:limit]
         
-        # Comment in Chinese removedd
+        # GC execution handler
         if include_associations and top_memories:
             from memory_classification_engine.utils.memory_association import memory_association_manager
             
@@ -1248,28 +1572,28 @@ class MemoryClassificationEngine:
                 if memory_id:
                     associations = memory_association_manager.get_associations(memory_id, min_similarity=DEFAULT_STRONG_ASSOCIATION_THRESHOLD, limit=DEFAULT_ASSOCIATION_RETRIEVAL_LIMIT)
                     for assoc in associations:
-                        # Comment in Chinese removedmory
+                        # Warning level threshold
                         assoc_memory = self.storage_coordinator.get_memory(assoc['target_id'])
                         if assoc_memory and assoc_memory.get('id') not in seen_ids:
                             seen_ids.add(assoc_memory['id'])
                             assoc_memory['association_score'] = assoc['similarity']
                             associated_memories.append(assoc_memory)
             
-            # Comment in Chinese removedlts
+            # Vector index update handlerlts
             result = top_memories + associated_memories[:limit // 2]
-            # Comment in Chinese removed
+            # Vector index update handler
             result.sort(key=lambda x: (x.get('semantic_similarity', x.get('association_score', 0)), x.get('confidence', 0)), reverse=True)
             result = result[:limit]
         else:
             result = top_memories
         
-        # Comment in Chinese removed
+        # Vector index update handler
         try:
             self.cache.set(cache_key, result)
         except Exception as e:
             logger.warning(f"Cache set failed: {e}, cache_key type: {type(cache_key)}")
         
-        # Comment in Chinese removedtion
+        # Build response dictionary
         if tenant_id:
             from memory_classification_engine.utils.recommendation import recommendation_system
             for memory in result:
@@ -1282,7 +1606,7 @@ class MemoryClassificationEngine:
                         context={'query': query, 'retrieval_time': get_current_time()}
                     )
         
-        # Comment in Chinese removednt
+        # Check execution context
         from memory_classification_engine.utils.memory_quality import memory_quality_manager
         for memory in result:
             memory_id = memory.get('id')
@@ -1293,7 +1617,7 @@ class MemoryClassificationEngine:
                     result=True
                 )
         
-        # Comment in Chinese removedd
+        # GC execution handler
         decrypted_result = []
         for memory in result:
             if memory.get('is_encrypted'):
@@ -1304,23 +1628,23 @@ class MemoryClassificationEngine:
                 decrypted_result.append(memory)
         result = decrypted_result
         
-        # Comment in Chinese removedrio
+        # Format stats outputio
         if scenario:
             result = self.scenario_validator.validate_scenario(result, scenario)
         
-        # Comment in Chinese removed
+        # Vector index update handler
         try:
             self.cache.set(cache_key, result)
         except Exception as e:
             logger.warning(f"Cache set failed: {e}, cache_key type: {type(cache_key)}")
         
-        # Comment in Chinese removedtrics
+        # Metrics collection point
         duration = time.time() - start_time
         self.performance_monitor.record_response_time('retrieve_memories', duration)
         self.performance_monitor.increment_throughput('queries_processed')
         self.performance_monitor.log_metrics()
         
-        # Comment in Chinese removedtion
+        # Build response dictionary
         self.audit_manager.log(user_id or tenant_id, 'success', 'retrieve_memories', {
             'query': query,
             'limit': limit,
@@ -1343,7 +1667,7 @@ class MemoryClassificationEngine:
         Returns:
             A dictionary containing the result.
         """
-        # Comment in Chinese removedss control
+        # Alert state trackings control
         if action == 'view':
             if not self.access_control_manager.check_permission(user_id, 'memory', 'read'):
                 self.audit_manager.log(user_id, 'access_denied', 'manage_memory', {'action': action, 'memory_id': memory_id})
@@ -1357,7 +1681,7 @@ class MemoryClassificationEngine:
                 self.audit_manager.log(user_id, 'access_denied', 'manage_memory', {'action': action, 'memory_id': memory_id})
                 return {'success': False, 'message': 'Access denied'}
         
-        # Comment in Chinese removedtor)
+        # Post-processing hook
         memory = self.storage_coordinator.get_memory(memory_id)
         
         if not memory:
@@ -1365,7 +1689,7 @@ class MemoryClassificationEngine:
             return {'success': False, 'message': 'Memory not found'}
         
         if action == 'view':
-            # Comment in Chinese removedd
+            # GC execution handler
             if memory.get('is_encrypted'):
                 decrypted_memory = self.encryption_manager.decrypt_memory(memory, user_id)
                 if decrypted_memory:
@@ -1380,7 +1704,7 @@ class MemoryClassificationEngine:
         
         elif action == 'edit':
             if data:
-                # Comment in Chinese removedd
+                # GC execution handler
                 if self.encryption_manager.is_sensitive_data(str(data)):
                     # 简化处理，暂时不加密，因为需要密钥
                     success = self.storage_coordinator.update_memory(memory_id, data)
@@ -1390,7 +1714,7 @@ class MemoryClassificationEngine:
                 if success:
                     self.cache.clear()
                     updated_memory = self.storage_coordinator.get_memory(memory_id)
-                    # Comment in Chinese removedd
+                    # GC execution handler
                     if updated_memory.get('is_encrypted'):
                         decrypted_updated_memory = self.encryption_manager.decrypt_memory(updated_memory, user_id)
                         if decrypted_updated_memory:
@@ -1419,7 +1743,7 @@ class MemoryClassificationEngine:
         Returns:
             A dictionary with statistics.
         """
-        # Comment in Chinese removedss control
+        # Alert state trackings control
         if not self.access_control_manager.check_permission(user_id, 'user', 'read'):
             self.audit_manager.log(user_id, 'access_denied', 'get_stats', {})
             return {'error': 'Access denied'}
@@ -1451,29 +1775,29 @@ class MemoryClassificationEngine:
         Returns:
             A dictionary containing the exported memories.
         """
-        # Comment in Chinese removedss control
+        # Alert state trackings control
         if not self.access_control_manager.check_permission(user_id, 'memory', 'read'):
             self.audit_manager.log(user_id, 'access_denied', 'export_memories', {'format': format})
             return {'error': 'Access denied'}
         
         if format == "json":
-            # Comment in Chinese removeds
+            # Alert state tracking
             tier2_memories = self.storage_coordinator.retrieve_memories(tier=2, limit=DEFAULT_TIER_MEMORY_RETRIEVAL_LIMIT)
             tier3_memories = self.storage_coordinator.retrieve_memories(tier=3, limit=DEFAULT_TIER_MEMORY_RETRIEVAL_LIMIT)
             tier4_memories = self.storage_coordinator.retrieve_memories(tier=4, limit=DEFAULT_TIER_MEMORY_RETRIEVAL_LIMIT)
             
-            # Comment in Chinese removeds
+            # Alert state tracking
             all_memories = tier2_memories + tier3_memories + tier4_memories
             
-            # Comment in Chinese removedd
+            # GC execution handler
             if tenant_id:
                 all_memories = [memory for memory in all_memories if memory.get('tenant_id') == tenant_id]
             
-            # Comment in Chinese removedd
+            # GC execution handler
             if memory_types:
                 all_memories = [memory for memory in all_memories if memory.get('type') in memory_types]
             
-            # Comment in Chinese removedd
+            # GC execution handler
             decrypted_memories = []
             for memory in all_memories:
                 if memory.get('is_encrypted'):
@@ -1483,7 +1807,7 @@ class MemoryClassificationEngine:
                 else:
                     decrypted_memories.append(memory)
             
-            # Comment in Chinese removed
+            # Vector index update handler
             export_data = {
                 "version": "1.0",
                 "metadata": {
@@ -1518,7 +1842,7 @@ class MemoryClassificationEngine:
         Returns:
             A dictionary containing the import result.
         """
-        # Comment in Chinese removedss control
+        # Alert state trackings control
         if not self.access_control_manager.check_permission(user_id, 'memory', 'write'):
             self.audit_manager.log(user_id, 'access_denied', 'import_memories', {'format': format})
             return {'error': 'Access denied'}
@@ -1527,22 +1851,22 @@ class MemoryClassificationEngine:
             self.audit_manager.log(user_id, 'unsupported_format', 'import_memories', {'format': format})
             return {'error': 'Unsupported format'}
         
-        # Comment in Chinese removedt
+        # Vector index update handlert
         if 'version' not in data or 'memories' not in data:
             self.audit_manager.log(user_id, 'invalid_format', 'import_memories', {'format': format})
             return {'error': 'Invalid format: missing version or memories field'}
         
         imported_count = 0
         
-        # Comment in Chinese removeds
+        # Alert state tracking
         for memory in data.get('memories', []):
-            # Comment in Chinese removedlds
+            # Vector index update handlerlds
             required_fields = ['id', 'type', 'memory_type', 'content', 'confidence', 'source', 'tier', 'created_at']
             for field in required_fields:
                 if field not in memory:
-                    continue  # Comment in Chinese removedlds
+                    continue  # Vector index update handlerlds
             
-            # Comment in Chinese removedd
+            # GC execution handler
             if self.encryption_manager.is_sensitive_data(str(memory)):
                 # 简化处理，暂时不加密，因为需要密钥
                 if self.storage_coordinator.store_memory(memory):
@@ -1551,7 +1875,7 @@ class MemoryClassificationEngine:
                 if self.storage_coordinator.store_memory(memory):
                     imported_count += 1
         
-        # Comment in Chinese removedd
+        # GC execution handler
         self.cache.clear()
         
         self.audit_manager.log(user_id, 'success', 'import_memories', {
@@ -1573,18 +1897,18 @@ class MemoryClassificationEngine:
             'timestamp': get_current_time()
         })
         
-        # Comment in Chinese removednism
+        # Track last archive timestamp
         self.message_history.append({
             'message': message,
             'timestamp': time.time()
         })
         
-        # Comment in Chinese removed
+        # Vector index update handler
         if len(self.working_memory) > self.max_work_memory_size:
             self.working_memory.pop(0)
         
-        # Comment in Chinese removed
-        if len(self.message_history) > 1000:  # Comment in Chinese removeds
+        # Vector index update handler
+        if len(self.message_history) > 1000:  # Alert state tracking
             self.message_history.pop(0)
     
     def clear_working_memory(self):
@@ -1597,19 +1921,19 @@ class MemoryClassificationEngine:
         Args:
             user_id: Optional user ID for access control.
         """
-        # Comment in Chinese removedss control
+        # Alert state trackings control
         if not self.access_control_manager.check_permission(user_id, 'user', 'write'):
             self.audit_manager.log(user_id, 'access_denied', 'reload_config', {})
             return {'error': 'Access denied'}
         
         self.config.reload()
         
-        # Comment in Chinese removedtors
+        # Vector index update handlertors
         self.storage_coordinator = StorageCoordinator(self.config)
         self.classification_pipeline = ClassificationPipeline(self.config)
         self.deduplication_service = DeduplicationService(self.config)
         
-        # Comment in Chinese removedr
+        # Format stats output
         self.memory_manager = MemoryManager(self.config)
         self.memory_manager.start()
         
@@ -1617,10 +1941,10 @@ class MemoryClassificationEngine:
         
         return {'success': True, 'message': 'Configuration reloaded'}
     
-    # Comment in Chinese removedr)
+    # Format stats output)
     def create_tenant(self, tenant_id: str, name: str, tenant_type: str, user_id: str = None, **kwargs) -> Dict[str, Any]:
         """Create a new tenant."""
-        # Comment in Chinese removedss control
+        # Alert state trackings control
         if not self.access_control_manager.check_permission(user_id, 'user', 'write'):
             self.audit_manager.log(user_id, 'access_denied', 'create_tenant', {'tenant_id': tenant_id, 'tenant_type': tenant_type})
             return {'success': False, 'message': 'Access denied'}
@@ -1641,7 +1965,7 @@ class MemoryClassificationEngine:
     
     def get_tenant(self, tenant_id: str, user_id: str = None) -> Dict[str, Any]:
         """Get tenant information."""
-        # Comment in Chinese removedss control
+        # Alert state trackings control
         if not self.access_control_manager.check_permission(user_id, 'user', 'read'):
             self.audit_manager.log(user_id, 'access_denied', 'get_tenant', {'tenant_id': tenant_id})
             return {'success': False, 'message': 'Access denied'}
@@ -1663,7 +1987,7 @@ class MemoryClassificationEngine:
     
     def list_tenants(self, user_id: str = None) -> List[Dict[str, Any]]:
         """List all tenants."""
-        # Comment in Chinese removedss control
+        # Alert state trackings control
         if not self.access_control_manager.check_permission(user_id, 'user', 'read'):
             self.audit_manager.log(user_id, 'access_denied', 'list_tenants', {})
             return []
@@ -1683,7 +2007,7 @@ class MemoryClassificationEngine:
     
     def delete_tenant(self, tenant_id: str, user_id: str = None) -> Dict[str, Any]:
         """Delete a tenant."""
-        # Comment in Chinese removedss control
+        # Alert state trackings control
         if not self.access_control_manager.check_permission(user_id, 'user', 'delete'):
             self.audit_manager.log(user_id, 'access_denied', 'delete_tenant', {'tenant_id': tenant_id})
             return {'success': False, 'message': 'Access denied'}
@@ -1694,7 +2018,7 @@ class MemoryClassificationEngine:
     
     def update_tenant(self, tenant_id: str, updates: Dict[str, Any], user_id: str = None) -> Dict[str, Any]:
         """Update tenant information."""
-        # Comment in Chinese removedss control
+        # Alert state trackings control
         if not self.access_control_manager.check_permission(user_id, 'user', 'write'):
             self.audit_manager.log(user_id, 'access_denied', 'update_tenant', {'tenant_id': tenant_id})
             return {'success': False, 'message': 'Access denied'}
@@ -1715,7 +2039,7 @@ class MemoryClassificationEngine:
     
     def get_tenant_memories(self, tenant_id: str, limit: int = 10, user_id: str = None) -> List[Dict[str, Any]]:
         """Get memories for a specific tenant."""
-        # Comment in Chinese removedss control
+        # Alert state trackings control
         if not self.access_control_manager.check_permission(user_id, 'memory', 'read'):
             self.audit_manager.log(user_id, 'access_denied', 'get_tenant_memories', {'tenant_id': tenant_id})
             return []
@@ -1726,7 +2050,7 @@ class MemoryClassificationEngine:
             return []
         
         memories = tenant.get_memories()
-        # Comment in Chinese removedd
+        # GC execution handler
         decrypted_memories = []
         for memory in memories:
             if memory.get('is_encrypted'):
@@ -1741,7 +2065,7 @@ class MemoryClassificationEngine:
     
     def add_tenant_role(self, tenant_id: str, role_name: str, permissions: List[str], user_id: str = None) -> Dict[str, Any]:
         """Add a role to an enterprise tenant."""
-        # Comment in Chinese removedss control
+        # Alert state trackings control
         if not self.access_control_manager.check_permission(user_id, 'role', 'write'):
             self.audit_manager.log(user_id, 'access_denied', 'add_tenant_role', {'tenant_id': tenant_id, 'role_name': role_name})
             return {'success': False, 'message': 'Access denied'}
@@ -1761,7 +2085,7 @@ class MemoryClassificationEngine:
     
     def check_tenant_permission(self, tenant_id: str, role_name: str, permission: str, user_id: str = None) -> Dict[str, Any]:
         """Check if a role has a specific permission."""
-        # Comment in Chinese removedss control
+        # Alert state trackings control
         if not self.access_control_manager.check_permission(user_id, 'role', 'read'):
             self.audit_manager.log(user_id, 'access_denied', 'check_tenant_permission', {'tenant_id': tenant_id, 'role_name': role_name, 'permission': permission})
             return {'success': False, 'message': 'Access denied'}
@@ -1779,10 +2103,10 @@ class MemoryClassificationEngine:
         self.audit_manager.log(user_id, 'success', 'check_tenant_permission', {'tenant_id': tenant_id, 'role_name': role_name, 'permission': permission, 'has_permission': has_permission})
         return {'success': True, 'has_permission': has_permission}
     
-    # Comment in Chinese removedctly)
+    # Vector index update handlerctly)
     def get_recommendations(self, user_id: str, query: Optional[str] = None, limit: int = 5, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get personalized recommendations for a user."""
-        # Comment in Chinese removedss control
+        # Alert state trackings control
         if not self.access_control_manager.check_permission(user_id, 'memory', 'read'):
             self.audit_manager.log(user_id, 'access_denied', 'get_recommendations', {'query': query, 'tenant_id': tenant_id})
             return []
@@ -1791,14 +2115,14 @@ class MemoryClassificationEngine:
         
         start_time = time.time()
         
-        # Comment in Chinese removeds
+        # Alert state tracking
         all_memories = self.storage_coordinator.retrieve_memories(limit=DEFAULT_TOTAL_MEMORY_RETRIEVAL_LIMIT)
         
-        # Comment in Chinese removedd
+        # GC execution handler
         if tenant_id:
             all_memories = [memory for memory in all_memories if memory.get('tenant_id') == tenant_id]
         
-        # Comment in Chinese removedd
+        # GC execution handler
         decrypted_memories = []
         for memory in all_memories:
             if memory.get('is_encrypted'):
@@ -1808,7 +2132,7 @@ class MemoryClassificationEngine:
             else:
                 decrypted_memories.append(memory)
         
-        # Comment in Chinese removedtions
+        # Build response dictionarys
         recommendations = recommendation_system.generate_recommendations(
             user_id=user_id,
             query=query,
@@ -1816,12 +2140,12 @@ class MemoryClassificationEngine:
             all_memories=decrypted_memories
         )
         
-        # Comment in Chinese removedtrics
+        # Metrics collection point
         duration = time.time() - start_time
         self.performance_monitor.record_response_time('get_recommendations', duration)
         self.performance_monitor.increment_throughput('recommendations_generated')
         
-        # Comment in Chinese removedtion
+        # Build response dictionary
         self.audit_manager.log(user_id, 'success', 'get_recommendations', {
             'query': query,
             'limit': limit,
@@ -1834,7 +2158,7 @@ class MemoryClassificationEngine:
     
     def record_user_behavior(self, user_id: str, memory_id: str, action: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Record user behavior for recommendation."""
-        # Comment in Chinese removedss control
+        # Alert state trackings control
         if not self.access_control_manager.check_permission(user_id, 'memory', 'write'):
             self.audit_manager.log(user_id, 'access_denied', 'record_user_behavior', {'memory_id': memory_id, 'action': action})
             return {'success': False, 'message': 'Access denied'}
@@ -1852,7 +2176,7 @@ class MemoryClassificationEngine:
     
     def get_user_behavior_summary(self, user_id: str) -> Dict[str, Any]:
         """Get user behavior summary."""
-        # Comment in Chinese removedss control
+        # Alert state trackings control
         if not self.access_control_manager.check_permission(user_id, 'memory', 'read'):
             self.audit_manager.log(user_id, 'access_denied', 'get_user_behavior_summary', {})
             return {'error': 'Access denied'}

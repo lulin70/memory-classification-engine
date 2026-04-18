@@ -71,8 +71,16 @@ Memory Classification Engine adopts a layered architecture design, mainly includ
 |------|------|---------------|----------|
 | Tier 1 | Working Memory | In-memory | Temporary storage, fast access |
 | Tier 2 | Procedural Memory | JSON files | Structured storage, user preferences |
-| Tier 3 | Episodic Memory | SQLite + FTS5 + Vector storage | Large capacity storage, full-text search, vector retrieval |
-| Tier 4 | Semantic Memory | SQLite + Knowledge Graph | Long-term storage, semantic associations, knowledge reasoning |
+| Tier 3 | Episodic Memory | SQLite + FTS5 + Vector storage (FAISS) | Large capacity, full-text search, vector retrieval, dimension-safe index updates |
+| Tier 4 | Semantic Memory | SQLite + Knowledge Graph (NetworkX) | Long-term storage, semantic associations |
+
+#### 2.2.2 Storage Coordinator (Optimized)
+
+**Parallel Query**: `StorageCoordinator` uses `ThreadPoolExecutor(max_workers=3)` for concurrent tier2/tier3/tier4 retrieval during `retrieve_memories()`, reducing sequential I/O wait.
+
+**Hash Index**: `_id_index` dict provides O(1) `get_memory()` lookups by memory ID, with automatic rebuild on miss.
+
+**Cache Integration**: SmartCache with OrderedDict-based LRU eviction (O(1)) + startup warmup (97.83% hit rate).
 
 #### 2.2.2 Storage Implementation
 
