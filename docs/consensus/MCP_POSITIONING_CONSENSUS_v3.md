@@ -1070,7 +1070,193 @@ Mem0 (易用)                                          Supermemory (全能平台
 
 ---
 
-## 8. 共识签字 (v3)
+## 7.5 🔄 分层解耦新架构评审 (v3.1 补充)
+
+**日期**: 2026-04-19 (Phase A+B 完成后)
+**触发**: 用户提出"如果我解耦呢？默认 SQLite 实现"方案
+**参与方**: PM / ARCH / QA / DEV + WORKBUDDY AI 顾问
+
+### 7.5.1 提案概述
+
+**核心思想**: 从"纯上游不存存储"升级为"分层解耦 + 默认可用"
+
+```
+三层架构:
+┌─────────────────────────────────────────────────────┐
+│ Layer 1: 引擎层 (MCE Core) ★ 核心资产              │
+│  • 只管分类: message → MemoryEntry JSON           │
+│  • 零外部依赖（纯规则 + 可选 ML）                  │
+│  • 分类准确率是唯一 KPI                             │
+└──────────────────────┬──────────────────────────────┘
+                       │ MemoryEntry (JSON)
+                       ▼
+┌─────────────────────────────────────────────────────┐
+│ Layer 2: 适配器层 (Storage Adapters)                │
+│  • 统一接口: remember() / recall() / forget()      │
+│  • ABC 定义契约，任何存储实现即可                    │
+│  • 官方适配器: Supermemory / Mem0 / Obsidian        │
+└──────────────────────┬──────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────┐
+│ Layer 3: 默认实现 (SQLite Adapter)                   │
+│  • 开箱即用: pip install 后无需配置                 │
+│  • SQLite 一文件搞定                                 │
+│  • CRUD + FTS5 语义检索 + 遗忘机制                  │
+└─────────────────────────────────────────────────────┘
+
+叙事: "默认就能用，不满意可换"
+类比: "引擎是心脏，适配器是血管，SQLite 是起搏器"
+```
+
+### 7.5.2 WORKBUDDY AI 评价 (已采纳)
+
+> "这个思路比'纯上游只做分类'要好，而且更务实。本质上你做的是**分层解耦**，不是砍掉存储，而是把存储从核心引擎里拆出来变成可插拔的后端。
+>
+> **对用户**: 小白用户一行命令装完就能用，和 Supermemory 体验差不多，上手零门槛。进阶用户可以换成 PostgreSQL/Supabase/Mem0。
+>
+> **对你来说**: 引擎层代码完全不用管存储的事，测试干净，分类准确率才是唯一 KPI。SQLite 适配器是独立模块，写得粗糙也没关系。
+>
+> **唯一的权衡**: 精力分配。建议**引擎层稳定之后再做 SQLite 适配器**，别同时开两条线。
+>
+> 一句话：**心脏先做强，再搭血管。**"
+
+### 7.5.3 四方角色评审矩阵
+
+| 角色 | 投票 | 核心条件 | 主要顾虑 |
+|------|------|---------|---------|
+| 👨‍💼 PM | ✅ 强烈支持 | 上手≤3步，叙事一致 | #1 会否稀释定位? #2 SQLite 够用? |
+| 🏗️ ARCH | ✅ 有条件支持 | Engine 先于 Adapter | #3 是否拖累开发? #4 Schema 分层? |
+| 🧪 QA | ✅ 支持 | 契约测试覆盖 | #5 质量标准? #6 回归风险? |
+| 💻 DEV | ✅ 支持 | 代码量可控 | #7 依赖膨胀? #8 维护成本? |
+
+### 7.5.4 顾虑清单与解答
+
+#### 🔴 PM 顾虑
+
+**#1 会否稀释"纯上游"定位？**
+- **顾虑**: 加了 SQLite 后又变成带存储的系统
+- **解答**: ❌ 不会。关键在**分层清晰**
+  - 对外叙事: MCE 是分类引擎，SQLite 是"让你能跑起来"的便利选项
+  - 类比: Express.js 不因自带 session 存储就变成数据库框架
+  - 文档明确标注: SQLite = 开发/演示用, 生产环境推荐切换下游
+
+**#2 SQLite 会被吐槽"玩具级存储"吗？**
+- **解答**: ⚠️ 可能，但通过**分级定位**缓解
+  - ✅ 开发/Demo/个人项目 → SQLite 默认够用
+  - ⚠️ 生产/团队协作 → 推荐切换到 Supermemory/Mem0
+  - 🔧 高级需求 → 自定义 Adapter
+  - 文档示例: FastAPI 的 Uvicorn (dev) vs Gunicorn (prod)
+
+#### 🟡 ARCH 顾虑
+
+**#3 SQLite Adapter 开发会拖累 Engine 吗？**
+- **解答**: ❌ 不会，**严格串行依赖**
+  ```
+  P0: Engine v0.4.0 (Accuracy ≥85%) ← 当前进行中
+       ↓
+  P1: StorageAdapter ABC (1-2天, 接口定义)
+       ↓  
+  P2: SQLite Adapter v0.5 (3-5天, 基础CRUD) ← 后续迭代
+  ```
+  - Engine pytest 不 import sqlite3
+  - SQLite 测试独立在 tests/adapters/
+
+**#4 MemoryEntry Schema 需要为存储扩展吗？**
+- **解答**: ✅ 采用**双层 Schema 设计**
+  ```python
+  # Layer 1: Classification Output (Engine 定义, 不可变)
+  @dataclass
+  class MemoryEntry:
+      id, type, content, confidence, tier, source_layer, suggested_action, metadata
+  
+  # Layer 2: Storage Extension (Adapter 定义, 可扩展)
+  @dataclass
+  class StoredMemory(MemoryEntry):
+      created_at, updated_at, storage_key, vector_embedding, expiry_date
+  ```
+  - Engine 只产出 Layer 1, Layer 2 由 Adapter 在存储时附加
+
+#### 🟢 QA 顾虑
+
+**#5 SQLite 质量标准是什么？需要 881 tests 吗？**
+- **解答**: ❌ 不需要，**分级别标准**
+  | 组件 | 覆盖率目标 | 关键指标 |
+  |------|-----------|---------|
+  | Engine Core | ≥95% | MCE-Bench F1≥85% |
+  | StorageAdapter ABC | 100% | 所有方法有 mock test |
+  | SQLite Adapter | ≥80% | CRUD+FTS+遗忘 smoke test |
+
+**#6 Engine 升级如何不破坏 Adapter？**
+- **解答**: ✅ **契约测试（Contract Testing）**
+  - 定义 `TestStorageAdapterContract` 基类
+  - 所有 Adapter 必须继承并通过
+  - Engine 升级只需跑 Engine tests + Contract tests
+
+#### 💻 DEV 顾虑
+
+**#7 代码量会增加多少？**
+- **解答**: 预估 **+800~1100 lines**
+  | 模块 | 行数 | 复杂度 |
+  |------|------|--------|
+  | StorageAdapter ABC | ~100 | 低 |
+  | SQLite Adapter | ~500-800 | 中 |
+  | CLI/Web wrapper | ~200 | 低 |
+  - **对比收益**: 上手门槛↓90%, Issue复现↑10x, Demo成本↓80%
+
+**#8 会引入新依赖吗？**
+- **解答**: ❌ Engine 保持零依赖
+  ```
+  pip install memory-classification-engine       # 仅 Engine (零依赖)
+  pip install memory-classification-engine[sqlite] # + SQLite (可选)
+  ```
+  - Python 内置 sqlite3 模块就够用
+  - `apsw` 只是性能优化（可选 extras）
+
+### 7.5.5 共识结论
+
+```
+✅ 全票通过: 采用「分层解耦」新架构 (v3.1 更新)
+
+四大原则:
+1. ★★★★★ Engine First: 分类准确率 ≥85% 才启动 Adapter
+2. Interface Before Implementation: ABC 先行，实现后继
+3. Default but Replaceable: SQLite = 便利选项, 不是锁定
+4. Test Isolation: Engine 测试零存储依赖
+
+执行路线图:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+当前 (v0.3.0 Phase A+B):  Classification Accuracy Overhaul
+  ↓ [进行中]
+P0: Engine v0.4.0 (Accuracy ≥85%, F1≥82%)     ← 当前目标
+  ↓ [预估 1-2 周]
+P1: StorageAdapter ABC + Interface Spec         ← 新增
+  ↓ [预估 3-5 天]
+P2: SQLite Adapter v0.5 (Basic CRUD)            ← 新增
+  ↓ [预估 2-3 天]  
+P3: SQLite v0.6 (FTS5 + Forgetting Mechanism)   ← 新增
+  ↓ [v0.7+]
+P4: Official Adapters (Supermemory/Mem0/Obsidian)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+架构影响评估:
+┌─────────────────────┬──────────┬──────────┐
+│ Metric               │ v3.0     │ v3.1     │
+├─────────────────────┼──────────┼──────────┤
+│ MCP Tools            │ 4        │ 4 (不变) │
+│ Code (layer2_mcp/)  │ ~650行   │ ~650行   │
+│ New: adapters/      │ N/A      │ ~1000行  │
+│ Total Project Size  │ ~15K行   │ ~16K行   │
+│ Test Cases          │ 881      │ 881+     │
+│ Dependencies        │ 零       │ 零(核心) │
+│ User Onboarding     │ 5 steps  │ 1 step  │ ✅
+│ Narrative           │ "安检机"  │ "安检机+起搏器" ✅
+└─────────────────────┴──────────┴──────────┘
+```
+
+---
+
+## 8. 共识签字 (v3.1 更新)
 
 ```
 ================================================================================
