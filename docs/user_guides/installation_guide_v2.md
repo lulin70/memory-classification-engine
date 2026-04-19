@@ -2,7 +2,7 @@
 
 *Memory Classification Engine — Installation, Configuration, and Troubleshooting*
 
-**Version**: 2.0 | **Last Updated**: 2026-04-18 | **Status**: Production Ready (v1.0.0)
+**Version**: 0.2.0 | **Last Updated**: 2026-04-18 | **Status**: Production Ready
 
 ---
 
@@ -25,7 +25,7 @@
 
 | Requirement | Minimum | Recommended | Tested |
 |-------------|---------|-------------|--------|
-| Python | 3.8+ | 3.9+, 3.11+, 3.12+ | 3.9.6 (macOS), 3.10+ (Linux) |
+| Python | **3.9+** | 3.9+, 3.10+, 3.11+, 3.12+ | 3.9.6 (macOS), 3.10+ (Linux) |
 | OS | macOS 10.15+, Ubuntu 18.04+, Windows 10+ | Any with Python 3.8+ | macOS (Apple Silicon), Ubuntu 22.04 |
 | RAM | 256 MB available | 512 MB+ | <100MB typical usage |
 | Disk | 50 MB free | 200 MB+ | ~30 MB for core install |
@@ -90,7 +90,7 @@ pip install scikit-learn       # Recommended for vector optimization
 ```bash
 git clone https://github.com/lulin70/memory-classification-engine.git
 cd memory-classification-engine
-pip install -e ".[dev]"
+pip install -e ".[testing]"  # Or: pip install -e ".[api],[llm],[testing]"
 pytest  # Should show: 874 passed in ~10 min
 ```
 
@@ -136,19 +136,22 @@ MCE ships with a built-in MCP Server (**Production v1.0.0**, Protocol: 2024-11-0
 
 ### 4.1 For Claude Code
 
-**Step 1**: Start the MCP server
+**Step 1**: Start the MCP server (stdio transport for Claude Code/Cursor)
 
 ```bash
-cd mce-mcp
-python3 server.py
+# Option A: Module mode (recommended — works from anywhere)
+python3 -m memory_classification_engine.integration.layer2_mcp
+
+# Option B: Direct path (if running from project root)
+python3 src/memory_classification_engine/integration/layer2_mcp/server.py
 ```
 
 Expected output:
 ```
-MCP Server starting...
+MCP Server initialized
 Version: 1.0.0 (Production)
 Protocol: 2024-11-05
-Listening on stdio transport...
+Ready (stdio transport)
 ```
 
 **Step 2**: Configure Claude Code
@@ -160,13 +163,13 @@ Create or edit `~/.claude/settings.json`:
   "mcpServers": {
     "mce": {
       "command": "python3",
-      "args": ["/absolute/path/to/mce-mcp/server.py"]
+      "args": ["-m", "memory_classification_engine.integration.layer2_mcp"]
     }
   }
 }
 ```
 
-Replace `/absolute/path/to/` with your actual path.
+> **Note**: Use `-m` module mode (Option A above). This works regardless of your current directory.
 
 **Step 3**: Verify in Claude Code
 
@@ -180,14 +183,14 @@ Add to `.cursor/mcp.json`:
 {
   "mce": {
     "command": "python3",
-    "args": ["/path/to/mce-mcp/server.py"]
+    "args": ["-m", "memory_classification_engine.integration.layer2_mcp"]
   }
 }
 ```
 
 ### 4.3 For OpenClaw
 
-Configuration file is provided at `mce-mcp/config/openclaw_config.json`.
+Configuration template is available at `mce-mcp/config/` (see `advanced_rules.json` for reference format). OpenClaw-specific config coming in v0.3.0.
 
 ---
 
@@ -199,7 +202,7 @@ Configuration file is provided at `mce-mcp/config/openclaw_config.json`.
 |----------|---------|-------------|
 | `MCE_LLM_API_KEY` | None | API key for LLM backend (ZhipuAI/OpenAI) |
 | `MCE_LLM_ENABLED` | `false` | Enable Layer 3 semantic classification |
-| `MCE_LLM_PROVIDER` | `zhipuai` | LLM provider: `zhipuai`, `openai`, `ollam` |
+| `MCE_LLM_PROVIDER` | `zhipuai` | LLM provider: `zhipuai`, `openai`, `ollama` |
 | `MCE_DATA_PATH` | `./data` | Base directory for storage files |
 | `MCE_LOG_LEVEL` | `INFO` | Logging level: DEBUG, INFO, WARNING, ERROR |
 | `MCE_CACHE_SIZE` | `1000` | Maximum cache entries |
@@ -302,7 +305,7 @@ Run through this checklist after installation to confirm everything works:
 
 ### MCP Server (if installed)
 
-- [ ] Server starts without error: `cd mce-mcp && python3 server.py`
+- [ ] Server starts without error: `python3 -m memory_classification_engine.integration.layer2_mcp`
 - [ ] Version shows `1.0.0` in startup output
 - [ ] Protocol version shows `2024-11-05`
 - [ ] Tools are visible in Claude Code/Cursor (`/mcp` command)
@@ -489,8 +492,9 @@ export MCE_OBSIDIAN_VAULT=/path/to/your/vault
 # Use compact mode for speed-critical lookups
 engine.retrieve_memories("keyword", retrieval_mode='compact')  # <10ms
 
-# Batch operations where possible
-engine.process_batch(messages)  # More efficient than individual calls
+# Individual calls are fine for typical workloads (<100 msgs/day)
+for msg in messages:
+    engine.process_message(msg)
 ```
 
 #### Issue: Memory usage growing over time
@@ -515,12 +519,11 @@ engine.compress_memories(tenant_id="default", force=True)  # Aggressive compress
 
 **Fix**:
 ```python
-# Archive old low-weight memories (configurable threshold)
-engine.archive_low_weight_memories(weight_calculator=default_calc)
-
-# Run full optimization
+# Run full optimization (GC + cache reduction + compression)
 engine.optimize_system()
 ```
+
+> **Note**: MCE has automatic memory management (monitor thread at 80%/90% thresholds). Manual optimization is rarely needed.
 
 Also consider: `rm -rf data/*.db && rm -rf data/*-journal` to reset storage (loses all stored memories).
 
@@ -550,7 +553,7 @@ git pull && pip install -e .
 After successful installation and verification:
 
 1. **Read the blog post**: [Why Your Agent Needs Professional Memory Classification](./blog/why-your-agent-needs-professional-memory-classification.md)
-2. **Try the quick example**: See `examples/quickstart.py`
+2. **Try the quick example**: See `examples/basic_usage.py` or `examples/complete_example.py`
 3. **Configure MCP for your editor**: Follow Section 4 for Claude Code / Cursor setup
 4. **Explore adaptive modes**: Try all three `retrieval_mode` options with your data
 5. **Check the API reference**: See [API_REFERENCE_V1.md](../api/API_REFERENCE_V1.md) for complete SDK/MCP/REST documentation
@@ -564,6 +567,6 @@ After successful installation and verification:
 
 ---
 
-**Document Version**: 2.0
+**Document Version**: 0.2.0
 **Last Updated**: 2026-04-18
-**Tested Against**: MCE v1.0.0 Production (874 tests passing, 0 failures)
+**Tested Against**: MCE v0.2.0 (874 tests passing, 0 failures, Demo 26/30 = 87%)

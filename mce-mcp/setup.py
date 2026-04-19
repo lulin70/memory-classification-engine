@@ -2,13 +2,13 @@ from setuptools import setup, find_packages
 
 setup(
     name="mce-mcp-server",
-    version="1.0.0",
+    version="0.2.0",
     description="Memory Classification Engine MCP Server for Claude Code, Cursor and other MCP-supported tools",
     author="lulin70",
     author_email="lulin70@example.com",
     packages=find_packages(),
     install_requires=[
-        "memory-classification-engine>=0.4.0",
+        "memory-classification-engine>=0.2.0",
         "PyYAML",
     ],
     entry_points={
