@@ -4,28 +4,31 @@
 
 | Version | Date | Updater | Update Content | Review Status |
 |---------|------|---------|---------------|---------------|
-| v0.2.1 | 2026-04-19 | Engineering Team | **Pure Upstream Positioning**: README rewritten with "Classification First" narrative, MCP tools marked deprecated (8 storage → removed in v0.3), STORAGE_STRATEGY.md created, consensus v3 (Route B decision) | Reviewed |
-| v0.2.0 | 2026-04-18 | Engineering Team | Phase 1 optimization complete (-74% process_message), Phase 2 features delivered, MCP Server Production, **874 tests**, Demo 26/30 (87%) | Reviewed |
+| **v0.3.1** | 2026-04-19 | Engineering Team + Four-Role Review | **Phase A+B Classification Overhaul** (Precision 40%→94%, F1 57%→84%), **Layered Decoupling Architecture** (v3.1 consensus), Project structure cleanup, MCE-Bench 180-case benchmark, Tech terms whitelist 7→200+ | Reviewed |
+| v0.2.1 | 2026-04-19 | Engineering Team | Pure Upstream Positioning: README rewritten, MCP tools deprecated, STORAGE_STRATEGY.md created, consensus v3 (Route B decision) | Reviewed |
+| v0.2.0 | 2026-04-18 | Engineering Team | Phase 1 optimization complete (-74%), Phase 2 features delivered, MCP Server Production, **874 tests**, Demo 26/30 (87%) | Reviewed |
 
 ---
 
-## Vision
+## Vision (Updated v3.1)
 
 **MCE is the standard memory classification middleware for AI agents.**
 
 Like how **ChromaDB** is synonymous with vector storage, MCE aims to become synonymous with **memory classification** — the "security scanner" that decides what enters any memory system.
 
-**Product positioning**: *"Your Agent uses Supermemory/Mem0/Obsidian to STORE memories. MCE tells it WHAT to store."*
+**Product positioning (v3.1)**: *"Your Agent uses Supermemory/Mem0/Obsidian to STORE memories. MCE tells it WHAT to store. And by default, you can use our built-in SQLite adapter to get started immediately."*
 
-**Core narrative**: Classification First. Store Later. Your Choice.
+**Core narrative (v3.1)**: **Classify First. Store Later. Default Works. Your Choice.**
+
+**Architecture metaphor**: *"Engine is the heart, Adapters are the blood vessels, SQLite is the pacemaker."* — WORKBUDDY AI
 
 ---
 
-## Strategic Decision: Pure Upstream Route (2026-04-19)
+## Strategic Decisions
 
-**Decision document**: [MCP_POSITIONING_CONSENSUS_v3.md](./docs/consensus/MCP_POSITIONING_CONSENSUS_v3.md)
+### Decision #1: Pure Upstream Route (2026-04-19, v3.0)
 
-### What Changed
+**Document**: [MCP_POSITIONING_CONSENSUS_v3.md](./docs/consensus/MCP_POSITIONING_CONSENSUS_v3.md)
 
 | Before (v0.2.0) | After (v0.3.0+) |
 |------------------|-------------------|
@@ -33,14 +36,65 @@ Like how **ChromaDB** is synonymous with vector storage, MCE aims to become syno
 | "Memory classification engine" | "Memory classification **middleware**" |
 | Competes with Supermemory / Mem0 | **Complements** them (downstream customers) |
 | Built-in SQLite storage required | Storage delegated via **StorageAdapter ABC** |
-| Narrative: "Don't remember everything" | Narrative: "**Classify before you store**" |
 
-### Why This Decision
+### Decision #2: Layered Decoupling Architecture (2026-04-19, v3.1) ⭐ NEW
 
-1. **Supermemory has YC + Benchmark #1 + Cloudflare infra.** Cannot compete on storage.
-2. **Mem0 has 18k Stars + vector+graph hybrid.** Their storage is battle-tested.
-3. **But NONE of them classify before storing.** That's the gap — and MCE owns it.
-4. **60%+ of messages don't need LLM processing.** That's independent value, no storage needed.
+**Document**: [MCP_POSITIONING_CONSENSUS_v3.md#7.5](./docs/consensus/MCP_POSITIONING_CONSENSUS_v3.md#75--layered-decoupling-new-architecture-review-v31-)
+
+**Four-role review result**: ✅ UNANIMOUS (5/5 approval including WORKBUDDY AI)
+
+```
+Three-Layer Architecture:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌─────────────────────────────────────────────────────┐
+│ Layer 1: ENGINE CORE ★★★★★ (核心资产)              │
+│                                                     │
+│  • Only classifies: message → MemoryEntry JSON     │
+│  • Zero external dependencies (pure rules + ML)     │
+│  • Classification accuracy = ONLY KPI               │
+│  • Current: Precision 94.1%, F1 84.2%              │
+│  • Target: Accuracy ≥85%, F1 ≥82%                  │
+└──────────────────────┬──────────────────────────────┘
+                       │ MemoryEntry (JSON)
+                       ▼
+┌─────────────────────────────────────────────────────┐
+│ Layer 2: STORAGE ADAPTERS (可插拔后端)             │
+│                                                     │
+│  Unified Interface (ABC):                           │
+│    • remember(entry) — Store memory                │
+│    • recall(query)   — Retrieve memories           │
+│    • forget(id)      — Delete/expiry               │
+│                                                     │
+│  Official Adapters (planned):                       │
+│    • SQLiteAdapter      ← Default implementation   │
+│    • SupermemoryAdapter  ← Production recommended   │
+│    • ObsidianAdapter     ← Note-taking users       │
+│    • Mem0Adapter         ← Vector+graph users      │
+│    • Custom Adapter      ← User-defined            │
+└──────────────────────┬──────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────┐
+│ Layer 3: SQLITE ADAPTER (默认实现，开箱即用)        │
+│                                                     │
+│  • One-file database (SQLite)                      │
+│  • Basic CRUD operations                            │
+│  • FTS5 full-text search                           │
+│  • Forgetting mechanism (tier/time-based expiry)   │
+│  • Development/Demo use (NOT production default)    │
+└─────────────────────────────────────────────────────┘
+
+Key Principle: "Default works out-of-the-box,
+                replace if unsatisfied"
+```
+
+### Why This Architecture?
+
+1. **Lower onboarding barrier**: From "configure storage yourself" → `pip install && mce run`
+2. **Engine isolation**: Core code stays clean, tests don't import sqlite3
+3. **Future-proof**: Any storage backend just implements 3 methods
+4. **Express.js analogy**: Doesn't become DB framework because of built-in session store
 
 ---
 
@@ -57,7 +111,6 @@ Like how **ChromaDB** is synonymous with vector storage, MCE aims to become syno
 | Test Suite | **874 tests passing, 0 failing** |
 | Demo | 26/30 scenarios passing (87%) |
 | MCP Server | stdio transport, 11 tools (3 core + 8 deprecated) |
-| Documentation | README + Installation Guide + API Reference + Consensus docs |
 
 ### Phase 0: Pure Upstream Positioning ✅ (2026-04-19)
 
@@ -67,204 +120,379 @@ Like how **ChromaDB** is synonymous with vector storage, MCE aims to become syno
 |------|------|--------|
 | Tools deprecation | [tools.py](../src/memory_classification_engine/integration/layer2_mcp/tools.py) | 8 storage tools marked `[Deprecated v0.3]` |
 | Version fix | [server.py](../src/memory_classification_engine/integration/layer2_mcp/server.py) | serverInfo 0.1.0 → 0.2.0 |
-| HTTP server deprecation | [mce-mcp/server.py](../mce-mcp/mce_mcp_server/server.py) | DEPRECATED block comment added |
 | README rewrite | [README.md](../README.md) | "Classification First" narrative, FAQ, architecture diagram |
 | Storage strategy guide | [STORAGE_STRATEGY.md](../docs/user_guides/STORAGE_STRATEGY.md) | NEW — Supermemory/Mem0/Obsidian integration guide |
-| Install guide update | [installation_guide_v2.md](../docs/user_guides/installation_guide_v2.md) | MCP section aligned with pure upstream mode |
 | Consensus docs | [MCP_POSITIONING_CONSENSUS_v3.md](../docs/consensus/) | Full strategic decision document (Route B) |
+
+### Phase 1: Classification First Narrative ✅ (2026-04-19)
+
+**Status**: Committed (`f050aa05`), pushed
+
+- README.md FULL REWRITE (~553 lines)
+- ROADMAP.md v3.0.0 rewrite
+- i18n sync: -ZH→CN rename + 4 locale files (EN/CN/JP × README/Roadmap)
+
+### Phase 2: Pure Upstream Code Migration ✅ (2026-04-19)
+
+**Status**: Committed (`18c11d8b`), pushed
+
+| Task | Change |
+|------|--------|
+| V3-MCP-01 | tools.py REWRITE (389→283 lines, -27%, 11→4 tools) |
+| V3-MCP-02 | handlers.py REWRITE (674→259 lines, -62%) |
+| V3-MCP-03 | engine.py: new `to_memory_entry()` method |
+| V3-MCP-04 | adapters/base.py NEW (StorageAdapter ABC + MemoryEntry dataclass) |
+| V3-MCP-05 | adapters/builtin.py NEW (BuiltInStorageAdapter @deprecated) |
+
+### Phase A+B: Classification Accuracy Overhaul ✅ (2026-04-19) ⭐ MAJOR
+
+**Status**: Committed (`f8bdf254`), pushed
+**Benchmark**: MCE-Bench v1.0 (180 cases)
+
+#### Phase A Fixes (Noise Filtering)
+
+| Fix | Description | Impact |
+|-----|-------------|--------|
+| #1 | `_is_noise()` noise blacklist system | TN: 0→54, FP: 72→1 (-99%) |
+| #2 | fact_declaration tightening (min length + tech terms) | Reduced false positives on short text |
+| #3 | task_pattern initial enhancement (40+ action verbs) | Foundation for Phase B |
+
+#### Phase B Fixes (Detection Rewrite)
+
+| Fix | Description | Impact |
+|-----|-------------|--------|
+| #2b | Tech terms whitelist expansion: **7 → 200+ terms** | QA expert review complete coverage |
+| B-1 | task_pattern COMPLETE REWRITE (workflow/habit/recurring patterns) | 15+ new regex patterns |
+| B-2 | decision detection REWRITE (removed noise words, 15+ strong patterns) | Confidence grading Strong(0.75)/Weak(0.65) |
+| B-3 | user_preference ENHANCEMENT (8 structured patterns, 40+ keywords) | Coding context awareness |
+| B-4 | Detector priority REORDER (task/decision BEFORE fact) | Prevents fact from stealing matches |
+| B-5 | Exception handling for language detection fallback | Prevents analyze() returning None |
+
+#### CRITICAL BUG FIX
+
+🔴 **`analyze()` method truncation bug resolved**
+- Root cause: `_is_noise()` insertion broke method structure (orphan code outside method)
+- Impact: All Phase B modifications were in non-executing code region
+- Fix: Complete restructure of `analyze()` with proper detector loop
+
+#### MCE-Bench v1.0 Results (180 cases)
+
+```
+┌─────────────────────┬──────────┬──────────┐
+│ Metric               │ Before    │ After     │
+├─────────────────────┼──────────┼──────────┤
+│ Precision            │ 40.5%    │ 94.1%     │ (+53.6pp)│
+│ F1 Score             │ 57.7%    │ 84.2%     │ (+26.5pp)│
+│ FP Rate              │ 40%      │ 0.6%      │ (-99%)   │
+│ TN (True Negatives)  │ 0        │ 54        │ (+54)    │
+│ Type Mismatch        │ N/A      │ 27        │ Stable  │
+└─────────────────────┴──────────┴──────────┘
+```
+
+### Project Structure Cleanup ✅ (2026-04-19)
+
+**Status**: Included in `f8bdf254`
+
+- Removed 16+ temporary debug files (debug_*, test_*, verify_*, monkey_*, ...)
+- Reorganized docs/ directory (created planning/, config/, moved 17 files)
+- Created [docs/README.md](./docs/README.md) documentation index
+- Updated .gitignore with comprehensive rules
 
 ---
 
-## Current Version: v0.2.0 (Stable)
+## Current Version: v0.3.1 (Post-Phase A+B)
 
 ### What's Included
 
 ```
-MCE v0.2.0
-├── Core Classification Engine
-│   ├── Layer 1: Rule Matching (60%+ coverage, zero cost)
-│   ├── Layer 2: Pattern Analysis (30%+, zero LLM)
-│   ├── Layer 3: Semantic Inference (<10%, LLM fallback)
-│   ├── 7 Memory Types (user_preference / correction / fact / decision / relationship / pattern / sentiment)
-│   ├── 4 Suggested Tiers (sensory / procedural / episodic / semantic)
-│   ├── Feedback Loop (auto-learning from corrections)
-│   └── Distillation Router (cost-aware routing)
+MCE v0.3.1 (Post-Phase A+B)
+├── Core Classification Engine (Layer 1: ENGINE CORE ★)
+│   ├── Pattern Analyzer (rule-based, zero LLM cost)
+│   │   ├── _is_noise() — Noise filtering system (NEW Phase A)
+│   │   ├── 7 Memory Types with enhanced detection
+│   │   │   ├── user_preference (8 patterns, 40+ keywords)
+│   │   │   ├── correction (7 structural regex patterns)
+│   │   │   ├── fact_declaration (200+ tech terms whitelist)
+│   │   │   ├── decision (15+ strong decision patterns)
+│   │   │   ├── task_pattern (workflow/habit/recurring, 15+ patterns)
+│   │   │   ├── relationship & sentiment_marker
+│   │   │   └── location
+│   │   ├── Detector priority: task/decision BEFORE fact (Phase B-4)
+│   │   └── Exception handling for robustness (Phase B-5)
+│   ├── 4 Suggested Tiers (sensory → semantic)
+│   ├── to_memory_entry() — MemoryEntry Schema v1.0 output
+│   └── ClassificationPipeline (with noise filter at pipeline level)
 │
-├── MCP Server (stdio, Production)
-│   ├── classify_memory     ← Core (keep in v0.3)
-│   ├── batch_classify      ← Core (keep in v0.3)
-│   ├── mce_status          ← Core (keep in v0.3)
-│   ├── store_memory        ← ⚠️ Deprecated v0.3
-│   ├── retrieve_memories   ← ⚠️ Deprecated v0.3
-│   ├── get_memory_stats    ← ⚠️ Deprecated v0.3
-│   ├── find_similar        ← ⚠️ Deprecated v0.3
-│   ├── export_memories     ← ⚠️ Deprecated v0.3
-│   ├── import_memories     ← ⚠️ Deprecated v0.3
-│   ├── mce_recall          ← ⚠️ Deprecated v0.3
-│   └── mce_forget          ← ⚠️ Deprecated v0.3
+├── MCP Server (stdio, Production Ready)
+│   ├── classify_message     ← Core tool #1
+│   ├── get_classification_schema  ← Core tool #2 (NEW in v0.3)
+│   ├── batch_classify      ← Core tool #3
+│   └── mce_status          ← Core tool #4
 │
-└── Built-in Storage (SQLite)
-    └── Will be wrapped as BuiltInStorageAdapter @deprecated in v0.3
+├── Storage Layer (Layer 2+3: PLANNED per v3.1 consensus)
+│   ├── adapters/base.py    ← StorageAdapter ABC (EXISTS, interface defined)
+│   ├── adapters/builtin.py ← BuiltInStorageAdapter (@deprecated wrapper)
+│   └── [FUTURE] SQLite Adapter (v0.5 target)
+│       ├── remember(entry) — Store memory
+│       ├── recall(query)   — Retrieve with filters
+│       └── forget(id)      — Delete / time-based expiry
+│
+├── Quality Assurance
+│   ├── MCE-Bench v1.0 (180-case classification accuracy benchmark) ⭐ NEW
+│   │   ├── 5 User Stories mapped to test categories
+│   │   ├── 90 Positive cases (should remember)
+│   │   ├── 55 Negative cases (noise to filter)
+│   │   └── 35 Edge cases (boundary conditions)
+│   ├── 881 tests passing (regression after Phase A+B)
+│   └── Per-type F1 scoring system
+│
+└── Documentation (mature project structure)
+    ├── docs/README.md (documentation index) ⭐ NEW
+    ├── README / README-CN / README-JP (i18n complete)
+    ├── ROADMAP / ROADMAP-CN / ROADMAP-JP (i18n complete)
+    └── docs/consensus/MCP_POSITIONING_CONSENSUS_v3.md (v3.1 updated)
 ```
 
 ---
 
-## Next: v0.3.0 — Pure Upstream Migration
+## Next: v0.4.0 — Engine Optimization (Engine First 🎯)
 
-**Target**: ~6 person-days | **Breaking Change**: Yes (8 MCP tools removed)
+**Target**: Continue classification accuracy improvement per **Engine First principle**
+**Estimated effort**: ~5-7 person-days
+**Breaking Change**: No (internal improvements only)
 
-### V3-MCP-01: tools.py Rewrite (11 → 4 tools)
+### Current MCE-Bench Status (180 cases)
 
-Remove 8 deprecated storage tools. Keep only:
-
-| Tool | Purpose |
-|------|---------|
-| `classify_message` | Classify single message → MemoryEntry JSON |
-| `get_classification_schema` | Return 7-type + 4-tier definition for downstream mapping |
-| `batch_classify` | Batch classify → MemoryEntry[] |
-| `mce_status` | Engine status (version, capabilities, uptime) |
-
-### V3-MCP-02: handlers.py Rewrite (-422 lines)
-
-Delete 8 storage handler methods. Modify `handle_classify_memory` to output MemoryEntry Schema v1.0 format. Add `handle_get_classification_schema`.
-
-### V3-MCP-03: engine.py — New `to_memory_entry()` Method
-
-Convert `process_message()` result into standardized MemoryEntry JSON:
-
-```json
-{
-  "schema_version": "1.0.0",
-  "should_remember": true,
-  "entries": [{
-    "id": "mce_20260419_001",
-    "type": "user_preference",
-    "confidence": 0.95,
-    "tier": 2,
-    "source_layer": "rule",
-    "reasoning": "...",
-    "suggested_action": "store",
-    "metadata": {...}
-  }],
-  "summary": {...},
-  "engine_info": {"mode": "classification_only"}
-}
+```
+┌─────────────────────┬──────────┬──────────┬──────────┐
+│ Metric               │ Current  │ Target   │ Gap      │
+├─────────────────────┼──────────┼──────────┼──────────┤
+│ Accuracy             │ 38.9%    │ ≥85%     │ -46.1pp  │
+│ Precision            │ 94.1%    │ ≥80%     │ ✅ MET   │
+│ F1 Score             │ 84.2%    │ ≥82%     │ -3.8pp   │
+│ Recall               │ 76.2%    │ ≥80%     │ -3.8pp   │
+│ FP Rate              │ 0.6%     │ ≤10%     │ ✅ MET   │
+│ FN Rate              │ 2.8%     │ ≤20%     │ ✅ MET   │
+│ task_pattern F1      │ 0.0%     │ ≥50%     │ -50pp    │
+│ correction F1        │ 0.0%     │ ≥60%     │ -60pp    │
+│ fact_declaration F1  │ 0.0%     │ ≥50%     │ -50pp    │
+└─────────────────────┴──────────┴──────────┴──────────┘
 ```
 
-### V3-MCP-04: StorageAdapter ABC (New Abstract Layer)
+### V4-01~03: Weak Type Recovery (P0, Survival-Critical)
+
+| Task | Type | Target | Approach |
+|------|------|--------|---------|
+| V4-01 | **task_pattern** | F1 0% → ≥50% | Investigate why direct test passes but benchmark fails; likely _is_noise over-filtering |
+| V4-02 | **correction** | F1 0% → ≥60% | May be affected by priority reorder or noise filter |
+| V4-03 | **fact_declaration** | F1 0% → ≥50% | Phase A tightening may be too aggressive; relax with tech-term requirement |
+
+### V4-04~06: Overall Accuracy Push
+
+| Task | Description |
+|------|-------------|
+| V4-04 | **Multi-type message handling**: When message matches multiple types, use confidence-based priority (reduce Type Mismatch from 27) |
+| V4-05 | **Context-aware filtering**: Use message_history to distinguish acknowledgment-in-context from standalone acknowledgment |
+| V4-06 | **MCE-Bench case expansion**: Add 50+ real-world messages from Claude Code / Cursor sessions |
+
+### V4-07~08: Testing & Quality
+
+| Task | Description |
+|------|-------------|
+| V4-07 | Full regression run (target: 881+ all green after changes) |
+| V4-08 | MCE-Bench re-run (target: Accuracy ≥70%, F1 ≥85%) |
+
+---
+
+## Future Milestones (Post-v0.4, per v3.1 Consensus)
+
+### ⚠️ IMPORTANT: Execution Order Principle
+
+```
+★★★★★ Engine First: Do NOT start Adapter work until:
+  - MCE-Bench Accuracy ≥85%
+  - All 7 types have F1 ≥50%
+  - Engine tests remain zero-storage-dependency
+
+Rationale from WORKBUDDY AI:
+"Heart must be strong before building blood vessels."
+```
+
+### v0.5.0 — StorageAdapter ABC + Interface Spec
+
+**Prerequisite**: v0.4.0 complete (Accuracy ≥85%)
+**Effort**: ~1-2 person-days
+
+| Task | Description |
+|------|-------------|
+| V5-01 | Finalize StorageAdapter ABC interface (`remember/recall/forget`) |
+| V5-02 | Define `StoredMemory` dataclass (extends MemoryEntry with storage fields) |
+| V5-03 | Write contract tests (`TestStorageAdapterContract`) for all future adapters |
+| V5-04 | Document adapter development guide for community contributors |
 
 ```python
+# Target Interface (v5-01)
 class StorageAdapter(ABC):
-    def store(self, entry: MemoryEntry) -> str: ...
-    def store_batch(self, entries: List[MemoryEntry]) -> List[str]: ...
-    def retrieve(self, query: str, limit: int) -> List[Dict]: ...
-    def delete(self, storage_id: str) -> bool: ...
-    def get_stats(self) -> Dict: ...
+    """Unified storage interface for MCE memory entries."""
+    
+    async def remember(self, entry: MemoryEntry) -> StoredMemory:
+        """Store a memory entry. Returns stored version with metadata."""
+        ...
+    
+    async def recall(self, query: str, filters: Dict = None, limit: int = 20) -> List[StoredMemory]:
+        """Retrieve memories matching query and optional filters."""
+        ...
+    
+    async def forget(self, memory_id: str) -> bool:
+        """Delete a memory by ID. Returns True if deleted."""
+        ...
+    
     @property
-    def name(self) -> str: ...       # e.g. "supermemory", "obsidian"
+    def name(self) -> str:
+        """Human-readable adapter name (e.g., 'SQLite', 'Supermemory')."""
+        ...
+    
     @property
-    def capabilities(self) -> Dict: ...  # {"vector_search": True, ...}
+    def capabilities(self) -> Dict[str, bool]:
+        """Supported features (e.g., {'vector_search': True, 'fts': False})."""
+        ...
 ```
 
-### V3-MCP-05: BuiltInStorageAdapter (@deprecated)
+### v0.6.0 — SQLite Default Adapter
 
-Wrap current SQLite logic as adapter. Mark `@deprecated`. For transition compatibility only.
+**Prerequisite**: v0.5.0 complete
+**Effort**: ~3-5 person-days
+**Positioning**: "Development/Demo default, NOT production recommendation"
 
-### V3-06~08: Classification Accuracy Fixes
+| Task | Description | Priority |
+|------|-------------|----------|
+| V6-01 | SQLite database schema design (memories table + FTS5 index) | P0 |
+| V6-02 | Basic CRUD implementation (remember/recall/forget) | P0 |
+| V6-03 | FTS5 full-text search integration | P1 |
+| V6-04 | Forgetting mechanism (tier-based expiry + time-based auto-cleanup) | P1 |
+| V6-05 | CLI wrapper: `mce run` starts local server with SQLite backend | P2 |
+| V6-06 | Adapter test suite (target ≥80% coverage, separate from Engine tests) | P0 |
 
-- A3.2: correction type accuracy improvement
-- A3.5: sentiment_marker accuracy improvement
-- Goal: classification accuracy >85% on clear messages
+**Quality Standard (per QA tiered approach)**:
 
-### V3-09~14: Testing Overhaul
+| Component | Coverage Target | Key Metrics |
+|----------|----------------|-------------|
+| SQLiteAdapter | ≥80% | CRUD smoke test, FTS retrieval, forget verification |
+| Contract Tests | 100% | All ABC methods tested with mock |
+| Integration (Engine+SQLite) | ≥50% | End-to-end classify→store→recall flow |
 
-| Task | Description |
-|------|-------------|
-| V3-09 | **MCE-Bench 180-case** — classification accuracy benchmark (P0, survival-critical) |
-| V3-10 | Fuzz testing (1000 random inputs, verify no crashes) |
-| V3-11 | MCP integration tests (4 tools only, no DB dependency) |
-| V3-12 | Full regression (target: 874+ all green) |
+### v0.7.0 — Official Downstream Adapters
 
-### V3-15~17: Documentation & Case Study
+**Prerequisite**: v0.6.0 stable
+**Effort**: ~5-8 person-days (all adapters)
 
-| Task | Description |
-|------|-------------|
-| V3-15 | Migration guide (v0.2 → v0.3: data export script) |
-| V3-16 | Case study: "MCE + Supermemory = Complete Memory Pipeline" |
-| V3-17 | Updated installation guide (pure classification mode default) |
+| Adapter | Priority | Effort | Use Case |
+|---------|----------|--------|----------|
+| **SupermemoryAdapter** | P0 | ~2d | Production users wanting cloud sync |
+| **ObsidianAdapter** | P0 | ~1.5d | Note-taking / PKM users |
+| **Mem0Adapter** | P1 | ~1.5d | Vector+graph hybrid users |
+| **JSONFileAdapter** | P1 | ~0.5d | Simple local persistence |
+| **PostgreSQLAdapter** | P2 | ~2d | Enterprise / team collaboration |
 
----
+### v0.8.0 — Ecosystem & Polish
 
-## Future Milestones (Post-v0.3)
+| Feature | Description |
+|---------|-------------|
+| Web Dashboard | Simple UI to browse classified memories (optional dependency) |
+| Plugin System | Community adapter loading via entry_points |
+| MCE-Bench Public | 180-case dataset + leaderboard format |
+| i18n Expansion | FR/DE/KO locale support |
 
-### v0.4.0 — Official Downstream Adapters
+### v1.0.0 — Industry Standard Vision
 
-| Adapter | Priority | Effort |
-|---------|----------|--------|
-| **SupermemoryAdapter** | P0 | ~2d |
-| **ObsidianAdapter** | P0 | ~1.5d |
-| **Mem0Adapter** | P1 | ~1.5d |
-| **JSONFileAdapter** (default fallback) | P0 | ~0.5d |
-
-### v0.5.0 — `get_classification_schema` Enhancement
-
-- Downstream auto-mapping tables (MCE type → Supermemory tag → Mem0 category → Obsidian folder)
-- Schema versioning (v1.0 → v1.1 backward compatible)
-- Web UI for schema browser
-
-### v0.6.0 — MCE-Bench Public Release
-
-- 180-case standard benchmark dataset
-- Leaderboard format (accuracy / latency / cost per 1k msgs)
-- Open for community submissions
-- Target: >90% accuracy on clear messages
-
-### v1.0.0 — Industry Standard
-
-- Classification accuracy >95%
+- Classification accuracy >95% on clear messages
 - Official adapters for 5+ downstream systems
-- Community-contributed adapters ecosystem
-- Academic paper: "Why Classification Matters More Than Storage for AI Memory"
+- Community-contributed adapter ecosystem
+- Academic paper potential: *"Why Classification Matters More Than Storage for AI Memory Systems"*
 
 ---
 
 ## Architecture Evolution
 
 ```
-v0.2.0 (CURRENT)                    v0.3.0 (NEXT)                     v1.0.0 (VISION)
-┌─────────────┐                   ┌─────────────┐                   ┌─────────────┐
-│  MCP Server  │                   │  MCP Server  │                   │  MCP Server  │
-│  11 tools    │                   │  4 tools     │                   │  4 tools     │
-│  (8 deprec.) │ ──breaking─────▶  │  (pure class)│                   │  (pure class)│
-└──────┬──────┘                   └──────┬──────┘                   └──────┬──────┘
-       │                                 │                                 │
-┌──────▼──────┐                   ┌──────▼──────┐                   ┌──────▼──────┐
-│   Engine     │                   │   Engine     │                   │   Engine     │
-│  (monolithic)│                   │  (+to_memory  │                   │  (optimized)  │
-│             │                   │   _entry())   │                   │  (>95% acc.)  │
-└──────┬──────┘                   └──────┬──────┘                   └──────┬──────┘
-       │                                 │                                 │
-┌──────▼──────┐                   ┌──────▼──────┐                   ┌──────▼──────┐
-│  SQLite     │                   │ Adapter ABC  │                   │ Adapter Eco │
-│  (hardcoded) │                   │  + BuiltIn   │                   │ (5+ official)│
-└─────────────┘                   │  (deprecated)│                   │ + community │
-                                 └──────┬──────┘                   └─────────────┘
-                                        │
-                              ┌───────────┼───────────┐
-                              ▼           ▼           ▼
-                         [Supermem]   [Obsidian]   [Mem0]   ...more
+v0.2.0 (MONOLITHIC)               v0.3.0 (PURE UPSTREAM)          v0.4.0 (ENGINE OPTIMIZED)        v1.0.0 (VISION)
+┌─────────────┐                   ┌─────────────┐                   ┌─────────────┐                   ┌─────────────┐
+│  MCP Server  │                   │  MCP Server  │                   │  MCP Server  │                   │  MCP Server  │
+│  11 tools    │                   │  4 tools     │                   │  4 tools     │                   │  4 tools     │
+│  (8 deprec.) │ ──breaking─────▶  │  (pure class)│                   │  (pure class)│                   │  (pure class)│
+└──────┬──────┘                   └──────┬──────┘                   └──────┬──────┘                   └──────┬──────┘
+       │                                 │                                 │                                 │
+┌──────▼──────┐                   ┌──────▼──────┐                   ┌──────▼──────┐                   ┌──────▼──────┐
+│   Engine     │                   │   Engine     │                   │   Engine     │                   │   Engine     │
+│  (monolithic)│                   │  (+to_memory  │                   │  (>95% acc.) │                   │  (>95% acc.) │
+│             │                   │   _entry())   │                   │  (optimized)  │                   │  (industry)  │
+└──────┬──────┘                   └──────┬──────┘                   └──────┬──────┘                   └──────┬──────┘
+       │                                 │                                 │                                 │
+┌──────▼──────┐                   ┌──────▼──────┐                   ┌──────▼──────┐                   ┌──────▼──────┐
+│  SQLite     │                   │ Adapter ABC  │                   │ Adapter ABC  │                   │ Adapter Eco │
+│  (hardcoded) │                   │  + BuiltIn   │                   │  + SQLite   │                   │ (5+ official)│
+└─────────────┘                   │  (deprecated)│                   │  (default)   │                   │ + community │
+                                 └─────────────┘                   └──────┬──────┘                   └─────────────┘
+                                                                   │
+                                                          ┌───────────┼───────────┐
+                                                          ▼           ▼           ▼
+                                                     [Supermem]   [Obsidian]   [Mem0]   [Custom]
+                                                      (official)   (official)   (official)
+
+━━━ v3.1 LAYERED DECOUPLING (NEW) ━━━━━━━━━━━━━━━━━━━━━
+
+v0.3.1 (CURRENT — Post Phase A+B)      v0.5.0 (PLANNED)                  v0.7.0 (PLANNED)
+┌─────────────────────┐            ┌─────────────────────┐            ┌─────────────────────┐
+│  LAYER 1: ENGINE    │            │  LAYER 2: ABC       │            │  ADAPTERS           │
+│  ★ Core Asset       │            │  Interface Spec     │            │  (Ecosystem)         │
+│                     │            │                     │            │                     │
+│  Precision: 94.1%   │            │  remember()         │            │  SupermemoryAdapter  │
+│  F1: 84.2%          │   ──P0──▶  │  recall()           │   ──P0──▶   │  ObsidianAdapter     │
+│  TN: 54 / FP: 1     │            │  forget()           │            │  Mem0Adapter         │
+│  Tech terms: 200+   │            │                     │            │  Community adapters  │
+│  MCE-Bench: 180     │            └──────────┬──────────┘            │  (via entry_points)  │
+└──────────┬──────────┘                       │                       └─────────────────────┘
+           │                                │
+           │                    ┌───────────▼──────────┐
+           │                    │  LAYER 3: DEFAULT     │
+           │                    │  SQLite Adapter      │
+           │                    │  (v0.6 target)        │
+           │                    │                     │
+           │                    │  • CRUD              │
+           │                    │  • FTS5 search       │
+           │                    │  • Forgetting        │
+           │                    │  • Dev/Demo only     │
+           │                    └─────────────────────┘
+           │
+           ▼
+    (Future: when Engine ≥85%, build Adapters)
 ```
 
 ---
 
-## Key Metrics Targets
+## Key Metrics Targets (Updated v3.1)
 
-| Metric | v0.2.0 (current) | v0.3.0 (target) | v1.0.0 (vision) |
-|--------|------------------|-----------------|---------------|
-| MCP tools | 11 (8 deprecated) | **4** (pure) | 4 |
-| Code (layer2_mcp/) | ~1580 lines | **~650 lines** (-59%) | ~500 lines |
-| Test scenarios | 92 (with DB deps) | **43** (no DB deps) (-53%) | 50+ |
-| Classification accuracy | Unknown (~60% demo) | **>85%** (MCE-Bench) | **>95%** |
+| Metric | v0.2.0 | v0.3.0 | **v0.3.1** (Current) | v0.4.0 (Target) | v1.0.0 (Vision) |
+|--------|--------|--------|---------------------|-----------------|---------------|
+| **MCP tools** | 11 (8 depr) | **4** (pure) | **4** (pure) | 4 | 4 |
+| **Code (layer2_mcp/)** | ~1580 lines | **~650 lines** | **~650 lines** | ~600 | ~500 |
+| **Test scenarios** | 92 (with DB) | **43** (no DB) | **881** (post-A+B) | 900+ | 1000+ |
+| **Classification accuracy** | Unknown (~60%) | N/A | **38.9%** ⚠️ | **≥85%** | **>95%** |
+| **Precision** | N/A | N/A | **94.1%** ✅ | ≥80% | >95% |
+| **F1 Score** | N/A | N/A | **84.2%** ✅ | **≥82%** | >90% |
+| **FP Rate** | High | N/A | **0.6%** ✅ | ≤10% | <5% |
+| **Tech terms whitelist** | ~10 | ~10 | **200+** ✅ | 300+ | 500+ |
+| **Storage Adapters** | 0 (hardcoded) | 1 (ABC defined) | **1 (ABC)** | **SQLite default** | **5+ official** |
+| **User onboarding steps** | 7+ | 5 | **5** | **1** (SQLite) | **1** |
+
+### MCE-Bench v1.0 Detailed Results (180 cases, Current)
+
+| Category | Cases | Accuracy | Status |
+|----------|-------|----------|--------|
+| A: Positive (should remember) | 90 | TBD | Improving |
+| B: Negative (noise to filter) | 55 | **98%** ✅ | Excellent |
+| C: Edge cases | 35 | **100%** ✅ | Perfect |
+| **Overall** | **180** | **38.9%** ⚠️ | In Progress |
 | Downstream adapters | 0 | 1 (BuiltIn @deprec) | **5+ official** |
 | LLM call ratio | <10% | <10% | <5% |
 
