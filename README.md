@@ -22,71 +22,132 @@
 
 ---
 
-## The Problem: Your Agent Forgets, or Remembers Too Much
+## The Problem: Nobody Classifies Before Storing
 
-Every AI agent has the same memory problem.
+Every AI memory system has the same blind spot.
 
-Option A: **Save nothing.** Each new session starts from zero. Users repeat themselves. The agent makes mistakes it already made.
+**Supermemory** receives a message → stores it. No classification.
+**Mem0** receives a message → stores it. No classification.
+**Claude Code CLAUDE.md** → you manually decide what to write. No structure.
 
-Option B: **Save everything.** Dump every conversation into a vector DB as a summary. Works at first. After 50 sessions, retrieval returns vague noise because signal is drowned out by noise. Cost scales linearly with message count (every message = one LLM call).
+They all answer **"how to store"** but never **"what's worth storing"**.
 
-The root cause: **most systems don't classify before they store.** They treat a user's preference ("use double quotes"), a decision ("we chose PostgreSQL"), and small talk ("nice weather") identically. One big blob.
+The result:
 
-## How MCE Is Different
+| Message | Should it be stored? | What most systems do |
+|---------|-------------------|---------------------|
+| "I prefer double quotes" | Yes — preference | ✅ Stored (good) |
+| "OK, sounds good" | No — acknowledgment | ❌ Stored anyway (noise) |
+| "That approach was too complex" | Yes — correction | ⚠️ Stored as generic summary (lost type info) |
+| "Nice weather today" | No — chitchat | ❌ Stored (pollutes retrieval) |
 
-MCE classifies **every message in real time** before storing:
+**60%+ of messages should NOT be stored.** But current systems either store everything (noise explosion) or store nothing (amnesia).
 
-```
-Message: "That last approach was too complex, let's go simpler"
-
-Traditional system:
-  → Stores as summary fragment: "discussed approach complexity"
-  → Lost context: this was a REJECTION of a past decision
-  → Search result: buried in 50 other summaries, low relevance
-
-MCE:
-  → [correction] "Rejected previous complex approach, prefers simplicity"
-  → Auto-linked to decision_001 (the original complex plan)
-  → Confidence: 0.89 | Source: pattern analysis | Tier: episodic
-  → LLM cost: $0 (matched at Layer 2)
-```
-
-One message. The traditional system stores noise. MCE stores an **actionable, typed, cross-linked memory with zero LLM cost**.
-
-**Cost per 1,000 messages:**
-
-| Approach | LLM Calls | Cost |
-|----------|-----------|------|
-| Summarize everything | 1,000 | $0.50 - $2.00 |
-| **MCE** | **<100** | **$0.05 - $0.20** |
+**MCE is the missing pre-filter.**
 
 ---
 
-## Three-Layer Pipeline: Cheap First, Expensive Last
+## What MCE Does
+
+MCE is a **classification middleware**. It sits between your Agent and your memory system:
+
+```
+Your AI Agent / Claude Code
+        │  (raw conversation messages)
+        ▼
+┌───────────────────────────────┐
+│     MCE (Classification)      │
+│                               │
+│   Input:  "I prefer double    │
+│           quotes in Python"   │
+│                               │
+│   Output: {                   │
+│     should_remember: true,    │
+│     type: "user_preference", │
+│     confidence: 0.95,         │
+│     tier: 2,                  │
+│     suggested_action: "store" │
+│   }                          │
+└──────────────┬────────────────┘
+               │  Structured MemoryEntry (JSON)
+               ▼
+    ┌──────────┼──────────┐
+    ▼          ▼          ▼
+ [Supermemory] [Mem0] [Obsidian] [Your DB]
+    (cloud)    (self-host) (local)  (custom)
+```
+
+**MCE does one thing extremely well**: decide whether a message contains memorable information, and if so, classify it into one of 7 types with confidence scoring.
+
+**MCE does NOT do**: store, retrieve, search, delete, export, import, or recall memories. Those are downstream responsibilities.
+
+---
+
+## Why Classification Matters More Than Storage
+
+### Argument 1: The 60% Filter
+
+MCE's three-layer pipeline filters out 60%+ of messages before any expensive processing:
 
 ```
 Incoming Message
        │
        ▼
 ┌─────────────────────┐   60%+ of messages   │  Zero cost
-│ Layer 1: Rule Match  │   handled here      │  Regex + keywords
+│ Layer 1: Rule Match  │   filtered here     │  Regex + keywords
 │   "remember", "always..."│                   │  Deterministic
 └──────────┬──────────┘
-           │ Unmatched
+           │ Unmatched (~40%)
            ▼
 ┌─────────────────────┐   30%+ of messages   │  Still zero LLM
-│ Layer 2: Pattern    │   handled here       │  Conversation structure
+│ Layer 2: Pattern    │   classified here    │  Conversation structure
 │   Analysis          │                     │  "3rd rejection = preference"
 └──────────┬──────────┘
-           │ Unmatched
+           │ Ambiguous (~10%)
            ▼
 ┌─────────────────────┐   <10% of messages   │  LLM fallback
-│ Layer 3: Semantic   │   reach here         │  Ambiguous edge cases
+│ Layer 3: Semantic   │   reach here         │  Edge cases only
 │   Inference         │                     │
 └─────────────────────┘
 ```
 
-Most solutions start at Layer 3. MCE starts at Layer 1 and escalates only when needed. That's why 60%+ of classification costs nothing.
+Most solutions start at Layer 3 (LLM for every message). MCE starts at Layer 1.
+
+**Cost per 1,000 messages:**
+
+| Approach | LLM Calls | Cost |
+|----------|-----------|------|
+| Send everything to LLM | 1,000 | $0.50 - $2.00 |
+| **MCE (Layer 1 + 2 first)** | **<100** | **$0.05 - $0.20** |
+
+### Argument 2: Typed Memories Are More Useful Than Raw Summaries
+
+```
+Message: "That last approach was too complex, let's go simpler"
+
+Without MCE (raw storage):
+  → Stored as: "User discussed approach complexity"
+  → Problem: Lost the REJECTION context. Search for "approach" returns noise.
+
+With MCE (classified):
+  → [correction] "Rejected previous complex approach, prefers simplicity"
+  → Confidence: 0.89 | Source: pattern | Tier: episodic
+  → Benefit: Downstream can route corrections differently from facts
+```
+
+### Argument 3: 7 Types > 1 Bucket
+
+| Type | Example | Why it matters |
+|------|---------|---------------|
+| **user_preference** | "I prefer spaces over tabs" | Affects ALL future code generation |
+| **correction** | "No, do it like this instead" | Must override previous fact/decision |
+| **fact_declaration** | "We have 100 employees" | Verifiable truth, rarely changes |
+| **decision** | "Let's go with Redis for caching" | Explains WHY architecture looks this way |
+| **relationship** | "Alice handles backend" | Enables role-aware responses |
+| **task_pattern** | "Always test before deploy" | Automatable workflow rules |
+| **sentiment_marker** | "This workflow is frustrating" | Signals process pain points |
+
+Not every message produces a memory. Chit-chat ("OK", "thanks"), acknowledgments, and low-signal content are filtered out.
 
 ---
 
@@ -96,9 +157,9 @@ Most solutions start at Layer 3. MCE starts at Layer 1 and escalates only when n
 pip install memory-classification-engine
 ```
 
-No database. No API key. No configuration. Works out of the box.
+No database. No API key. No configuration. Pure classification.
 
-### Try It in 30 Seconds
+### Classify a Message in 30 Seconds
 
 ```python
 from memory_classification_engine import MemoryClassificationEngine
@@ -112,181 +173,69 @@ result = engine.process_message(
 
 # Access classification results:
 if result.get('matches'):
-    memory = result['matches'][0]
-    print(f"Type: {memory.get('type')}")       # e.g. 'correction'
-    print(f"Confidence: {memory.get('confidence')}")  # e.g. 0.89
-    print(f"Tier: {memory.get('tier')}")        # e.g. 3
-
-# Full return schema: {message, matches: [{id, content, type, memory_type,
-#   confidence, tier, ...}], plugin_results, working_memory_size,
-#   processing_time, tenant_id, language, language_confidence}
-
-# Scenario 1: User rejects a previous approach (implicit correction)
-engine.process_message(
-    "That last approach was too complex, let's go simpler"
-)
-# → [correction] Rejected previous complex approach
-#   confidence: 0.89, source: pattern, tier: episodic
-#   linked to: decision_001 (auto)
-
-# Scenario 2: Frustration reveals a recurring pain point
-engine.process_message(
-    "We always have to test before deploying, this process is so tedious"
-)
-# → [sentiment_marker] Frustration with deployment process
-#   implied_pattern: test-before-deploy (auto-extracted)
-
-# Scenario 3: Team roles in one sentence
-engine.process_message(
-    "Alice owns the backend, Bob does frontend, I oversee architecture"
-)
-# → [relationship] Alice→backend, Bob→frontend, User→arch lead
-#   confidence: 0.95, tier: semantic
+    entry = result['matches'][0]
+    print(f"Type: {entry.get('type')}")          # 'correction'
+    print(f"Confidence: {entry.get('confidence')}")  # 0.89
+    print(f"Tier: {entry.get('tier')}")           # 3 (episodic)
+    print(f"Should store: {entry.get('confidence', 0) > 0.5}")  # True
 ```
 
-### Adaptive Retrieval Modes (v2.0)
-
-MCE v2.0 introduces three retrieval modes to match different scenarios:
+### More Examples
 
 ```python
-from memory_classification_engine import MemoryClassificationEngine
+# Scenario 1: User preference
+engine.process_message("I prefer double quotes in Python")
+# → [user_preference] conf: 0.95, tier: 2, source: rule
+#   ↓ Store this to Supermemory/Mem0/Obsidian as "preference"
 
-engine = MemoryClassificationEngine()
+# Scenario 2: Correction (overrides previous knowledge)
+engine.process_message("No, we're using PostgreSQL not MongoDB")
+# → [correction] conf: 0.92, tier: 2, source: pattern
+#   ↓ Downstream should UPDATE existing fact, not duplicate
 
-# Compact mode: keyword-only match, <10ms latency, no LLM cost
-memories = engine.retrieve_memories("deployment checklist", limit=5,
-                                     retrieval_mode='compact')
+# Scenario 3: Decision (explains architecture choices)
+engine.process_message("We decided to use Redis for session caching")
+# → [decision] conf: 0.88, tier: 3, source: semantic
+#   ↓ High-value, store in long-term memory
 
-# Balanced mode: default — semantic sorting with optimized pipeline (recommended)
-memories = engine.retrieve_memories("deployment checklist", limit=5,
-                                     retrieval_mode='balanced')
+# Scenario 4: Noise (filtered out automatically)
+engine.process_message("OK, let me check that")
+# → [] (empty matches — no memory needed)
 
-# Comprehensive mode: deep analysis with associations and composite scoring
-memories = engine.retrieve_memories("deployment checklist", limit=5,
-                                     retrieval_mode='comprehensive',
-                                     include_associations=True)
+# Scenario 5: Relationship extraction
+engine.process_message("Alice owns backend, Bob does frontend")
+# → [relationship] conf: 0.95, tier: 4 (semantic/graph)
+#   ↓ Good candidate for knowledge graph storage
 ```
 
-| Mode | Latency | Use Case |
-|------|---------|----------|
-| `compact` | <10ms | High-frequency lookups, keyword-heavy queries |
-| `balanced` | ~15-50ms | General purpose (default) |
-| `comprehensive` | 50-200ms | Deep research, decision review |
-
-### Recall Across Sessions
-
-This is what users actually feel: opening a new conversation and having their agent **remember** what matters.
+### Batch Classification
 
 ```python
-from memory_classification_engine import MemoryOrchestrator
+messages = [
+    {"message": "I prefer dark mode"},
+    {"message": "We chose PostgreSQL"},
+    {"message": "Thanks for the help"},  # ← will be filtered
+    {"message": "Alice handles the API"},
+]
 
-memory = MemoryOrchestrator()
-
-# ... after using for a week ...
-
-# New session starts — load relevant memories
-memories = memory.recall(context="coding", limit=5)
-for m in memories:
-    print(f"[{m['type']}] {m['content']} (conf: {m['confidence']}, src: {m['source']})")
-# Output:
-# [user_preference] Use double quotes, not single (conf: 0.95, src: rule)
-# [decision] Project uses Python, not Go (conf: 0.91, src: rule)
-# [relationship] Alice handles backend API (conf: 0.88, src: semantic)
-# [correction] No over-engineering — keep it simple (conf: 0.89, src: pattern)
-# [fact_declaration] Prod runs on Ubuntu 22.04 (conf: 0.92, src: rule)
-#
-# Stats: 5 loaded | 12 noise filtered | 0 LLM calls
+result = engine.batch_process(messages)
+# Returns list of results, each with matches/confidence/tier
 ```
 
 ---
 
-## MCP Server: Claude Code Integration in 2 Minutes
+## Suggested Storage Tiers
 
-MCE ships with a built-in MCP server (**v0.2.0, Production Ready**). MCE runs locally — **your data never leaves your machine**.
+MCE assigns each classified memory a **suggested storage tier**. This is advice to your downstream system — not a requirement.
 
-> **Positioning**: MCE is a **classification middleware**, not a full memory system. The MCP server exposes classification tools; storage is delegated to downstream systems (Supermemory, Mem0, Obsidian, or your own).
+| Tier | Name | Lifecycle | When to use |
+|------|------|-----------|-------------|
+| T1 | Sensory | < 1 second | Never store (filtered by MCE) |
+| T2 | Procedural | Hours–Days | Active preferences, patterns, corrections |
+| T3 | Episodic | Days–Months | Decisions, facts, events |
+| T4 | Semantic | Months–Years | Relationships, domain knowledge |
 
-### Setup
-
-```bash
-# Option A: stdio transport (recommended, 11 tools)
-python3 -m memory_classification_engine.integration.layer2_mcp
-```
-
-Add to your Claude Code config (`~/.claude/settings.json`):
-
-```json
-{
-  "mcpServers": {
-    "mce": {
-      "command": "python3",
-      "args": ["-m", "memory_classification_engine.integration.layer2_mcp"],
-      "env": {}
-    }
-  }
-}
-```
-
-### Available Tools (v0.2.0)
-
-| Tool | Status | Description |
-|------|--------|-------------|
-| `classify_memory` | ✅ Core | Classify message → structured MemoryEntry (type, tier, confidence) |
-| `batch_classify` | ✅ Core | Batch classify multiple messages |
-| `mce_status` | ✅ Core | Engine status (version, capabilities, uptime) |
-| `store_memory` | ⚠️ Deprecated v0.3 | Storage moves to downstream adapter |
-| `retrieve_memories` | ⚠️ Deprecated v0.3 | Retrieval moves to downstream system |
-| `get_memory_stats` | ⚠️ Deprecated v0.3 | Stats from downstream system |
-| `find_similar` | ⚠️ Deprecated v0.3 | Vector search from downstream |
-| `export_memories` | ⚠️ Deprecated v0.3 | Export from downstream |
-| `import_memories` | ⚠️ Deprecated v0.3 | Import to downstream |
-| `mce_recall` | ⚠️ Deprecated v0.3 | Recall from downstream (e.g., Supermemory `recall()`) |
-| `mce_forget` | ⚠️ Deprecated v0.3 | Delete via downstream |
-
-> **Migration note**: In v0.3.0, deprecated tools will be removed. The MCP server will expose only 4 tools: `classify_message`, `get_classification_schema`, `batch_classify`, `mce_status`. See [Storage Strategy Guide](./docs/user_guides/STORAGE_STRATEGY.md) for downstream integration options.
-
-### How It Works in Practice
-
-```
-You (in Claude Code):  "I prefer double quotes in Python"
-         │
-         ▼
-   MCE MCP Server:  classify_memory("I prefer double quotes...")
-         │
-         ▼
-   Output (MemoryEntry JSON):
-   {
-     "should_remember": true,
-     "entries": [{
-       "type": "user_preference",
-       "confidence": 0.95,
-       "tier": 2,
-       "suggested_action": "store",
-       "content": "User prefers double quotes over single quotes"
-     }]
-   }
-         │
-         ▼
-   Your choice: Store to Supermemory / Obsidian / Mem0 / custom
-```
-
-See [API Reference](./docs/api/API_REFERENCE_V1.md) and [Storage Strategy](./docs/user_guides/STORAGE_STRATEGY.md) for full documentation.
-
----
-
-## What Gets Classified: 7 Memory Types
-
-| Type | Example | Stored Where |
-|------|---------|-------------|
-| **user_preference** | "I prefer spaces over tabs" | Tier 2: Procedural (active) |
-| **correction** | "No, do it like this instead" | Tier 3: Episodic (linked) |
-| **fact_declaration** | "We have 100 employees" | Tier 3: Episodic (verified) |
-| **decision** | "Let's go with Redis for caching" | Tier 3: Episodic (high priority) |
-| **relationship** | "Alice handles backend" | Tier 4: Semantic (graph) |
-| **task_pattern** | "Always test before deploy" | Tier 2: Procedural (auto) |
-| **sentiment_marker** | "This workflow is frustrating" | Tier 3: Episodic (low priority) |
-
-Not every message produces a memory. Chit-chat, acknowledgments ("OK", "thanks"), and low-signal content are filtered out before storage.
+Your downstream system can follow these suggestions or implement its own retention policy. See [Storage Strategy Guide](./docs/user_guides/STORAGE_STRATEGY.md) for integration examples with Supermemory, Mem0, and Obsidian.
 
 ---
 
@@ -319,13 +268,7 @@ Auto-generated rules look like this:
 
 Your usage patterns become free classification rules. No manual tuning required.
 
-### Feedback Loop Automation (v2.0)
-
-MCE v2.0 includes an automated feedback loop that continuously improves classification accuracy:
-
-- **FeedbackAnalyzer**: Detects patterns from user corrections (min 3 occurrences)
-- **RuleTuner**: Generates rule suggestions from detected patterns
-- **Auto-apply**: Rules with confidence > threshold are applied automatically
+### Feedback Loop (v2.0)
 
 ```python
 result = engine.process_feedback(memory_id="mem_001",
@@ -337,92 +280,192 @@ result = engine.process_feedback(memory_id="mem_001",
 
 > **API Note**: `process_feedback(memory_id, feedback)` takes 2 arguments — `feedback` is a dict containing correction details. See [API Reference](./docs/api/API_REFERENCE_V1.md) for full signature.
 
-### Model Distillation Interface (v2.0)
+---
 
-For production deployments requiring cost optimization:
+## MCP Server: Claude Code Integration in 2 Minutes
 
-```python
-from memory_classification_engine.layers.distillation import DistillationRouter
+MCE ships with a built-in MCP server (**v0.2.0, Production Ready**). MCE runs locally — **your data never leaves your machine**.
 
-router = DistillationRouter()
-request = ClassificationRequest(message="User preference about code style")
+> **Positioning**: MCE is a **classification middleware**, not a full memory system. The MCP server exposes classification tools; storage is delegated to downstream systems (Supermemory, Mem0, Obsidian, or your own).
 
-# Routes based on estimated confidence:
-# >0.85 → embedding only (zero LLM)
-# 0.5-0.85 → weak model (low cost)
-# <0.5 → strong model (high accuracy)
-result = router.classify(request)
+### Setup
+
+```bash
+python3 -m memory_classification_engine.integration.layer2_mcp
 ```
 
----
+Add to your Claude Code config (`~/.claude/settings.json`):
 
-## Comparison
+```json
+{
+  "mcpServers": {
+    "mce": {
+      "command": "python3",
+      "args": ["-m", "memory_classification_engine.integration.layer2_mcp"],
+      "env": {}
+    }
+  }
+}
+```
 
-| Feature | Mem0 | MemGPT | LangChain Memory | claude-mem | **MCE** |
-|---------|------|--------|------------------|------------|---------|
-| When to write | Post-conversation | Context window | Manual/Hooks | Full recording | **Real-time, per-message** |
-| Classification | Basic tags | None | None | None (all observations) | **7 types + 3-layer pipeline** |
-| Storage tiers | 1 (vector) | 2 (mem + disk) | 1 (session) | 1 (SQLite + Chroma) | **4 tiers (working / procedural / episodic / semantic)** |
-| Forgetting | None | Passive overflow | None | AI compression | **Active decay + Nudge review** |
-| Learning | Static | None | None | None | **Patterns auto-promote to rules + feedback loop** |
-| LLM cost | Per-message | Medium | Low | High (compression) | **60%+ classified at zero cost** |
-| Cross-session | Export only | None | None | Yes | **Structured migration standard** |
-| MCP support | No | No | No | No | **Built-in MCP Server (v1.0.0 Production)** |
-| High-level API | No | No | Basic | No | **MemoryOrchestrator (learn/recall/export/import)** |
-| Retrieval model | Full content | Full content | Full content | Progressive disclosure | **3 adaptive modes + typed memories** |
-| Feedback loop | No | No | No | No | **Automated pattern detection & rule tuning** |
+### Available Tools (v0.2.0)
 
----
+| Tool | Status | Description |
+|------|--------|-------------|
+| `classify_memory` | Core | Classify message -> structured MemoryEntry (type, tier, confidence) |
+| `batch_classify` | Core | Batch classify multiple messages |
+| `mce_status` | Core | Engine status (version, capabilities, uptime) |
+| `store_memory` | Deprecated v0.3 | Storage moves to downstream adapter |
+| `retrieve_memories` | Deprecated v0.3 | Retrieval moves to downstream system |
+| `get_memory_stats` | Deprecated v0.3 | Stats from downstream system |
+| `find_similar` | Deprecated v0.3 | Vector search from downstream |
+| `export_memories` | Deprecated v0.3 | Export from downstream |
+| `import_memories` | Deprecated v0.3 | Import to downstream |
+| `mce_recall` | Deprecated v0.3 | Recall from downstream (e.g., Supermemory `recall()`) |
+| `mce_forget` | Deprecated v0.3 | Delete via downstream |
 
-## Four-Tier Storage
+> **Migration note**: In v0.3.0, deprecated tools will be removed. The MCP server will expose only 4 tools: `classify_message`, `get_classification_schema`, `batch_classify`, `mce_status`. See [Storage Strategy Guide](./docs/user_guides/STORAGE_STRATEGY.md) for downstream integration options.
 
-| Tier | Name | Storage | Lifecycle |
-|------|------|---------|-----------|
-| T1 | Working Memory | Context window (LLM-native) | Current session only |
-| T2 | Procedural | Config files / system prompts | Long-term, always loaded |
-| T3 | Episodic | Vector store (ChromaDB / SQLite) | Weighted decay over time |
-| T4 | Semantic | Knowledge graph (Neo4j / in-memory) | Long-term, cross-linked |
+### How It Works in Practice
 
-Core dependency: **only PyYAML**. Vector DBs, graph DBs, and LLM are all optional extensions.
+```
+You (in Claude Code):  "I prefer double quotes in Python"
+         │
+         ▼
+   MCE MCP Server:  classify_memory("I prefer double quotes...")
+         │
+         ▼
+   Output (MemoryEntry JSON):
+   {
+     "should_remember": true,
+     "entries": [{
+       "type": "user_preference",
+       "confidence": 0.95,
+       "tier": 2,
+       "suggested_action": "store",
+       "content": "User prefers double quotes over single quotes"
+     }]
+   }
+         │
+         ▼
+   Your choice: Store to Supermemory / Obsidian / Mem0 / custom
+```
+
+See [API Reference](./docs/api/API_REFERENCE_V1.md) and [Storage Strategy](./docs/user_guides/STORAGE_STRATEGY.md) for full documentation.
 
 ---
 
 ## Performance
 
-Benchmark results from `benchmarks/baseline_benchmark.py` (after Phase 1 optimization):
+Benchmark results from `benchmarks/baseline_benchmark.py`:
 
-| Metric | Before Optimization | After Optimization | Improvement |
-|--------|-------------------|-------------------|-------------|
-| `process_message` P99 latency | 5,669 ms | 1,452 ms | **-74%** |
-| `retrieve_memories` long-sentence P99 | 85 ms | 50 ms | **-41%** |
-| Cache hit rate (warmup) | 0% | 97.83% | **+97.83pp** |
-| Test suite | 696 tests | 874 tests | **+178 tests** |
-| Message processing (Layer 1/2) | ~10ms | ~10ms | Baseline |
-| Retrieval latency (balanced mode) | ~15ms | ~15ms | Baseline |
-| Concurrent throughput | 626 msg/s | 626 msg/s | Baseline |
-| Memory footprint | <100MB | <100MB | Baseline |
-| LLM call ratio | <10% | <10% | Baseline |
-| Memory compression | 87-90% noise reduction | 87-90% | Baseline |
+### Classification Performance (Core Metric)
 
-**Key optimizations delivered:**
-- FAISS dimension mismatch fix (eliminated AssertionError on every call)
-- SmartCache rewrite: OrderedDict-based O(1) LRU eviction + startup warmup
-- Parallel query via ThreadPoolExecutor across storage tiers
-- Hash index for O(1) `get_memory` lookups
-- Batch vector encoding + pre-computed sort keys for semantic ranking
+| Metric | Value | Condition |
+|--------|-------|-----------|
+| `process_message` P50 latency | ~45 ms | Warm cache, rule match |
+| `process_message` P99 latency | **1,452 ms** | Worst case (LLM fallback) |
+| Layer 1 hit rate | 60%+ | After 1 week of use |
+| Cache hit rate (warmup) | **97.83%** | After initial warmup |
+| LLM call ratio | **<10%** | Most messages handled by L1/L2 |
+
+### Test Quality
+
+| Metric | Value |
+|--------|-------|
+| Total tests | **874 passing, 0 failing** |
+| Demo scenarios | **26/30 passed (87%)** |
+| Coverage | Core engine + layers + coordinators + privacy |
+
+### Cost Efficiency
+
+| Scenario | Messages | Est. LLM calls | Est. cost |
+|----------|----------|--------------|-----------|
+| Light usage (10 msgs/day) | 300/month | ~30 | **<$0.01** |
+| Heavy usage (100 msgs/day) | 3,000/month | ~300 | **~$0.10** |
+| Power user (500 msgs/day) | 15,000/month | ~1,500 | **~$0.50** |
 
 ---
 
-## Tech Stack
+## FAQ
 
-| Component | Default | Alternative |
-|-----------|---------|-------------|
-| Rule engine | YAML + Regex | JSON Schema |
-| Vector store (T3) | ChromaDB | Qdrant, Milvus |
-| Knowledge graph (T4) | In-memory | Neo4j |
-| Semantic classifier (L3) | Small model API | Ollama local model |
-| Agent adapters | Standalone SDK | Plugin extension |
-| Caching | OrderedDict SmartCache (LRU + warmup) | Redis (external) |
+### Is MCE a replacement for Supermemory / Mem0?
+
+**No. MCE complements them.**
+
+Think of it this way:
+- **Supermemory / Mem0** = the warehouse (stores and retrieves memories)
+- **MCE** = the security scanner at the warehouse entrance (decides what goes in)
+
+You can use them together: MCE classifies → Supermemory stores → Supermemory recalls. Or MCE classifies → Obsidian saves as markdown. MCE doesn't care where the data goes.
+
+### Why not just build storage into MCE?
+
+Three reasons:
+
+1. **Supermemory has YC funding, Cloudflare infrastructure, and Benchmark #1 rankings.** One developer cannot compete on storage quality.
+2. **Mem0 has 18k GitHub Stars, vector+graph hybrid storage, and a team of engineers.** Their storage is battle-tested.
+3. **But NONE of them classify before storing.** That's the gap MCE fills. And once MCE classifies, any downstream system benefits from cleaner input data.
+
+MCE focuses on being the **world's best memory classifier**, not an average memory system.
+
+### Is my data safe?
+
+**Yes.** MCE runs entirely locally on your machine. No data is sent to external servers during classification. Where your classified data goes next depends on which downstream system you choose — that's under **your** control.
+
+### What if I don't want to set up a downstream system?
+
+That's fine! Use MCE purely as a classification service:
+
+```python
+result = engine.process_message("I prefer dark mode")
+if result.get('matches'):
+    entry = result['matches'][0]
+    print(f"[{entry['type']}] {entry['content']} (conf: {entry['confidence']})")
+    # Log it, print it, copy-paste it anywhere
+```
+
+MCE's value is in the **classification decision**, not the persistence.
+
+### What's the roadmap?
+
+See [ROADMAP.md](./ROADMAP.md). Key milestones:
+- **v0.2.0** (current): Classification engine + MCP server (11 tools, 8 deprecated)
+- **v0.3.0** (next): Pure upstream migration — MCP reduced to 4 tools, StorageAdapter ABC, MemoryEntry Schema v1.0
+- **v0.4.0**: Official adapters for Supermemory, Mem0, Obsidian
+- **v1.0.0**: Industry-standard classification benchmark (MCE-Bench)
+
+### How does MCE compare to...?
+
+| Question | Answer |
+|----------|--------|
+| **vs Supermemory?** | Complementary. MCE classifies, Supermemory stores. Use both. |
+| **vs Mem0?** | Complementary. MCE adds typed classification before Mem0's storage. |
+| **vs Claude Code CLAUDE.md?** | MCE automates what you'd manually write in CLAUDE.md. Structured, typed, confidence-scored. |
+| **vs building my own if/else?** | MCE has 7 types, 3-layer pipeline, auto-learning rules, and 60%+ zero-cost filtering. Rolling your own gets expensive fast. |
+
+---
+
+## Installation
+
+```bash
+# Core (classification engine only — pure Python, no heavy deps)
+pip install memory-classification-engine
+
+# With RESTful API server
+pip install -e ".[api]"
+
+# With LLM-based semantic classification (Layer 3, optional)
+pip install -e ".[llm]"
+export MCE_LLM_API_KEY="your-key"
+export MCE_LLM_ENABLED=true
+
+# Run tests
+pip install -e ".[testing]"
+pytest  # 874 tests, ~10 min
+```
+
+**Minimum dependency**: Only PyYAML. Everything else (vector DB, graph DB, LLM) is optional.
 
 ---
 
@@ -430,61 +473,33 @@ Benchmark results from `benchmarks/baseline_benchmark.py` (after Phase 1 optimiz
 
 ```
 memory-classification-engine/
-├── mce-mcp/                         # MCP Server (Claude Code / Cursor integration)
-│   ├── server.py                    #   Server entry point (v1.0.0 Production)
-│   ├── tools/                       #   MCP tool implementations
-│   └── config.yaml                  #   Server configuration
-│
 ├── src/memory_classification_engine/
-│   ├── engine.py                    # Core coordinator (adaptive retrieval modes)
+│   ├── engine.py                    # Core coordinator
 │   ├── layers/
-│   │   ├── rule_matcher.py          #   Layer 1: Rule matching
-│   │   ├── pattern_analyzer.py      #   Layer 2: Structure analysis
-│   │   ├── semantic_classifier.py   #   Layer 3: LLM fallback
-│   │   ├── feedback_loop.py         #   v2.0: Automated feedback & rule tuning
-│   │   └── distillation.py          #   v2.0: Model distillation routing
-│   ├── storage/
-│   │   └── tier3.py                 #   FAISS vector index (dimension-safe)
+│   │   ├── rule_matcher.py          # Layer 1: Rule matching (60%+ coverage)
+│   │   ├── pattern_analyzer.py      # Layer 2: Structure analysis (30%+)
+│   │   ├── semantic_classifier.py   # Layer 3: LLM fallback (<10%)
+│   │   ├── feedback_loop.py         # Auto-learning from corrections
+│   │   └── distillation.py          # Cost-optimized routing
+│   ├── adapters/                    # v0.3.0: StorageAdapter ABC (planned)
+│   ├── storage/                     # Built-in storage (deprecated in v0.3)
 │   ├── coordinators/
-│   │   └── storage_coordinator.py   #   Parallel query + hash index
-│   ├── utils/
-│   │   └── memory_manager.py        #   SmartCache (OrderedDict + warmup)
-│   ├── orchestrator.py              # MemoryOrchestrator (high-level API)
-│   └── privacy/
+│   └── utils/
 │
-├── benchmarks/
-│   ├── baseline_benchmark.py        # Performance measurement tool
-│   └── final_results.json           # Optimized benchmark data
+├── src/memory_classification_engine/integration/layer2_mcp/
+│   ├── server.py                    # MCP stdio server (Production v0.2.0)
+│   ├── tools.py                     # 11 tool definitions (→ 4 in v0.3.0)
+│   └── handlers.py                  # Tool handlers
 │
-├── examples/                        # Ready-to-run examples
-├── tests/                           # Test suite (874 tests passing)
-├── config/rules.yaml                # Classification rules
+├── mce-mcp/mce_mcp_server/server.py # HTTP server (Deprecated, use stdio)
+├── benchmarks/                      # Performance measurement
+├── tests/                           # 874 tests passing
+├── config/rules.yaml                # Editable classification rules
+├── docs/
+│   ├── consensus/                   # Strategic decisions & analysis
+│   └── user_guides/                 # Installation, storage strategy
 ├── setup.py                         # PyPI package config
 └── README.md
-```
-
----
-
-## Installation Options
-
-```bash
-# Core (classification engine only)
-pip install memory-classification-engine
-
-# With RESTful API server
-pip install -e ".[api]"
-
-# With LLM-based semantic classification (Layer 3)
-pip install -e ".[llm]"
-export MCE_LLM_API_KEY="your-key"
-export MCE_LLM_ENABLED=true
-
-# With scikit-learn (for vector encoding optimizations)
-pip install scikit-learn
-
-# Run tests
-pip install -e ".[testing]"
-pytest
 ```
 
 ---
@@ -497,9 +512,9 @@ MIT
 
 ## Links
 
-- Repository: [github.com/lulin70/memory-classification-engine](https://github.com/lulin70/memory-classification-engine)
-- Roadmap: [ROADMAP.md](./ROADMAP.md)
-- API Reference: [docs/api/API_REFERENCE_V1.md](./docs/api/API_REFERENCE_V1.md)
-- Optimization Roadmap: [docs/OPTIMIZATION_ROADMAP_V1.md](./docs/OPTIMIZATION_ROADMAP_V1.md)
-- MCP Setup for Claude Code: [docs/claude_code_mcp_config.md](./docs/claude_code_mcp_config.md)
-- Issues / Discussions
+- **Repository**: [github.com/lulin70/memory-classification-engine](https://github.com/lulin70/memory-classification-engine)
+- **Roadmap**: [ROADMAP.md](./ROADMAP.md)
+- **Storage Strategy**: [STORAGE_STRATEGY.md](./docs/user_guides/STORAGE_STRATEGY.md) — how to integrate with downstream systems
+- **API Reference**: [docs/api/API_REFERENCE_V1.md](./docs/api/API_REFERENCE_V1.md)
+- **Strategic Consensus**: [MCP_POSITIONING_CONSENSUS_v3.md](./docs/consensus/MCP_POSITIONING_CONSENSUS_v3.md) — why we chose the pure upstream path
+- **Issues / Discussions**

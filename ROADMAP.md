@@ -4,322 +4,339 @@
 
 | Version | Date | Updater | Update Content | Review Status |
 |---------|------|---------|---------------|---------------|
-| v0.2.0 | 2026-04-18 | Engineering Team | Phase 1 optimization complete (-74% process_message), Phase 2 features delivered (adaptive retrieval, feedback loop, distillation), MCP Server promoted to Production v1.0.0, test suite expanded to **874 tests**, documentation updated across EN/ZH/JP, Demo test 26/30 (87%) passing | Reviewed |
-| v1.2.0 | 2026-04-12 | Product Team | Added VS Code extension, memory quality dashboard, pending memory mechanism, and Nudge mechanism | Reviewed |
-| v1.1.0 | 2026-04-11 | Product Team | MCP Server completed, Beta testing started | Reviewed |
-| v1.0.0 | 2026-04-10 | Product Team | Initial version - Three-layer integration strategy planning | Reviewed |
+| v0.2.1 | 2026-04-19 | Engineering Team | **Pure Upstream Positioning**: README rewritten with "Classification First" narrative, MCP tools marked deprecated (8 storage → removed in v0.3), STORAGE_STRATEGY.md created, consensus v3 (Route B decision) | Reviewed |
+| v0.2.0 | 2026-04-18 | Engineering Team | Phase 1 optimization complete (-74% process_message), Phase 2 features delivered, MCP Server Production, **874 tests**, Demo 26/30 (87%) | Reviewed |
 
 ---
 
 ## Vision
 
-To become the standard component in the field of Agent memory classification, just like ChromaDB is for vector storage, to become synonymous with memory classification.
+**MCE is the standard memory classification middleware for AI agents.**
 
-**Product positioning**: "Don't remember everything. Remember what matters." — A lightweight, high-efficiency professional AI Agent memory classification engine.
+Like how **ChromaDB** is synonymous with vector storage, MCE aims to become synonymous with **memory classification** — the "security scanner" that decides what enters any memory system.
+
+**Product positioning**: *"Your Agent uses Supermemory/Mem0/Obsidian to STORE memories. MCE tells it WHAT to store."*
+
+**Core narrative**: Classification First. Store Later. Your Choice.
+
+---
+
+## Strategic Decision: Pure Upstream Route (2026-04-19)
+
+**Decision document**: [MCP_POSITIONING_CONSENSUS_v3.md](./docs/consensus/MCP_POSITIONING_CONSENSUS_v3.md)
+
+### What Changed
+
+| Before (v0.2.0) | After (v0.3.0+) |
+|------------------|-------------------|
+| MCP: 11 tools (classify + full CRUD) | MCP: 4 tools (classify only) |
+| "Memory classification engine" | "Memory classification **middleware**" |
+| Competes with Supermemory / Mem0 | **Complements** them (downstream customers) |
+| Built-in SQLite storage required | Storage delegated via **StorageAdapter ABC** |
+| Narrative: "Don't remember everything" | Narrative: "**Classify before you store**" |
+
+### Why This Decision
+
+1. **Supermemory has YC + Benchmark #1 + Cloudflare infra.** Cannot compete on storage.
+2. **Mem0 has 18k Stars + vector+graph hybrid.** Their storage is battle-tested.
+3. **But NONE of them classify before storing.** That's the gap — and MCE owns it.
+4. **60%+ of messages don't need LLM processing.** That's independent value, no storage needed.
 
 ---
 
 ## Completed Milestones
 
-### Phase 1: Performance Optimization ✅ (Completed 2026-04-17)
+### v0.2.0 Release ✅ (2026-04-18)
 
-**Status**: All tasks complete, verified by benchmark
+**Status**: Released, tagged, pushed to GitHub
 
-**Deliverables**:
+| Component | Details |
+|-----------|---------|
+| Core Engine | Three-layer pipeline (rule → pattern → semantic), 7 types, 4 tiers |
+| Performance | `process_message` P99: -74% (5669→1452ms), cache hit: 97.83% |
+| Test Suite | **874 tests passing, 0 failing** |
+| Demo | 26/30 scenarios passing (87%) |
+| MCP Server | stdio transport, 11 tools (3 core + 8 deprecated) |
+| Documentation | README + Installation Guide + API Reference + Consensus docs |
 
-| Task | Description | Result |
-|------|-------------|--------|
-| T1.1 | Performance baseline established | `benchmarks/baseline_benchmark.py` created |
-| T1.2 | FAISS dimension mismatch fix | Eliminated AssertionError on every `process_message` call |
-| T1.3 | SmartCache rewrite (OrderedDict + LRU) | O(1) eviction vs old O(n) scan |
-| T1.4 | Cache warmup at engine startup | Cache hit rate: 0% → **97.83%** |
-| T1.5 | Parallel query (ThreadPoolExecutor) | Concurrent tier2/tier3/tier4 retrieval |
-| T1.6 | Hash index for get_memory | O(1) lookup via `_id_index` dict |
-| T1.7 | Archive fix (selective invalidation) | `_run_archive` no longer clears entire cache |
-| T1.8 | Semantic sort deep optimization | Batch encoding + pre-computed keys: P99 **-41%** |
-| T1.9 | Final benchmark verification | `process_message` P99: **-74%** overall |
+### Phase 0: Pure Upstream Positioning ✅ (2026-04-19)
 
-**Key metrics before/after**:
-- `process_message` P99: 5,669ms → 1,452ms (**-74%**)
-- `retrieve_memories` long-sentence P99: 85ms → 50ms (**-41%**)
-- Cache hit rate: 0% → **97.83%**
-- Test count: 661 → **696**
+**Status**: Committed (`a8dc7b3e`), pushed
 
-### Phase 2: v2.0 Features ✅ (Completed 2026-04-17)
-
-**Status**: All features delivered
-
-#### P0: Adaptive Retrieval Modes ✅
-
-Three retrieval modes for different scenarios:
-
-| Mode | Latency Target | Strategy |
-|------|---------------|----------|
-| `compact` | <10ms | Keyword match only, skip semantic sort |
-| `balanced` | ~15-50ms | Default mode with optimized semantic pipeline |
-| `comprehensive` | 50-200ms | Full analysis with associations + composite scoring |
-
-Implementation: `engine.py` `retrieve_memories()` now accepts `retrieval_mode` parameter, dispatches to `_retrieve_compact()`, `_retrieve_balanced()`, or `_retrieve_comprehensive()`.
-
-#### P1: Feedback Loop Automation ✅
-
-Automated pattern detection and rule tuning from user corrections:
-
-- **FeedbackEvent / FeedbackAnalyzer**: Detects patterns (min 3 occurrences)
-- **RuleTuner**: Generates rule suggestions from patterns
-- **FeedbackLoop**: Auto-applies rules when confidence > threshold (default 0.8)
-
-File: [feedback_loop.py](../src/memory_classification_engine/layers/feedback_loop.py)
-
-#### P2: Model Distillation Interface ✅
-
-Cost-aware routing for production deployments:
-
-- **ConfidenceEstimator**: Estimates classification difficulty
-- **DistillationRouter**: Routes to embedding-only (>0.85), weak model (0.5-0.85), or strong model (<0.5)
-- Supports offline training data export for model distillation
-
-File: [distillation.py](../src/memory_classification_engine/layers/distillation.py)
-
-### MCP Server Production Release ✅ (v1.0.0)
-
-**Status**: Promoted from Beta to Production
-
-- VERSION = "1.0.0" set in MCPServer class
-- PROTOCOL_VERSION = "2024-11-05"
-- Full API reference documented: [API_REFERENCE_V1.md](./docs/api/API_REFERENCE_V1.md)
-- 11 MCP tools available
+| Task | File | Change |
+|------|------|--------|
+| Tools deprecation | [tools.py](../src/memory_classification_engine/integration/layer2_mcp/tools.py) | 8 storage tools marked `[Deprecated v0.3]` |
+| Version fix | [server.py](../src/memory_classification_engine/integration/layer2_mcp/server.py) | serverInfo 0.1.0 → 0.2.0 |
+| HTTP server deprecation | [mce-mcp/server.py](../mce-mcp/mce_mcp_server/server.py) | DEPRECATED block comment added |
+| README rewrite | [README.md](../README.md) | "Classification First" narrative, FAQ, architecture diagram |
+| Storage strategy guide | [STORAGE_STRATEGY.md](../docs/user_guides/STORAGE_STRATEGY.md) | NEW — Supermemory/Mem0/Obsidian integration guide |
+| Install guide update | [installation_guide_v2.md](../docs/user_guides/installation_guide_v2.md) | MCP section aligned with pure upstream mode |
+| Consensus docs | [MCP_POSITIONING_CONSENSUS_v3.md](../docs/consensus/) | Full strategic decision document (Route B) |
 
 ---
 
-## Three-Layer Integration Strategy
+## Current Version: v0.2.0 (Stable)
 
-### Layer 1: Python SDK ✅ (Completed & Optimized)
+### What's Included
 
-**Status**: Available, performance optimized in Phase 1
-
-**Goal**: Provide the most basic Python library that anyone can pip install and integrate
-
-**Core Features**:
-- [x] Real-time message classification
-- [x] 7 memory type identification
-- [x] Three-layer judgment pipeline
-- [x] Four-tier memory storage
-- [x] Active forgetting mechanism
-- [x] Adaptive retrieval modes (compact/balanced/comprehensive)
-- [x] Feedback loop automation
-- [x] Model distillation interface
-- [x] SmartCache with warmup (97.83% hit rate)
-- [x] Parallel query across storage tiers
-- [x] Hash index for O(1) lookups
-- [x] VS Code extension
-- [x] Memory quality dashboard
-- [x] Pending memory mechanism
-- [x] Nudge active review mechanism
-
----
-
-### Layer 2: MCP Server ✅ (Production v1.0.0)
-
-**Status**: Production release complete
-
-**Goal**: Allow Claude Code, Cursor, OpenClaw and other MCP-supported tools to call directly
-
-**Why prioritize MCP?**
-
-| Advantage | Description |
-|-----------|-------------|
-| Trend | Anthropic is heavily promoting MCP, related repositories are growing fast |
-| Targeted users | Claude Code / Cursor users are exactly the target audience |
-| Low investment | Low packaging cost (JSON-RPC interface layer) |
-| High conversion | Zero-friction usage, high Topic traffic conversion rate |
-
-**Feature Planning**:
-
-#### Phase 1: Core MCP Tools ✅ (Completed)
-
-- [x] `classify_memory` - Analyze messages and determine if memory is needed
-- [x] `store_memory` - Store memory to the appropriate tier
-- [x] `retrieve_memories` - Retrieve related memories (supports adaptive modes)
-- [x] `get_memory_stats` - Get memory statistics
-- [x] `batch_classify` - Batch classification
-- [x] `find_similar` - Find similar memories
-- [x] `export_memories` - Export memories
-- [x] `import_memories` - Import memories
-
-#### Phase 2: OpenClaw Integration ✅ (Completed)
-
-- [x] OpenClaw adapter
-- [x] OpenClaw configuration file
-- [x] Usage examples and documentation
-
-**Release Plan**:
-- PyPI package name: `mce-mcp-server`
-- Submit to MCP community repository
-- Share in Claude Code / Cursor community
-
----
-
-### Layer 3: Framework Adapters (Long-term)
-
-**Status**: Planning
-
-**Goal**: Provide out-of-the-box Skill packaging for mainstream Agent frameworks
-
-**Framework Adaptation Plan**:
-
-#### LangChain (Priority: High)
-
-```python
-from memory_classification_engine.adapters.langchain import MemoryClassifierTool
-
-tool = MemoryClassifierTool()
+```
+MCE v0.2.0
+├── Core Classification Engine
+│   ├── Layer 1: Rule Matching (60%+ coverage, zero cost)
+│   ├── Layer 2: Pattern Analysis (30%+, zero LLM)
+│   ├── Layer 3: Semantic Inference (<10%, LLM fallback)
+│   ├── 7 Memory Types (user_preference / correction / fact / decision / relationship / pattern / sentiment)
+│   ├── 4 Suggested Tiers (sensory / procedural / episodic / semantic)
+│   ├── Feedback Loop (auto-learning from corrections)
+│   └── Distillation Router (cost-aware routing)
+│
+├── MCP Server (stdio, Production)
+│   ├── classify_memory     ← Core (keep in v0.3)
+│   ├── batch_classify      ← Core (keep in v0.3)
+│   ├── mce_status          ← Core (keep in v0.3)
+│   ├── store_memory        ← ⚠️ Deprecated v0.3
+│   ├── retrieve_memories   ← ⚠️ Deprecated v0.3
+│   ├── get_memory_stats    ← ⚠️ Deprecated v0.3
+│   ├── find_similar        ← ⚠️ Deprecated v0.3
+│   ├── export_memories     ← ⚠️ Deprecated v0.3
+│   ├── import_memories     ← ⚠️ Deprecated v0.3
+│   ├── mce_recall          ← ⚠️ Deprecated v0.3
+│   └── mce_forget          ← ⚠️ Deprecated v0.3
+│
+└── Built-in Storage (SQLite)
+    └── Will be wrapped as BuiltInStorageAdapter @deprecated in v0.3
 ```
 
-**Features**:
-- [ ] MemoryClassifierTool class
-- [ ] Integration with LangChain Memory
-- [ ] Usage documentation and examples
+---
 
-#### CrewAI (Priority: Medium)
+## Next: v0.3.0 — Pure Upstream Migration
 
-```python
-from memory_classification_engine.adapters.crewai import MemoryTool
+**Target**: ~6 person-days | **Breaking Change**: Yes (8 MCP tools removed)
 
-tool = MemoryTool()
+### V3-MCP-01: tools.py Rewrite (11 → 4 tools)
+
+Remove 8 deprecated storage tools. Keep only:
+
+| Tool | Purpose |
+|------|---------|
+| `classify_message` | Classify single message → MemoryEntry JSON |
+| `get_classification_schema` | Return 7-type + 4-tier definition for downstream mapping |
+| `batch_classify` | Batch classify → MemoryEntry[] |
+| `mce_status` | Engine status (version, capabilities, uptime) |
+
+### V3-MCP-02: handlers.py Rewrite (-422 lines)
+
+Delete 8 storage handler methods. Modify `handle_classify_memory` to output MemoryEntry Schema v1.0 format. Add `handle_get_classification_schema`.
+
+### V3-MCP-03: engine.py — New `to_memory_entry()` Method
+
+Convert `process_message()` result into standardized MemoryEntry JSON:
+
+```json
+{
+  "schema_version": "1.0.0",
+  "should_remember": true,
+  "entries": [{
+    "id": "mce_20260419_001",
+    "type": "user_preference",
+    "confidence": 0.95,
+    "tier": 2,
+    "source_layer": "rule",
+    "reasoning": "...",
+    "suggested_action": "store",
+    "metadata": {...}
+  }],
+  "summary": {...},
+  "engine_info": {"mode": "classification_only"}
+}
 ```
 
-**Features**:
-- [ ] MemoryTool class
-- [ ] Integration with CrewAI Agent
-- [ ] Usage documentation and examples
-
-#### AutoGen (Priority: Medium)
+### V3-MCP-04: StorageAdapter ABC (New Abstract Layer)
 
 ```python
-from memory_classification_engine.adapters.autogen import MemoryAgent
-
-agent = MemoryAgent()
+class StorageAdapter(ABC):
+    def store(self, entry: MemoryEntry) -> str: ...
+    def store_batch(self, entries: List[MemoryEntry]) -> List[str]: ...
+    def retrieve(self, query: str, limit: int) -> List[Dict]: ...
+    def delete(self, storage_id: str) -> bool: ...
+    def get_stats(self) -> Dict: ...
+    @property
+    def name(self) -> str: ...       # e.g. "supermemory", "obsidian"
+    @property
+    def capabilities(self) -> Dict: ...  # {"vector_search": True, ...}
 ```
 
-**Features**:
-- [ ] MemoryAgent component
-- [ ] Integration with AutoGen conversations
-- [ ] Usage documentation and examples
+### V3-MCP-05: BuiltInStorageAdapter (@deprecated)
+
+Wrap current SQLite logic as adapter. Mark `@deprecated`. For transition compatibility only.
+
+### V3-06~08: Classification Accuracy Fixes
+
+- A3.2: correction type accuracy improvement
+- A3.5: sentiment_marker accuracy improvement
+- Goal: classification accuracy >85% on clear messages
+
+### V3-09~14: Testing Overhaul
+
+| Task | Description |
+|------|-------------|
+| V3-09 | **MCE-Bench 180-case** — classification accuracy benchmark (P0, survival-critical) |
+| V3-10 | Fuzz testing (1000 random inputs, verify no crashes) |
+| V3-11 | MCP integration tests (4 tools only, no DB dependency) |
+| V3-12 | Full regression (target: 874+ all green) |
+
+### V3-15~17: Documentation & Case Study
+
+| Task | Description |
+|------|-------------|
+| V3-15 | Migration guide (v0.2 → v0.3: data export script) |
+| V3-16 | Case study: "MCE + Supermemory = Complete Memory Pipeline" |
+| V3-17 | Updated installation guide (pure classification mode default) |
 
 ---
 
-## Technical Debt Cleanup
+## Future Milestones (Post-v0.3)
 
-### Code Quality Optimization ✅ (Completed)
+### v0.4.0 — Official Downstream Adapters
 
-**Completed**:
-- [x] Fix P0/P1 code quality issues
-- [x] Engine class split refactoring (Facade pattern)
-- [x] Service layer architecture implementation
-- [x] Code review checklist
-- [x] Static code analysis tool configuration
-- [x] Phase 1 performance optimization (9 tasks)
-- [x] Phase 2 v2.0 feature delivery (3 major features)
-- [x] English code comments added (394 placeholders fixed)
-- [x] Documentation updated across EN/ZH/JP (README, ROADMAP, design, architecture, testing, API, installation)
+| Adapter | Priority | Effort |
+|---------|----------|--------|
+| **SupermemoryAdapter** | P0 | ~2d |
+| **ObsidianAdapter** | P0 | ~1.5d |
+| **Mem0Adapter** | P1 | ~1.5d |
+| **JSONFileAdapter** (default fallback) | P0 | ~0.5d |
 
-**Planned**:
-- [ ] Introduce dependency injection framework
-- [ ] Improve error handling mechanism
-- [ ] Further storage layer performance tuning
+### v0.5.0 — `get_classification_schema` Enhancement
 
----
+- Downstream auto-mapping tables (MCE type → Supermemory tag → Mem0 category → Obsidian folder)
+- Schema versioning (v1.0 → v1.1 backward compatible)
+- Web UI for schema browser
 
-## Promotion and Operation Plan
+### v0.6.0 — MCE-Bench Public Release
 
-### Phase 1: MCP Server Launch ✅ (Complete)
+- 180-case standard benchmark dataset
+- Leaderboard format (accuracy / latency / cost per 1k msgs)
+- Open for community submissions
+- Target: >90% accuracy on clear messages
 
-**Technical Work**:
-- [x] Implement MCP Server core functionality (11 tools)
-- [x] Write MCP configuration documentation
-- [x] Create Claude Code usage examples
-- [x] Complete 27 unit tests → expanded to 696 total tests
-- [x] OpenClaw integration
-- [x] Promote to Production v1.0.0
-- [ ] Release to PyPI
+### v1.0.0 — Industry Standard
 
-**Promotion Work**:
-- [x] Create Beta testing guide (English and Chinese)
-- [x] Create comprehensive API reference (API_REFERENCE_V1.md)
-- [x] Create multi-role consensus optimization roadmap
-- [ ] Submit to MCP community repository
-- [ ] Share in Claude Code Discord
-- [ ] Write technical blog
-
-### Phase 2: Community Building (Month 2-3)
-
-**Content Marketing**:
-- Blog post: "Why Your Agent Needs Professional Memory Classification"
-- Demo video: Claude Code + MCE demonstration
-- User cases: Real usage scenarios
-
-**Community Operations**:
-- Reddit r/ClaudeAI
-- Hacker News Show
-- Twitter/X tech circle
-- GitHub Discussions
-
-### Phase 3: Framework Integration (Month 3-6)
-
-**Technical Work**:
-- LangChain adapter
-- CrewAI adapter
-- AutoGen adapter
-
-**Promotion Work**:
-- Submit PRs to each framework community
-- Write integration tutorials
-- Provide comparison benchmarks
+- Classification accuracy >95%
+- Official adapters for 5+ downstream systems
+- Community-contributed adapters ecosystem
+- Academic paper: "Why Classification Matters More Than Storage for AI Memory"
 
 ---
 
-## Key Milestones
+## Architecture Evolution
 
-| Time | Milestone | Key Metrics | Status |
-|------|-----------|-------------|--------|
-| 2026-04-11 | MCP Server Beta testing launch | Beta testing guide published | ✅ Completed |
-| 2026-04-17 | Phase 1 Optimization complete | process_message -74%, cache 97.83% | ✅ Completed |
-| 2026-04-17 | Phase 2 v2.0 Features delivered | Adaptive retrieval, feedback loop, distillation | ✅ Completed |
-| 2026-04-17 | MCP Server Production v1.0.0 | VERSION=1.0.0, PROTOCOL_VERSION set | ✅ Completed |
-| 2026-04-17 | Documentation update cycle | README/ROADMAP EN/ZH/JP, design/arch/test/API docs | ✅ In Progress |
-| Month 1 | MCP Server official release | GitHub Stars: 200+ | 🔄 In Progress |
-| Month 2 | Initial community establishment | Stars: 500+, community members: 50+ | ⏳ To Start |
-| Month 3 | LangChain adaptation | Stars: 800+, downloads: 1000/month | ⏳ To Start |
-| Month 6 | Complete ecosystem | Stars: 1500+, downloads: 5000/month | ⏳ To Start |
+```
+v0.2.0 (CURRENT)                    v0.3.0 (NEXT)                     v1.0.0 (VISION)
+┌─────────────┐                   ┌─────────────┐                   ┌─────────────┐
+│  MCP Server  │                   │  MCP Server  │                   │  MCP Server  │
+│  11 tools    │                   │  4 tools     │                   │  4 tools     │
+│  (8 deprec.) │ ──breaking─────▶  │  (pure class)│                   │  (pure class)│
+└──────┬──────┘                   └──────┬──────┘                   └──────┬──────┘
+       │                                 │                                 │
+┌──────▼──────┐                   ┌──────▼──────┐                   ┌──────▼──────┐
+│   Engine     │                   │   Engine     │                   │   Engine     │
+│  (monolithic)│                   │  (+to_memory  │                   │  (optimized)  │
+│             │                   │   _entry())   │                   │  (>95% acc.)  │
+└──────┬──────┘                   └──────┬──────┘                   └──────┬──────┘
+       │                                 │                                 │
+┌──────▼──────┐                   ┌──────▼──────┐                   ┌──────▼──────┐
+│  SQLite     │                   │ Adapter ABC  │                   │ Adapter Eco │
+│  (hardcoded) │                   │  + BuiltIn   │                   │ (5+ official)│
+└─────────────┘                   │  (deprecated)│                   │ + community │
+                                 └──────┬──────┘                   └─────────────┘
+                                        │
+                              ┌───────────┼───────────┐
+                              ▼           ▼           ▼
+                         [Supermem]   [Obsidian]   [Mem0]   ...more
+```
+
+---
+
+## Key Metrics Targets
+
+| Metric | v0.2.0 (current) | v0.3.0 (target) | v1.0.0 (vision) |
+|--------|------------------|-----------------|---------------|
+| MCP tools | 11 (8 deprecated) | **4** (pure) | 4 |
+| Code (layer2_mcp/) | ~1580 lines | **~650 lines** (-59%) | ~500 lines |
+| Test scenarios | 92 (with DB deps) | **43** (no DB deps) (-53%) | 50+ |
+| Classification accuracy | Unknown (~60% demo) | **>85%** (MCE-Bench) | **>95%** |
+| Downstream adapters | 0 | 1 (BuiltIn @deprec) | **5+ official** |
+| LLM call ratio | <10% | <10% | <5% |
 
 ---
 
 ## Decision Records
 
-### Why not make a Skill framework?
+### DR-001: Why Pure Upstream Instead of Full Stack? (2026-04-19)
 
-**Discussion**: Should we make it a framework like LangChain?
+**Options considered**:
+- A: Full stack (compete with Supermemory/Mem0 on storage) ❌
+- B: Pure upstream (classification only, storage to downstream) ✅
+- C: Dual mode (two packages) ❌
 
-**Decision**: Not a framework, focus on engine
+**Decision**: Route B — Pure Upstream
 
-**Reasons**:
-1. Framework competition is fierce (LangChain, LlamaIndex, etc.)
-2. Engine positioning is clearer, with obvious differentiation
-3. Easier to be integrated by other frameworks
-4. Lower maintenance cost
+**Key reasons**:
+1. Cannot compete on storage (Supermemory YC-funded, Mem0 18k stars)
+2. But nobody does classification well — 7 competitor articles ALL ignore this dimension
+3. "Warehouse vs Security Scanner" metaphor is compelling and differentiating
+4. Reduces code by 59%, tests by 53%, maintenance burden dramatically
 
-### Why MCP Server priority over Framework Adapters?
+**Full analysis**: [MCP_POSITIONING_CONSENSUS_v3.md](./docs/consensus/MCP_POSITIONING_CONSENSUS_v3.md)
 
-**Discussion**: Should we do LangChain adaptation first?
+### DR-002: Why MCP Over Framework Adapters First? (2026-04-11)
 
-**Decision**: MCP Server priority
+**Decision**: MCP priority over LangChain/CrewAI/AutoGen adapters
 
-**Reasons**:
-1. MCP is a trend, Anthropic is heavily promoting it
-2. Higher investment return ratio (low packaging cost, targeted users)
-3. LangChain adaptation can be done as Layer 3 later
-4. MCP users are more willing to try new tools
+**Reasons still valid**:
+- MCP is the trend (Anthropic heavily promoting)
+- Claude Code / Cursor users = exact target audience
+- Low packaging cost, high conversion rate
+- Framework adapters can come later as Layer 3
+
+### DR-003: Why Not a Skill Framework? (2026-04-10)
+
+**Decision**: Engine, not framework
+
+**Reasons still valid**:
+- Framework competition fierce (LangChain, LlamaIndex)
+- Engine positioning clearer, more differentiated
+- Easier to integrate BY other frameworks
+- Lower maintenance cost
+
+---
+
+## Promotion Plan
+
+### Phase 1: Launch (Now — v0.2.0)
+
+- [x] GitHub release v0.2.0
+- [x] README rewrite (Classification First narrative)
+- [ ] PyPI publish (pending user confirmation)
+- [ ] "Classification First" blog post (drafting)
+
+### Phase 2: Content Marketing (Parallel with v0.3 dev)
+
+| Channel | Content | Status |
+|---------|---------|--------|
+| Hacker News | "I built a pre-filter for your AI memory system" | ⏳ Planned |
+| Reddit r/ClaudeAI | "MCE + Supermemory: complete memory pipeline tutorial" | ⏳ Planned |
+| GitHub Discussions | Show HN post + architecture walkthrough | ⏳ Planned |
+| MCP Community | Submit to official MCP tools registry | ⏳ Planned |
+| Blog (English) | "Why Classification Matters More Than Storage for AI Memory" | ⏳ Planned |
+| Demo Video | 30s Claude Code + MCE operation GIF | ⏳ Planned |
+
+### Phase 3: Ecosystem Growth (Post-v0.3)
+
+- Official adapter releases (Supermemory, Obsidian, Mem0)
+- MCE-Bench public leaderboard
+- Community adapter contributions
+- Integration tutorials with popular Agent frameworks
 
 ---
 
@@ -327,27 +344,24 @@ agent = MemoryAgent()
 
 ### Related Documents
 
-- [Architecture Design](docs/architecture/architecture.md)
-- [Architecture Design (ZH)](docs/architecture/architecture-zh.md)
-- [Design Document](docs/design.md)
-- [Design Document (ZH)](docs/design-zh.md)
-- [Design Document (JP)](docs/design-jp.md)
-- [API Reference](docs/api/API_REFERENCE_V1.md)
-- [Optimization Roadmap](docs/OPTIMIZATION_ROADMAP_V1.md)
-- [User Guide](docs/user_guides/user_guide.md)
-- [User Guide (ZH)](docs/user_guides/user_guide-zh.md)
-- [User Guide (JP)](docs/user_guides/user_guide-jp.md)
-- [Installation Guide](docs/user_guides/installation_guide.md)
-- [Test Plan V2](docs/testing/MCE_TEST_PLAN_V2.md)
+| Document | Description |
+|----------|-------------|
+| [MCP_POSITIONING_CONSENSUS_v3.md](./docs/consensus/MCP_POSITIONING_CONSENSUS_v3.md) | Strategic decision: why pure upstream |
+| [COMPETITOR_ANALYSIS_CONSENSUS_v2.md](./docs/consensus/COMPETITOR_ANALYSIS_CONSENSUS_v2.md) | 7 competitor articles deep analysis |
+| [STRATEGIC_REVIEW_CONSENSUS_20260419.md](./docs/consensus/STRATEGIC_REVIEW_CONSENSUS_20260419.md) | Strategic review meeting notes |
+| [STORAGE_STRATEGY.md](./docs/user_guides/STORAGE_STRATEGY.md) | Downstream integration guide |
+| [API Reference](./docs/api/API_REFERENCE_V1.md) | Complete SDK/MCP/REST documentation |
+| [Installation Guide](./docs/user_guides/installation_guide_v2.md) | Setup, config, troubleshooting |
 
 ### Related Links
 
 - [MCP Official Documentation](https://modelcontextprotocol.io/)
 - [Claude Code Documentation](https://docs.anthropic.com/en/docs/claude-code/overview)
-- [OpenClaw Project](https://github.com/openclaw)
+- [Supermemory](https://supermemory.ai) — Recommended downstream (cloud)
+- [Mem0](https://mem0.ai) — Recommended downstream (self-hosted)
 
 ---
 
-**Document Version**: v2.0.0
-**Last Updated**: 2026-04-17
-**Review Status**: Reviewed
+**Document Version**: v3.0.0
+**Last Updated**: 2026-04-19
+**Next Update**: After v0.3.0 release
