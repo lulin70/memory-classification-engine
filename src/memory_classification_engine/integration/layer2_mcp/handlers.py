@@ -1,674 +1,256 @@
 """
-MCP Tool Handlers for Memory Classification Engine.
+MCP Tool handlers for Memory Classification Engine.
 
-This module implements the business logic for each MCP tool,
-connecting the MCP protocol to the Memory Classification Engine core.
+Pure Upstream Mode (v0.3.0): Only classification handlers are present.
+Storage, retrieval, and CRUD operations have been removed.
+Output follows MemoryEntry JSON Schema v1.0 for downstream compatibility.
 """
 
 import json
-import logging
-from typing import Any, Dict, List, Optional
+import time
+from datetime import datetime
+from typing import Any, Dict, List
 
-from ...engine_facade import MemoryClassificationEngineFacade
-from .tools import validate_tool_arguments, TOOL_NAMES
+from .tools import CLASSIFICATION_SCHEMA, TOOL_NAMES
 
 
-logger = logging.getLogger(__name__)
+def _format_memory_entry(match: Dict[str, Any], original_message: str) -> Dict[str, Any]:
+    """Convert a raw engine match dict to standardized MemoryEntry v1.0."""
+    from uuid import uuid4
+
+    mem_type = match.get("memory_type") or match.get("type", "unknown")
+    confidence = match.get("confidence", 0.0)
+    tier = match.get("tier", 2)
+
+    return {
+        "id": f"mce_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}",
+        "type": mem_type,
+        "content": match.get("content") or original_message[:200],
+        "confidence": round(confidence, 4),
+        "tier": tier,
+        "source_layer": match.get("source", "unknown"),
+        "reasoning": match.get("reasoning", ""),
+        "suggested_action": "store" if confidence > 0.5 else ("defer" if confidence > 0.3 else "ignore"),
+        "metadata": {
+            "original_message": original_message,
+            "timestamp_utc": datetime.utcnow().isoformat() + "Z"
+        }
+    }
+
+
+def _build_summary(entries: List[Dict[str, Any]], llm_calls: int = 0) -> Dict[str, Any]:
+    """Build summary section of MemoryEntry output."""
+    by_type: Dict[str, int] = {}
+    by_tier: Dict[int, int] = {}
+    total_confidence = 0.0
+
+    for entry in entries:
+        by_type[entry["type"]] = by_type.get(entry["type"], 0) + 1
+        by_tier[entry["tier"]] = by_tier.get(entry["tier"], 0) + 1
+        total_confidence += entry["confidence"]
+
+    return {
+        "total_entries": len(entries),
+        "by_type": by_type,
+        "by_tier": by_tier,
+        "avg_confidence": round(total_confidence / max(len(entries), 1), 4),
+        "filtered_count": 0,
+        "llm_calls_used": llm_calls
+    }
+
+
+def handle_classify_message(engine, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Classify a single message and return MemoryEntry v1.0.
+
+    This is the core MCE tool. It analyzes whether a message contains
+    memorable information and returns structured classification results.
+    The output is designed to be directly consumable by any downstream
+    storage system.
+    """
+    message = arguments.get("message", "")
+    context = arguments.get("context")
+
+    if not message.strip():
+        return {
+            "schema_version": "1.0.0",
+            "should_remember": False,
+            "entries": [],
+            "summary": {"total_entries": 0},
+            "engine_info": {"mode": "classification_only"},
+            "error": "Empty message provided"
+        }
+
+    try:
+        result = engine.process_message(message, context)
+        matches = result.get("matches", [])
+        processing_time = result.get("processing_time", 0)
+
+        entries = [_format_memory_entry(m, message) for m in matches]
+
+        return {
+            "schema_version": "1.0.0",
+            "should_remember": len(entries) > 0,
+            "entries": entries,
+            "summary": _build_summary(entries),
+            "engine_info": {
+                "mode": "classification_only",
+                "processing_time_ms": round(processing_time * 1000, 2) if processing_time else None
+            }
+        }
+    except Exception as e:
+        return {
+            "schema_version": "1.0.0",
+            "should_remember": False,
+            "entries": [],
+            "summary": {"total_entries": 0},
+            "engine_info": {"mode": "classification_only"},
+            "error": str(e)
+        }
+
+
+def handle_get_classification_schema(engine, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Return MCE's complete classification schema definition.
+
+    This includes all 7 memory types with examples and downstream mappings,
+    4 storage tiers, confidence thresholds, and output format specification.
+    Downstream systems use this to auto-map MCE output to their own data model.
+    """
+    fmt = arguments.get("format", "json")
+
+    if fmt == "markdown":
+        lines = [
+            "# MCE Classification Schema v1.0",
+            "",
+            f"**Engine Version**: {CLASSIFICATION_SCHEMA['engine_version']}",
+            f"**Mode**: {CLASSIFICATION_SCHEMA['mode']}",
+            "",
+            "## Memory Types (7)",
+            ""
+        ]
+        for mt in CLASSIFICATION_SCHEMA["memory_types"]:
+            lines.append(f"### {mt['id']} ({mt['label_en']} / {mt['label_zh']})")
+            lines.append(f"- **Description**: {mt['description']}")
+            lines.append(f"- **Examples**: {', '.join(mt['examples'])}")
+            lines.append(f"- **Default Tier**: T{mt['default_tier']}")
+            lines.append(f"- **Downstream Mapping**:")
+            for ds, cat in mt["downstream_mapping"].items():
+                lines.append(f"  - {ds}: `{cat}`")
+            lines.append("")
+        return {"schema": "\n".join(lines), "format": "markdown"}
+
+    return {
+        "schema": CLASSIFICATION_SCHEMA,
+        "format": "json"
+    }
+
+
+def handle_batch_classify(engine, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Batch classify multiple messages, each returning independent MemoryEntry.
+
+    Suitable for conversation history replay, log analysis, etc.
+    Each message is classified independently; results are returned as an array.
+    """
+    messages_data = arguments.get("messages", [])
+
+    if not messages_data:
+        return {
+            "results": [],
+            "summary": {"total_messages": 0, "total_entries": 0},
+            "error": "No messages provided"
+        }
+
+    results = []
+    total_entries = 0
+
+    for msg_item in messages_data:
+        msg_text = msg_item.get("message", "")
+        msg_context = msg_item.get("context")
+        msg_result = handle_classify_message(engine, {"message": msg_text, "context": msg_context})
+        results.append(msg_result)
+        total_entries += len(msg_result.get("entries", []))
+
+    return {
+        "results": results,
+        "summary": {
+            "total_messages": len(messages_data),
+            "total_entries": total_entries,
+            "messages_with_memories": sum(1 for r in results if r.get("should_remember"))
+        }
+    }
+
+
+def handle_mce_status(engine, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Return MCE engine status (version, capabilities, uptime).
+
+    Does NOT include storage statistics — those belong to downstream systems.
+    """
+    detail_level = arguments.get("detail_level", "summary")
+
+    status = {
+        "status": "active",
+        "mode": "classification_only",
+        "version": getattr(engine, 'ENGINE_VERSION', '0.3.0'),
+        "schema_version": "1.0.0",
+        "capabilities": {
+            "memory_types": 7,
+            "storage_tiers": 4,
+            "supported_output_formats": ["json"],
+            "available_tools": list(TOOL_NAMES)
+        },
+        "uptime_seconds": round(time.time() - getattr(engine, '_start_time', time.time()), 1)
+    }
+
+    if detail_level == "full":
+        rules_config = getattr(engine, '_rules_config', None)
+        if rules_config:
+            status["configuration"] = {
+                "llm_enabled": getattr(engine, '_llm_enabled', False),
+                "rule_count": len(rules_config.get('rules', [])) if isinstance(rules_config, dict) else 0,
+                "auto_learning_enabled": getattr(engine, '_auto_learn', True)
+            }
+
+    return status
+
+
+handler_map = {
+    "classify_message": handle_classify_message,
+    "get_classification_schema": handle_get_classification_schema,
+    "batch_classify": handle_batch_classify,
+    "mce_status": handle_mce_status
+}
 
 
 class Handlers:
+    """Backward-compatible wrapper for server.py integration.
+
+    Server.py expects a Handlers class with __init__(config_path, data_path)
+    and async handle_tool(tool_name, arguments) method.
+    This class bridges that interface to the new function-based handlers.
     """
-    Handlers for MCP tools.
-    
-    Each method corresponds to a tool defined in tools.py.
-    """
-    
-    def __init__(self, config_path: Optional[str] = None, data_path: Optional[str] = None):
-        """
-        Initialize handlers with engine facade.
-        
-        Args:
-            config_path: Path to configuration file
-            data_path: Path to data directory
-        """
-        self.engine = MemoryClassificationEngineFacade(config_path)
-        self.data_path = data_path
-        logger.info("Handlers initialized with engine facade")
-    
-    async def handle_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Route tool calls to appropriate handler.
-        
-        Args:
-            tool_name: Name of the tool to call
-            arguments: Tool arguments
-            
-        Returns:
-            Tool execution result
-            
-        Raises:
-            ValueError: If tool not found or invalid arguments
-        """
-        # Comment in Chinese removedxists
-        if tool_name not in TOOL_NAMES:
-            raise ValueError(f"Unknown tool: {tool_name}")
-        
-        # Comment in Chinese removednts
-        errors = validate_tool_arguments(tool_name, arguments)
-        if errors:
-            raise ValueError(f"Invalid arguments: {'; '.join(errors)}")
-        
-        # Comment in Chinese removedr
-        handler_map = {
-            "classify_memory": self.handle_classify_memory,
-            "store_memory": self.handle_store_memory,
-            "retrieve_memories": self.handle_retrieve_memories,
-            "get_memory_stats": self.handle_get_memory_stats,
-            "batch_classify": self.handle_batch_classify,
-            "find_similar": self.handle_find_similar,
-            "export_memories": self.handle_export_memories,
-            "import_memories": self.handle_import_memories,
-            "mce_recall": self.handle_mce_recall,
-            "mce_status": self.handle_mce_status,
-            "mce_forget": self.handle_mce_forget,
-        }
-        
-        handler = handler_map.get(tool_name)
-        if not handler:
-            raise ValueError(f"Handler not implemented for tool: {tool_name}")
-        
-        logger.info(f"Executing handler for: {tool_name}")
-        return await handler(arguments)
-    
-    async def handle_classify_memory(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle classify_memory tool.
-        
-        Args:
-            arguments: Tool arguments containing 'message' and optional 'context'
-            
-        Returns:
-            Classification result
-        """
-        message = arguments["message"]
-        context = arguments.get("context")
-        
-        logger.debug(f"Classifying message: {message[:100]}...")
-        
+
+    def __init__(self, config_path: str = None, data_path: str = None):
+        from memory_classification_engine import MemoryClassificationEngine
+        self._engine = MemoryClassificationEngine(config_path=config_path)
+
+    async def handle_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
+        """Route tool calls to the appropriate handler function."""
+        if tool_name not in handler_map:
+            return {
+                "error": f"Unknown tool: {tool_name}. Available: {list(handler_map.keys())}",
+                "available_tools": list(handler_map.keys())
+            }
+
+        handler_func = handler_map[tool_name]
         try:
-            result = self.engine.classify_message(message, context)
-            
-            # Extract first match if available
-            matches = result.get("matches", [])
-            if matches:
-                match = matches[0]
-                return {
-                    "success": True,
-                    "matched": len(matches) > 0,
-                    "memory_type": match.get("memory_type"),
-                    "tier": match.get("tier"),
-                    "content": match.get("content"),
-                    "confidence": match.get("confidence"),
-                    "source": match.get("source"),
-                    "reasoning": match.get("reasoning"),
-                    "message": "Message classified successfully"
-                }
-            else:
-                return {
-                    "success": True,
-                    "matched": False,
-                    "memory_type": None,
-                    "tier": None,
-                    "content": None,
-                    "confidence": 0.0,
-                    "source": None,
-                    "reasoning": None,
-                    "message": "No matches found"
-                }
+            result = handler_func(self._engine, arguments or {})
+            return {"success": True, "data": result}
         except Exception as e:
-            logger.error(f"Error classifying message: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "message": "Failed to classify message"
-            }
-    
-    async def handle_store_memory(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle store_memory tool.
-        
-        Args:
-            arguments: Tool arguments containing 'content', 'memory_type', etc.
-            
-        Returns:
-            Storage result with memory_id
-        """
-        content = arguments["content"]
-        memory_type = arguments["memory_type"]
-        tier = arguments.get("tier")
-        context = arguments.get("context")
-        
-        logger.debug(f"Storing memory: {content[:100]}...")
-        
-        try:
-            # Comment in Chinese removedmory
-            storage_service = self.engine.storage_service
-            
-            memory_data = {
-                "type": memory_type,
-                "content": content,
-                "context": context,
-                "confidence": 1.0,  # Comment in Chinese removed
-            }
-            
-            if tier:
-                memory_data["tier"] = tier
-            
-            memory_id = storage_service.store_memory(memory_data)
-            
-            return {
-                "success": True,
-                "memory_id": memory_id,
-                "stored": True,
-                "tier": tier or "auto-determined",
-                "message": "Memory stored successfully"
-            }
-        except Exception as e:
-            logger.error(f"Error storing memory: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "stored": False,
-                "message": "Failed to store memory"
-            }
-    
-    async def handle_retrieve_memories(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle retrieve_memories tool.
-        
-        Args:
-            arguments: Tool arguments containing 'query', 'limit', etc.
-            
-        Returns:
-            List of matching memories
-        """
-        query = arguments["query"]
-        limit = arguments.get("limit", 5)
-        tier = arguments.get("tier")
-        
-        logger.debug(f"Retrieving memories for query: {query}")
-        
-        try:
-            # Comment in Chinese removeds
-            storage_service = self.engine.storage_service
-            
-            memories = storage_service.retrieve_memories(
-                query=query,
-                limit=limit,
-                tier=tier
-            )
-            
-            # Comment in Chinese removed
-            formatted_memories = []
-            for mem in memories:
-                formatted_memories.append({
-                    "id": mem.get("id"),
-                    "type": mem.get("type"),
-                    "tier": mem.get("tier"),
-                    "content": mem.get("content"),
-                    "confidence": mem.get("confidence"),
-                    "created_at": mem.get("created_at"),
-                    "relevance_score": mem.get("relevance_score", 0.0)
-                })
-            
-            return {
-                "success": True,
-                "memories": formatted_memories,
-                "count": len(formatted_memories),
-                "message": f"Retrieved {len(formatted_memories)} memories"
-            }
-        except Exception as e:
-            logger.error(f"Error retrieving memories: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "memories": [],
-                "message": "Failed to retrieve memories"
-            }
-    
-    async def handle_get_memory_stats(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle get_memory_stats tool.
-        
-        Args:
-            arguments: Tool arguments containing optional 'tier'
-            
-        Returns:
-            Memory statistics
-        """
-        tier = arguments.get("tier")
-        
-        logger.debug(f"Getting memory stats for tier: {tier or 'all'}")
-        
-        try:
-            # Comment in Chinese removedts
-            storage_service = self.engine.storage_service
-            
-            # Skip stats for now to avoid error
-            stats = {
-                "total_memories": 0,
-                "type_stats": {},
-                "tier_stats": {},
-                "total_processed": 0,
-                "weekly_additions": 0
-            }
-            
-            return {
-                "success": True,
-                "stats": stats,
-                "message": "Statistics retrieved successfully"
-            }
-        except Exception as e:
-            logger.error(f"Error getting stats: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "message": "Failed to get statistics"
-            }
-    
-    async def handle_batch_classify(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle batch_classify tool.
-        
-        Args:
-            arguments: Tool arguments containing 'messages' list
-            
-        Returns:
-            List of classification results
-        """
-        messages = arguments["messages"]
-        
-        logger.debug(f"Batch classifying {len(messages)} messages")
-        
-        results = []
-        for msg_data in messages:
-            message = msg_data["message"]
-            context = msg_data.get("context")
-            
-            try:
-                result = self.engine.process_message(message, context)
-                results.append({
-                    "message": message[:100] + "..." if len(message) > 100 else message,
-                    "matched": result.get("matched", False),
-                    "memory_type": result.get("memory_type"),
-                    "tier": result.get("tier"),
-                    "confidence": result.get("confidence"),
-                    "success": True
-                })
-            except Exception as e:
-                logger.error(f"Error in batch classification: {e}")
-                results.append({
-                    "message": message[:100] + "..." if len(message) > 100 else message,
-                    "success": False,
-                    "error": str(e)
-                })
-        
-        return {
-            "success": True,
-            "results": results,
-            "total": len(messages),
-            "matched": sum(1 for r in results if r.get("matched")),
-            "message": f"Classified {len(messages)} messages"
-        }
-    
-    async def handle_find_similar(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle find_similar tool.
-        
-        Args:
-            arguments: Tool arguments containing 'content', 'threshold', etc.
-            
-        Returns:
-            List of similar memories
-        """
-        content = arguments["content"]
-        threshold = arguments.get("threshold", 0.8)
-        limit = arguments.get("limit", 5)
-        
-        logger.debug(f"Finding similar memories for: {content[:100]}...")
-        
-        try:
-            # Comment in Chinese removeds
-            storage_service = self.engine.storage_service
-            
-            similar_memories = storage_service.find_similar(
-                content=content,
-                threshold=threshold,
-                limit=limit
-            )
-            
-            # Comment in Chinese removed
-            formatted_memories = []
-            for mem in similar_memories:
-                formatted_memories.append({
-                    "id": mem.get("id"),
-                    "type": mem.get("type"),
-                    "tier": mem.get("tier"),
-                    "content": mem.get("content"),
-                    "similarity_score": mem.get("similarity_score", 0.0),
-                    "confidence": mem.get("confidence")
-                })
-            
-            return {
-                "success": True,
-                "similar_memories": formatted_memories,
-                "count": len(formatted_memories),
-                "threshold": threshold,
-                "message": f"Found {len(formatted_memories)} similar memories"
-            }
-        except Exception as e:
-            logger.error(f"Error finding similar memories: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "similar_memories": [],
-                "message": "Failed to find similar memories"
-            }
-    
-    async def handle_export_memories(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle export_memories tool.
-        
-        Args:
-            arguments: Tool arguments containing 'format', 'tier', etc.
-            
-        Returns:
-            Exported data
-        """
-        format_type = arguments.get("format", "json")
-        tier = arguments.get("tier")
-        memory_type = arguments.get("memory_type")
-        
-        logger.debug(f"Exporting memories in {format_type} format")
-        
-        try:
-            # Comment in Chinese removeds
-            storage_service = self.engine.storage_service
-            
-            data = storage_service.export_memories(
-                format=format_type,
-                tier=tier,
-                memory_type=memory_type
-            )
-            
-            return {
-                "success": True,
-                "format": format_type,
-                "data": data,
-                "message": f"Memories exported in {format_type} format"
-            }
-        except Exception as e:
-            logger.error(f"Error exporting memories: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "message": "Failed to export memories"
-            }
-    
-    async def handle_import_memories(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle import_memories tool.
-        
-        Args:
-            arguments: Tool arguments containing 'data', 'format', etc.
-            
-        Returns:
-            Import result
-        """
-        data = arguments["data"]
-        format_type = arguments.get("format", "json")
-        merge_strategy = arguments.get("merge_strategy", "skip_duplicates")
-        
-        logger.debug(f"Importing memories from {format_type} data")
-        
-        try:
-            # Comment in Chinese removeds
-            storage_service = self.engine.storage_service
-            
-            result = storage_service.import_memories(
-                data=data,
-                format=format_type,
-                merge_strategy=merge_strategy
-            )
-            
-            return {
-                "success": True,
-                "imported_count": result.get("imported_count", 0),
-                "skipped_count": result.get("skipped_count", 0),
-                "error_count": result.get("error_count", 0),
-                "message": f"Imported {result.get('imported_count', 0)} memories"
-            }
-        except Exception as e:
-            logger.error(f"Error importing memories: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "message": "Failed to import memories"
-            }
-    
-    async def handle_mce_recall(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle mce_recall tool.
-        
-        Args:
-            arguments: Tool arguments containing 'context', 'limit', etc.
-            
-        Returns:
-            Formatted memory recall result
-        """
-        context = arguments.get("context", "general")
-        limit = arguments.get("limit", 5)
-        memory_types = arguments.get("types")
-        format_type = arguments.get("format", "text")
-        include_pending = arguments.get("include_pending", True)
-        
-        logger.debug(f"Recalling memories for context: {context}")
-        
-        try:
-            # Get storage service
-            storage_service = self.engine.storage_service
-            
-            # Retrieve memories based on context
-            memories = storage_service.retrieve_memories(
-                query=context,
-                limit=limit,
-                memory_type=memory_types[0] if memory_types else None
-            )
-            
-            # Skip stats for now to avoid error
-            total_memories = len(memories)
-            
-            if format_type == "text":
-                # Generate text format response
-                text_response = "📝 MCE Memory Recall\n\n"
-                text_response += f"## 已加载的记忆 ({len(memories)}/{limit})\n"
-                
-                for mem in memories:
-                    memory_type = mem.get("type", "unknown")
-                    content = mem.get("content", "")
-                    confidence = mem.get("confidence", 0.0)
-                    source = mem.get("source", "unknown")
-                    
-                    # Map memory type to Chinese label
-                    type_label_map = {
-                        "user_preference": "偏好",
-                        "correction": "纠正",
-                        "fact_declaration": "事实",
-                        "decision": "决策",
-                        "relationship": "关系",
-                        "task_pattern": "任务模式",
-                        "sentiment_marker": "情感标记"
-                    }
-                    type_label = type_label_map.get(memory_type, memory_type)
-                    
-                    text_response += f"- [{type_label}] {content}          置信度{confidence:.2f} {source}\n"
-                
-                text_response += "\n## 统计信息\n"
-                text_response += f"- 过滤噪音: {total_memories - len(memories)}条\n"
-                text_response += f"- LLM调用: 0次\n"
-                text_response += f"- 处理消息: 0条\n"
-                text_response += f"- 本周新增: 0条记忆\n"
-                text_response += "\n💡 这些记忆将影响我的回复，确保一致性体验\n"
-                
-                return {
-                    "success": True,
-                    "content": text_response,
-                    "format": "text",
-                    "memories_count": len(memories),
-                    "message": "Memory recall completed"
-                }
-            else:
-                # Generate JSON format response
-                formatted_memories = []
-                for mem in memories:
-                    formatted_memories.append({
-                        "id": mem.get("id"),
-                        "type": mem.get("type"),
-                        "content": mem.get("content"),
-                        "confidence": mem.get("confidence"),
-                        "source": mem.get("source"),
-                        "tier": mem.get("tier"),
-                        "created_at": mem.get("created_at")
-                    })
-                
-                return {
-                    "success": True,
-                    "memories": formatted_memories,
-                    "stats": {
-                        "total_memories": total_memories,
-                        "recalled_count": len(memories),
-                        "noise_filtered": total_memories - len(memories),
-                        "llm_calls": 0,
-                        "total_processed": 0,
-                        "weekly_additions": 0
-                    },
-                    "format": "json",
-                    "message": "Memory recall completed"
-                }
-        except Exception as e:
-            logger.error(f"Error in mce_recall: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "message": "Failed to recall memories"
-            }
-    
-    async def handle_mce_status(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle mce_status tool.
-        
-        Args:
-            arguments: Tool arguments containing 'detail_level'
-            
-        Returns:
-            Memory status information
-        """
-        detail_level = arguments.get("detail_level", "summary")
-        
-        logger.debug(f"Getting memory status with detail level: {detail_level}")
-        
-        try:
-            # Get storage service
-            storage_service = self.engine.storage_service
-            
-            # Skip stats for now to avoid error
-            stats = {
-                "total_memories": 0,
-                "type_stats": {},
-                "tier_stats": {},
-                "total_processed": 0,
-                "weekly_additions": 0
-            }
-            
-            if detail_level == "full":
-                return {
-                    "success": True,
-                    "status": "active",
-                    "detail_level": "full",
-                    "stats": stats,
-                    "message": "Full memory status retrieved"
-                }
-            else:
-                # Summary level
-                summary_stats = {
-                    "total_memories": stats.get("total_memories", 0),
-                    "by_type": stats.get("type_stats", {}),
-                    "by_tier": stats.get("tier_stats", {}),
-                    "total_processed": stats.get("total_processed", 0),
-                    "weekly_additions": stats.get("weekly_additions", 0)
-                }
-                
-                return {
-                    "success": True,
-                    "status": "active",
-                    "detail_level": "summary",
-                    "stats": summary_stats,
-                    "message": "Summary memory status retrieved"
-                }
-        except Exception as e:
-            logger.error(f"Error in mce_status: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "message": "Failed to get memory status"
-            }
-    
-    async def handle_mce_forget(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle mce_forget tool.
-        
-        Args:
-            arguments: Tool arguments containing 'memory_id' and optional 'reason'
-            
-        Returns:
-            Forgetting result
-        """
-        memory_id = arguments["memory_id"]
-        reason = arguments.get("reason", "user_request")
-        
-        logger.debug(f"Forgetting memory with ID: {memory_id}")
-        
-        try:
-            # Get storage service
-            storage_service = self.engine.storage_service
-            
-            # Remove the memory
-            success = storage_service.delete_memory(memory_id)
-            
-            if success:
-                return {
-                    "success": True,
-                    "memory_id": memory_id,
-                    "forgotten": True,
-                    "reason": reason,
-                    "message": "Memory forgotten successfully"
-                }
-            else:
-                return {
-                    "success": False,
-                    "memory_id": memory_id,
-                    "forgotten": False,
-                    "message": "Memory not found or could not be forgotten"
-                }
-        except Exception as e:
-            logger.error(f"Error in mce_forget: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "message": "Failed to forget memory"
-            }
-    
-    async def cleanup(self):
-        """Cleanup resources."""
-        logger.info("Cleaning up handlers...")
-        # Comment in Chinese removed
+            return {"success": False, "error": str(e)}
+
+    def cleanup(self):
+        """Cleanup resources (no-op in pure classification mode)."""
+        pass

@@ -2190,3 +2190,74 @@ class MemoryClassificationEngine:
             logger.error(f"Error getting user behavior summary: {e}", exc_info=True)
             self.audit_manager.log(user_id, 'failed', 'get_user_behavior_summary', {'error': str(e)})
             return {'error': 'Failed to get user behavior summary'}
+
+    def to_memory_entry(self, message: str, context: str = None) -> Dict[str, Any]:
+        """Convert process_message result to MemoryEntry Schema v1.0.
+
+        This is the core method for Pure Upstream mode (v0.3.0).
+        Output follows the standard MemoryEntry JSON format that any downstream
+        storage system (Supermemory/Mem0/Obsidian/custom) can consume directly.
+
+        Args:
+            message: Raw message to classify
+            context: Optional conversation context
+
+        Returns:
+            Dict conforming to MemoryEntry Schema v1.0:
+            {
+                "schema_version": "1.0.0",
+                "should_remember": bool,
+                "entries": [{id, type, content, confidence, tier,
+                              source_layer, reasoning, suggested_action, metadata}],
+                "summary": {total_entries, by_type, by_tier, avg_confidence},
+                "engine_info": {mode, version}
+            }
+        """
+        from datetime import datetime as dt
+        from uuid import uuid4
+
+        result = self.process_message(message, context)
+        matches = result.get("matches", [])
+
+        entries = []
+        for match in matches:
+            mem_type = match.get("memory_type") or match.get("type", "unknown")
+            confidence = match.get("confidence", 0.0)
+            entries.append({
+                "id": f"mce_{dt.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}",
+                "type": mem_type,
+                "content": match.get("content") or message[:200],
+                "confidence": round(confidence, 4),
+                "tier": match.get("tier", 2),
+                "source_layer": match.get("source", "unknown"),
+                "reasoning": match.get("reasoning", ""),
+                "suggested_action": "store" if confidence > 0.5 else ("defer" if confidence > 0.3 else "ignore"),
+                "metadata": {
+                    "original_message": message,
+                    "timestamp_utc": dt.utcnow().isoformat() + "Z"
+                }
+            })
+
+        by_type: Dict[str, int] = {}
+        by_tier: Dict[int, int] = {}
+        total_conf = 0.0
+        for e in entries:
+            by_type[e["type"]] = by_type.get(e["type"], 0) + 1
+            by_tier[e["tier"]] = by_tier.get(e["tier"], 0) + 1
+            total_conf += e["confidence"]
+
+        return {
+            "schema_version": "1.0.0",
+            "should_remember": len(entries) > 0,
+            "entries": entries,
+            "summary": {
+                "total_entries": len(entries),
+                "by_type": by_type,
+                "by_tier": by_tier,
+                "avg_confidence": round(total_conf / max(len(entries), 1), 4)
+            },
+            "engine_info": {
+                "mode": "classification_only",
+                "version": self.ENGINE_VERSION
+            }
+        }
