@@ -54,3 +54,28 @@ config/encryption_keys.json
 
 # 忽略 .trae 目录
 .trae/
+
+# === 开发调试文件 (Phase A/B 临时) ===
+debug_*.py
+test_*.py
+verify_*.py
+monkey_patch.py
+simplest_test.py
+ultimate_test.py
+find_crash.py
+inspect_benchmark.py
+final_pipeline_test.py
+run_bench_reload.py
+force_reload.py
+final_verify.py
+
+# === Benchmark 结果 ===
+benchmarks/*.json
+mce_bench_*.json
+
+# === Demo GIF 相关 ===
+demo/*.cast
+demo/demo.gif
+
+# === MCP Server 旧版 (deprecated) ===
+mce-mcp/mce_mcp_server/__pycache__/

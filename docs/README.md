@@ -1,86 +1,107 @@
-# Memory Classification Engine
+# MCE Documentation Index
 
-## 项目概述
-
-Memory Classification Engine 是一个智能记忆管理系统，用于分类、存储和检索用户的记忆数据。该系统采用多层存储架构，支持全文搜索、缓存预热和插件扩展，为用户提供高效的记忆管理能力。
-
-## 核心理念
-
-我们相信**记忆属于个人**，是用户的数字资产，不应被任何特定的模型或应用所绑定。我们的目标是构建一个开放、标准化的记忆层，让任何Agent都可以读写同一套记忆，实现记忆的持久化和可迁移性。
-
-## 三层分离架构
-
-1. **LLM层**：作为算力基础设施，提供推理能力
-2. **Agent层**：作为应用层，针对特定场景封装工具调用和工作流
-3. **记忆层**：作为个人资产层，记录用户的偏好、习惯、知识和历史
-
-## 项目定位
-
-我们正在将项目从"记忆分类引擎"升级为"个人记忆管理标准与解决方案"，目标是成为记忆层的事实标准。
-
-## 目录结构
+## 📚 Documentation Structure
 
 ```
-memory-classification-engine/
-├── docs/             # 文档目录
-├── src/              # 源代码
-├── tests/            # 测试代码
-└── requirements.txt  # 依赖文件
+docs/
+├── README.md                    # 本索引文件
+├── api/                         # API Reference
+│   ├── API_REFERENCE_V1.md
+│   ├── api.md
+│   ├── memory_format.md
+│   └── sdk.md
+├── architecture/                # Architecture & Design
+│   ├── architecture.md          # Core architecture (EN)
+│   ├── architecture-zh.md       # Core architecture (ZH)
+│   ├── design.md                # System design
+│   ├── design-zh.md             # System design (ZH)
+│   ├── design-jp.md             # System design (JP)
+│   └── mce_cross_session_memory_design.md
+├── blog/                        # Blog posts & articles
+│   └── why-your-agent-needs-professional-memory-classification.md
+├── consensus/                   # Strategic decisions & consensus
+│   ├── MCP_POSITIONING_CONSENSUS_v3.md    # ⭐ Current: Route B decision
+│   ├── COMPETITOR_ANALYSIS_CONSENSUS_v2.md
+│   ├── STRATEGIC_REVIEW_CONSENSUS_20260419.md
+│   └── MCE_V2_CONSENSUS_FUSION.md
+├── demo_report/                 # Demo interaction reports
+│   └── DEMO_INTERACTION_REPORT_v1.md
+├── planning/                    # Roadmaps & plans (v0.2.x legacy)
+│   ├── DEVELOPMENT_MODIFICATION_PLAN_V2.md
+│   ├── FEATURE_IMPLEMENTATION_STATUS.md
+│   ├── OPTIMIZATION_ROADMAP_V1.md
+│   └── RELEASE_PREP_PLAN_V1.md
+├── privacy_enhancement/         # Privacy & security design
+│   ├── requirements.md
+│   ├── design.md
+│   ├── implementation_plan.md
+│   └── test_plan.md
+├── product-manager/             # PM artifacts
+│   └── USER_STORY_CALIBRATION_v1.md
+├── review/                      # Code review reports
+│   ├── D2-5_FULL_TEAM_REVIEW_REPORT.md
+│   └── INSTALLATION_GUIDE_LINE_BY_LINE_AUDIT.md
+├── testing/                     # Test plans & reports
+│   ├── MCE_TEST_PLAN.md
+│   ├── MCE_TEST_PLAN_V2.md
+│   ├── MCE_TEST_REPORT.md      # through V3
+│   ├── MCP_SERVER_TEST_PLAN.md
+│   └── MCP_SERVER_TEST_REPORT_FINAL.md
+├── user_guides/                 # User guides & tutorials
+│   ├── installation_guide.md    # Legacy v0.1
+│   ├── installation_guide_v2.md # Current v0.2+
+│   ├── STORAGE_STRATEGY.md     # ⭐ Downstream integration guide
+│   ├── user_guide.md           # EN
+│   ├── user_guide-zh.md        # ZH
+│   ├── user_guide-jp.md        # JP
+│   ├── testing.md              # Testing guide
+│   └── user_stories.md         # User stories collection
+└── config/                      # Configuration examples
+    ├── claude_code_mcp_config.md
+    ├── workbuddy_mcp_config.md
+    └── trae_sdk_integration.md
 ```
 
-## 主要功能
+## 🎯 Key Documents (Priority Reading)
 
-### PHASE 1: 核心功能实现
-- **7种内存类型分类**：工作记忆、程序性记忆、情节记忆、语义记忆、启动记忆、情绪记忆、反射记忆
-- **4层存储架构**：工作记忆、短期存储、中期存储、长期存储
-- **智能内存管理**：自动分类和优先级管理
-- **全文搜索**：基于SQLite FTS5的倒排索引检索
-- **向量搜索**：基于FAISS的相似性搜索
-- **知识图谱**：记忆之间的关联关系
+### For New Contributors
+1. [README.md](../README.md) — Project overview & quick start
+2. [CONTRIBUTING.md](../CONTRIBUTING.md) — Contribution guidelines
+3. [architecture/architecture.md](./architecture/architecture.md) — System architecture
 
-### PHASE 2: 高级功能
-- **插件系统**：支持功能扩展
-- **性能监控**：实时性能指标收集
-- **分布式部署**：多实例支持和数据同步
-- **REST API**：HTTP接口访问
-- **SDK客户端**：Python SDK集成
+### For Strategic Decisions
+1. **[MCP_POSITIONING_CONSENSUS_v3.md](./consensus/MCP_POSITIONING_CONSENSUS_v3.md)** ⭐
+   - Route B decision: Pure upstream classification middleware
+   - Tool reduction: 11 → 4
+   - MemoryEntry Schema v1.0 specification
 
-### PHASE 3: 优化与扩展
-- **性能优化**：查询优化和批处理
-- **安全加固**：认证授权和输入验证
-- **CI/CD流程**：自动化测试和构建
-- **文档完善**：详细的使用文档
+2. [COMPETITOR_ANALYSIS_CONSENSUS_v2.md](./consensus/COMPETITOR_ANALYSIS_CONSENSUS_v2.md)
+   - 7 competitor deep-dive analysis
+   - Gap identification
 
-### PHASE 4: 企业级功能
-- **插件市场和生态系统**：内置插件和外部插件支持
-- **高级性能监控与调优**：性能分析和优化建议
-- **完善的分布式部署支持**：节点发现和数据同步
-- **增强的REST API与多语言SDK**：速率限制和CORS支持
-- **完整的CI/CD流程**：代码质量检查和安全扫描
-- **企业级安全加固**：JWT认证和API密钥管理
+### For Development
+1. [ROADMAP.md](../ROADMAP.md) — Current execution roadmap (v3.0.0)
+2. [MCE-Bench Results](../benchmarks/classification_accuracy.py) — 180-case accuracy benchmark
+3. [STORAGE_STRATEGY.md](./user_guides/STORAGE_STRATEGY.md) — Adapter integration guide
 
-## 快速开始
+## 📖 Document Status Legend
 
-### 安装依赖
+| Status | Meaning |
+|--------|---------|
+| ✅ Active | Current version in use |
+| 📝 Draft | Under development |
+| 🔒 Frozen | Historical reference, not updated |
+| 🗑️ Deprecated | Superseded by newer version |
 
-```bash
-pip install -e .
-```
+## 🌐 i18n Documents
 
-### 运行测试
+| Language | README | Roadmap | Architecture | User Guide |
+|----------|--------|---------|--------------|------------|
+| English (EN) | [README.md](../README.md) | [ROADMAP.md](../ROADMAP.md) | [architecture.md](./architecture/architecture.md) | [user_guide.md](./user_guides/user_guide.md) |
+| Chinese (CN) | [README-CN.md](../README-CN.md) | [ROADMAP-CN.md](../ROADMAP-CN.md) | [architecture-zh.md](./architecture/architecture-zh.md) | [user_guide-zh.md](./user_guides/user_guide-zh.md) |
+| Japanese (JP) | [README-JP.md](../README-JP.md) | [ROADMAP-JP.md](../ROADMAP-JP.md) | [design-jp.md](./architecture/design-jp.md) | [user_guide-jp.md](./user_guides/user_guide-jp.md) |
 
-```bash
-python -m pytest tests/
-```
+---
 
-## 文档
-
-### 架构文档
-- [架构设计](./architecture/architecture.md)
-
-### 用户指南
-- [用户故事与场景](./user_guides/user_stories.md)
-- [测试计划](./user_guides/testing.md)
-
-### API文档
-- [API文档](./api/api.md)
+**Last Updated**: 2026-04-19 (Phase A+B completion)
+**Maintainer**: MCE Core Team

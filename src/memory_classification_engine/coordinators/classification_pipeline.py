@@ -62,16 +62,24 @@ class ClassificationPipeline:
     
     def classify_with_defaults(self, message: str, language: str, context: Optional[Dict[str, Any]] = None, execution_context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Classify a message with default fallback.
-        
+
+        Phase A Fix #1 (Critical): Noise filtering at pipeline level to prevent
+        _get_default_classification() from generating false positives on noise.
+
         Args:
             message: The message to classify.
             language: The detected language code.
             context: Optional context for the message.
             execution_context: Optional execution context containing feedback signals.
-            
+
         Returns:
             List of classification matches, with default if no matches found.
         """
+        # Phase A Fix #1: Pipeline-level noise filtering (P0-3d)
+        # This prevents _get_default_classification from matching noise messages
+        if self.pattern_analyzer._is_noise(message):
+            return []
+
         matches = self.classify(message, context, execution_context)
         
         if not matches:
