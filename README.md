@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="./README-ZH.md">中文</a> ·
+  <a href="./README-CN.md">中文</a> ·
   <a href="./README-JP.md">日本語</a> ·
   <a href="./ROADMAP.md">Roadmap</a> ·
   <a href="./docs/user_guides/STORAGE_STRATEGY.md">Storage Strategy</a> ·
