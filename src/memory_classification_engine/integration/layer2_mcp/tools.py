@@ -11,7 +11,7 @@ from typing import Any, Dict, List
 TOOLS: List[Dict[str, Any]] = [
     {
         "name": "classify_memory",
-        "description": "分析消息并判断是否需要记忆，返回记忆类型、层级和置信度",
+        "description": "分析消息并判断是否需要记忆，返回记忆类型、层级和置信度。MCE 是记忆分类中间件——不负责存储，输出可对接任意下游存储方案（Supermemory/Mem0/Obsidian/自定义）。",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -29,7 +29,7 @@ TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "store_memory",
-        "description": "将记忆内容存储到合适的层级，支持7种记忆类型",
+        "description": "[Deprecated v0.3] 将记忆内容存储到合适的层级，支持7种记忆类型 — 将移至 StorageAdapter 插件。请使用 classify_memory 获取分类结果后自行存储到下游系统。",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -65,7 +65,7 @@ TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "retrieve_memories",
-        "description": "根据查询内容检索相关记忆，支持语义匹配和关键词匹配",
+        "description": "[Deprecated v0.3] 根据查询内容检索相关记忆 — 将移至 StorageAdapter 插件。请使用下游存储系统（Supermemory/Mem0/Obsidian）的检索接口。",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -91,7 +91,7 @@ TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "get_memory_stats",
-        "description": "获取记忆系统的统计信息，包括各层级记忆数量、类型分布等",
+        "description": "[Deprecated v0.3] 获取记忆系统的统计信息 — 将移至 StorageAdapter 插件。请查询下游存储系统的 stats API。",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -105,7 +105,7 @@ TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "batch_classify",
-        "description": "批量分类多条消息，提高处理效率",
+        "description": "批量分类多条消息，每条返回独立分类结果。MCE 是记忆分类中间件——输出可对接任意下游存储方案。适用于对话历史回放、日志分析等批量场景。",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -133,7 +133,7 @@ TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "find_similar",
-        "description": "查找与给定内容相似的记忆，用于去重和关联分析",
+        "description": "[Deprecated v0.3] 查找与给定内容相似的记忆 — 将移至 StorageAdapter 插件。请使用下游存储系统（向量数据库原生支持）的相似搜索接口。",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -161,7 +161,7 @@ TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "export_memories",
-        "description": "导出记忆数据，支持多种格式，用于备份或迁移",
+        "description": "[Deprecated v0.3] 导出记忆数据 — 将移至 StorageAdapter 插件。请使用下游存储系统的导出功能。",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -194,7 +194,7 @@ TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "import_memories",
-        "description": "导入记忆数据，支持从备份或其他系统迁移数据",
+        "description": "[Deprecated v0.3] 导入记忆数据 — 将移至 StorageAdapter 插件。请使用下游存储系统的导入功能。",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -220,7 +220,7 @@ TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "mce_recall",
-        "description": "Recall relevant memories for current context, sorted by relevance",
+        "description": "[Deprecated v0.3] Recall relevant memories — 将移除。记忆召回属于下游存储系统职责（Supermemory recall / Mem0 search）。MCE v0.3+ 只负责分类。",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -267,7 +267,7 @@ TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "mce_status",
-        "description": "记忆状态查看",
+        "description": "MCE 引擎状态查看（版本、能力、运行时间）。不包含存储统计——存储统计请查询下游系统。",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -282,7 +282,7 @@ TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "mce_forget",
-        "description": "手动遗忘",
+        "description": "[Deprecated v0.3] 手动遗忘 — 将移除。记忆删除属于下游存储系统职责。MCE v0.3+ 只负责分类。",
         "inputSchema": {
             "type": "object",
             "properties": {

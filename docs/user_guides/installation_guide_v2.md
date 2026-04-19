@@ -132,7 +132,9 @@ memory-classification-engine/
 
 ## 4. MCP Server Setup
 
-MCE ships with a built-in MCP Server (**Production v1.0.0**, Protocol: 2024-11-05).
+MCE ships with a built-in MCP Server (**v0.2.0, Production Ready**, Protocol: 2024-11-05).
+
+> **Important**: MCE is a **classification middleware** — it classifies messages but does not handle persistent storage. In v0.2.0, the MCP server includes both classification tools (3 core) and storage tools (8 deprecated). Starting from v0.3.0, only classification tools will remain. See [Storage Strategy Guide](./STORAGE_STRATEGY.md) for downstream integration options.
 
 ### 4.1 For Claude Code
 
@@ -149,7 +151,7 @@ python3 src/memory_classification_engine/integration/layer2_mcp/server.py
 Expected output:
 ```
 MCP Server initialized
-Version: 1.0.0 (Production)
+Version: 0.2.0 (Production)
 Protocol: 2024-11-05
 Ready (stdio transport)
 ```
@@ -173,7 +175,7 @@ Create or edit `~/.claude/settings.json`:
 
 **Step 3**: Verify in Claude Code
 
-Open Claude Code and type `/mcp`. You should see `mce` listed with 11 available tools.
+Open Claude Code and type `/mcp`. You should see `mce` listed with 11 available tools (3 core classification + 8 deprecated storage tools).
 
 ### 4.2 For Cursor
 
@@ -306,7 +308,7 @@ Run through this checklist after installation to confirm everything works:
 ### MCP Server (if installed)
 
 - [ ] Server starts without error: `python3 -m memory_classification_engine.integration.layer2_mcp`
-- [ ] Version shows `1.0.0` in startup output
+- [ ] Version shows `0.2.0` in startup output
 - [ ] Protocol version shows `2024-11-05`
 - [ ] Tools are visible in Claude Code/Cursor (`/mcp` command)
 
@@ -552,12 +554,13 @@ git pull && pip install -e .
 
 After successful installation and verification:
 
-1. **Read the blog post**: [Why Your Agent Needs Professional Memory Classification](./blog/why-your-agent-needs-professional-memory-classification.md)
-2. **Try the quick example**: See `examples/basic_usage.py` or `examples/complete_example.py`
-3. **Configure MCP for your editor**: Follow Section 4 for Claude Code / Cursor setup
-4. **Explore adaptive modes**: Try all three `retrieval_mode` options with your data
-5. **Check the API reference**: See [API_REFERENCE_V1.md](../api/API_REFERENCE_V1.md) for complete SDK/MCP/REST documentation
-6. **Run the benchmark**: `python benchmarks/baseline_benchmark.py` to measure performance on your hardware
+1. **Read the storage strategy**: [Storage Strategy Guide](./STORAGE_STRATEGY.md) — understand how MCE classifies + downstream stores
+2. **Read the blog post**: [Why Your Agent Needs Professional Memory Classification](./blog/why-your-agent-needs-professional-memory-classification.md)
+3. **Try the quick example**: See `examples/basic_usage.py` or `examples/complete_example.py`
+4. **Configure MCP for your editor**: Follow Section 4 for Claude Code / Cursor setup
+5. **Explore adaptive modes**: Try all three `retrieval_mode` options with your data
+6. **Check the API reference**: See [API_REFERENCE_V1.md](../api/API_REFERENCE_V1.md) for complete SDK/MCP/REST documentation
+7. **Run the benchmark**: `python benchmarks/baseline_benchmark.py` to measure performance on your hardware
 
 ### Getting Help
 

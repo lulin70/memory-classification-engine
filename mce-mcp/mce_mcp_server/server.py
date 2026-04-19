@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
 """
-Memory Classification Engine MCP Server
+Memory Classification Engine MCP Server (HTTP)
 
-MCP (Model Context Protocol) server for Memory Classification Engine
-Provides three core tools: classify_message, retrieve_memories, manage_forgetting
+⚠️ **DEPRECATED since v0.2.0** — This HTTP-based MCP server is a proof-of-concept.
+Use the stdio-based server instead:
+
+    python3 -m memory_classification_engine.integration.layer2_mcp
+
+The stdio server (`layer2_mcp/server.py`) is the production-ready implementation with 11 tools
+(3 core classification + 8 deprecated storage tools). This HTTP server only exposes 6 tools
+and uses an older protocol format.
+
+This file will be removed in v0.3.0.
 """
 
 import json

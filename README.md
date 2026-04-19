@@ -1,14 +1,22 @@
-# Memory Classification Engine
+# Memory Classification Engine (MCE)
 
 <p align="center">
-  <strong>Don't remember everything. Remember what matters.</strong><br>
-  <sub>Real-time memory classification for AI Agents. 60%+ zero LLM cost.</sub>
+  <strong>记忆分类中间件 — AI Agent 的"记忆安检机"</strong><br>
+  <sub>MCE 不存储记忆。MCE 告诉你<strong>什么值得记</strong>、<strong>记成什么类型</strong>、<strong>存在哪一层</strong>。<br>
+  存储的事，交给 Supermemory / Mem0 / Obsidian / 你自己的系统。</sub>
+</p>
+
+<p align="center">
+  <a href="https://pypi.org/project/memory-classification-engine/"><img src="https://img.shields.io/pypi/v/memory-classification-engine" alt="PyPI version"></a>
+  <a href="https://github.com/lulin70/memory-classification-engine/actions"><img src="https://img.shields.io/badge/tests-874%20passing-green" alt="Tests"></a>
+  <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-Production%20Ready-blue" alt="MCP"></a>
 </p>
 
 <p align="center">
   <a href="./README-ZH.md">中文</a> ·
   <a href="./README-JP.md">日本語</a> ·
   <a href="./ROADMAP.md">Roadmap</a> ·
+  <a href="./docs/user_guides/STORAGE_STRATEGY.md">Storage Strategy</a> ·
   <a href="https://github.com/lulin70/memory-classification-engine/issues">Issues</a>
 </p>
 
@@ -194,12 +202,15 @@ for m in memories:
 
 ## MCP Server: Claude Code Integration in 2 Minutes
 
-MCE ships with a built-in MCP server (**Production v1.0.0**). This is the fastest way to use it with Claude Code, Cursor, or any MCP-compatible tool.
+MCE ships with a built-in MCP server (**v0.2.0, Production Ready**). MCE runs locally — **your data never leaves your machine**.
+
+> **Positioning**: MCE is a **classification middleware**, not a full memory system. The MCP server exposes classification tools; storage is delegated to downstream systems (Supermemory, Mem0, Obsidian, or your own).
+
+### Setup
 
 ```bash
-cd mce-mcp
-python3 server.py
-# MCP server running on http://localhost:9001
+# Option A: stdio transport (recommended, 11 tools)
+python3 -m memory_classification_engine.integration.layer2_mcp
 ```
 
 Add to your Claude Code config (`~/.claude/settings.json`):
@@ -209,17 +220,57 @@ Add to your Claude Code config (`~/.claude/settings.json`):
   "mcpServers": {
     "mce": {
       "command": "python3",
-      "args": ["/path/to/mce-mcp/server.py"]
+      "args": ["-m", "memory_classification_engine.integration.layer2_mcp"],
+      "env": {}
     }
   }
 }
 ```
 
-Available tools: `classify_message`, `retrieve_memories`, `search_memories`, `get_memory_timeline`, `get_memory_details`, `store_memory`, `get_memory_stats`, `delete_memory`, `update_memory`, `export_memories`, `import_memories`.
+### Available Tools (v0.2.0)
 
-Every message you send in Claude Code can be classified and stored automatically. Every new session starts with a structured recall of your memories.
+| Tool | Status | Description |
+|------|--------|-------------|
+| `classify_memory` | ✅ Core | Classify message → structured MemoryEntry (type, tier, confidence) |
+| `batch_classify` | ✅ Core | Batch classify multiple messages |
+| `mce_status` | ✅ Core | Engine status (version, capabilities, uptime) |
+| `store_memory` | ⚠️ Deprecated v0.3 | Storage moves to downstream adapter |
+| `retrieve_memories` | ⚠️ Deprecated v0.3 | Retrieval moves to downstream system |
+| `get_memory_stats` | ⚠️ Deprecated v0.3 | Stats from downstream system |
+| `find_similar` | ⚠️ Deprecated v0.3 | Vector search from downstream |
+| `export_memories` | ⚠️ Deprecated v0.3 | Export from downstream |
+| `import_memories` | ⚠️ Deprecated v0.3 | Import to downstream |
+| `mce_recall` | ⚠️ Deprecated v0.3 | Recall from downstream (e.g., Supermemory `recall()`) |
+| `mce_forget` | ⚠️ Deprecated v0.3 | Delete via downstream |
 
-See [API Reference](./docs/api/API_REFERENCE_V1.md) for full documentation.
+> **Migration note**: In v0.3.0, deprecated tools will be removed. The MCP server will expose only 4 tools: `classify_message`, `get_classification_schema`, `batch_classify`, `mce_status`. See [Storage Strategy Guide](./docs/user_guides/STORAGE_STRATEGY.md) for downstream integration options.
+
+### How It Works in Practice
+
+```
+You (in Claude Code):  "I prefer double quotes in Python"
+         │
+         ▼
+   MCE MCP Server:  classify_memory("I prefer double quotes...")
+         │
+         ▼
+   Output (MemoryEntry JSON):
+   {
+     "should_remember": true,
+     "entries": [{
+       "type": "user_preference",
+       "confidence": 0.95,
+       "tier": 2,
+       "suggested_action": "store",
+       "content": "User prefers double quotes over single quotes"
+     }]
+   }
+         │
+         ▼
+   Your choice: Store to Supermemory / Obsidian / Mem0 / custom
+```
+
+See [API Reference](./docs/api/API_REFERENCE_V1.md) and [Storage Strategy](./docs/user_guides/STORAGE_STRATEGY.md) for full documentation.
 
 ---
 

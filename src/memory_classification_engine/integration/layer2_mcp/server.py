@@ -158,7 +158,7 @@ class MCPServer:
                 "protocolVersion": "2024-11-05",
                 "serverInfo": {
                     "name": "memory-classification-engine-mcp",
-                    "version": "0.1.0"
+                    "version": "0.2.0"
                 },
                 "capabilities": {
                     "tools": {
