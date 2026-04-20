@@ -56,13 +56,13 @@ class PatternAnalyzer:
                 patterns.append(feedback)
 
         for detector_name, detector_func in [
-            ('correction', self._detect_correction_pattern),  # V4-02: correction first (strongest signal)
+            ('correction', self._detect_correction_pattern),  # V4-02: correction first
+            ('sentiment', self._detect_sentiment_pattern),    # V4-05: sentiment before task (emotion is strong)
             ('task', self._detect_task_pattern),           # Phase B: before fact
             ('decision', self._detect_decision_pattern),     # Phase B: before fact
-            ('preference', self._detect_preference_pattern), # V4-02: after correction/task
+            ('preference', self._detect_preference_pattern),
             ('relationship', self._detect_relationship_pattern),
             ('fact', self._detect_fact_pattern),              # Phase B: last (fallback)
-            ('sentiment', self._detect_sentiment_pattern),
             ('location', self._detect_location_pattern),
         ]:
             result = detector_func(message, language)
@@ -596,50 +596,67 @@ class PatternAnalyzer:
     
     def _detect_relationship_pattern(self, message: str, language: str) -> Optional[Dict[str, Any]]:
         """Detect relationship patterns.
-        
-        Args:
-            message: The message to analyze.
-            language: The detected language code.
-            
-        Returns:
-            A relationship pattern if detected, None otherwise.
+
+        V4-05 Enhanced: 3-tier relationship detection.
+        Tier 1: Structural role/dependency patterns (conf 0.8)
+        Tier 2: Keyword-based (original, conf 0.7)
         """
-        # Comment in Chinese removedr
+        import re
+        msg_lower = message.lower().strip()
+
+        if len(msg_lower) < 12:
+            return None
+
+        # === TIER 1: Structural patterns ===
+        if not language.startswith('zh'):
+            # Role patterns (who does what / who is what)
+            role_patterns = [
+                r'^(\w+)\s+(?:owns?|leads?|manages?|heads?|runs?)\s+(?:the\s+)?(.+)',
+                r'(\w+)\s+(?:is|was)\s+(?:our|the|my)\s+(dba|pm|lead|architect|owner|maintainer|contact|expert|specialist)',
+                r'(\w+)\s+(?:does|handles?|takes?\s+care\s+of|works?\s+on)\s+(.+)',
+                r'(\w+)\s+(?:reports?\s+to|answers?\s+to)\s+(\w+)',
+                r'(\w+)\s+(?:is\s+(?:on|in)|belongs?\s+to)\s+(?:the\s+)?(.+)\s+team',
+                r'(?:ask|contact|reach(?:\s+out)?\s+to)\s+(\w+)\s+(?:about|for|regarding)',
+            ]
+            for pat in role_patterns:
+                if re.search(pat, msg_lower):
+                    return self._build_rel_result(message)
+
+            # Dependency/architecture patterns
+            dep_patterns = [
+                r'(.+)\s+(?:depends?\s+on|relies?\s+on|uses?|imports?|calls?|invokes?)\s+(.+)',
+                r'(.+)\s+(?:which|that)\s+(?:routes?\s+to|calls?|triggers?|publishes?\s+events?\s+(?:to|that))\s+(.+)',
+                r'(.+)\s+(?:subscribes?\s+to|listens?\s+to|consumes?|reads?\s+from)\s+(.+)',
+                r'(.+)\s+(?:sits?\s+between|connects?\s+|bridges?|links?)\s+(.+)',
+                r'(.+)\s+(?:triggers?\s+after|runs?\s+after|starts?\s+when|fires?\s+on)\s+(.+)',
+                r'(.+)\s+(?:pushes?\s+to|deploys?\s+to|merges?\s+into|integrates?\s+with)\s+(.+)',
+                r'(.+)→(.+)',  # Arrow notation
+                r'(.+)\s+->\s*(.+)',  # ASCII arrow
+            ]
+            for pat in dep_patterns:
+                if re.search(pat, msg_lower):
+                    return self._build_rel_result(message)
+
+        # === TIER 2: Keyword-based (original) ===
         relationship_keywords = language_manager.get_keywords('relationship', language)
-        
-        message_lower = message.lower()
         for keyword in relationship_keywords:
-            if keyword in message_lower:
-                # Comment in Chinese removednt
-                relationship_content = message
-                
-                # Comment in Chinese removed
-                relationship_hash = hash(relationship_content)
-                if relationship_hash in self.relationship_patterns:
-                    self.relationship_patterns[relationship_hash] += 1
-                    if self.relationship_patterns[relationship_hash] >= 2:
-                        # Comment in Chinese removedtionship
-                        return {
-                            'memory_type': 'relationship',
-                            'tier': 4,
-                            'content': relationship_content,
-                            'confidence': 0.8,
-                            'source': 'pattern:relationship_repeat',
-                            'description': '重复关系模式'
-                        }
-                else:
-                    self.relationship_patterns[relationship_hash] = 1
-                
-                return {
-                    'memory_type': 'relationship',
-                    'tier': 4,
-                    'content': relationship_content,
-                    'confidence': 0.7,
-                    'source': 'pattern:relationship',
-                    'description': '关系信息模式'
-                }
-        
+            if keyword in msg_lower:
+                return self._build_rel_result(message)
+
         return None
+
+    def _build_rel_result(self, message: str) -> Dict[str, Any]:
+        """Build a standardized relationship result."""
+        rel_hash = hash(message)
+        if rel_hash in self.relationship_patterns:
+            self.relationship_patterns[rel_hash] += 1
+            if self.relationship_patterns[rel_hash] >= 2:
+                return {'memory_type': 'relationship', 'tier': 4, 'content': message,
+                        'confidence': 0.8, 'source': 'pattern:relationship_repeat', 'description': '重复关系模式'}
+        else:
+            self.relationship_patterns[rel_hash] = 1
+        return {'memory_type': 'relationship', 'tier': 4, 'content': message,
+                'confidence': 0.75, 'source': 'pattern:relationship', 'description': '关系信息模式'}
     
     def _detect_task_pattern(self, message: str, language: str) -> Optional[Dict[str, Any]]:
         """Detect task patterns.
@@ -924,18 +941,46 @@ class PatternAnalyzer:
     
     def _detect_sentiment_pattern(self, message: str, language: str) -> Optional[Dict[str, Any]]:
         """Detect sentiment patterns.
-        
-        Args:
-            message: The message to analyze.
-            language: The detected language code.
-            
-        Returns:
-            A sentiment pattern if detected, None otherwise.
+
+        V4-05 Enhanced: Structural + keyword hybrid detection.
+        Tier 1: Strong emotion patterns with intensifiers (conf 0.8)
+        Tier 2: Keyword-based (original, conf 0.65)
         """
-        # Comment in Chinese removedr
+        import re
+        msg_lower = message.lower().strip()
+
+        if len(msg_lower) < 10:
+            return None
+
+        # === TIER 1: Structural patterns ===
+        if not language.startswith('zh'):
+            # Emotion + subject patterns (strong signal)
+            strong_emotion_patterns = [
+                r'^(?:i\s+)?(?:\'?m|am|was|feel|feeling|get|getting)\s+(?:so\s+|really\s+|very\s+|super\s+)?'
+                r'(?:happy|excited|proud|grateful|thrilled|delighted|relieved|impressed'
+                r'|sad|angry|upset|frustrated|annoyed|worried|scared|exhausted|tired|bored'
+                r'|disappointed|confused|overwhelmed|stressed)\b',
+                r'\b(?:i\s+)?(?:love|hate|loathe|detest|enjoy|appreciate|dislike|dread)\s+(?:it|this|that|the\s+\w+)',
+                r'^(?:this|the)\s+.+\s+is\s+(?:so\s+|really\s+|absolutely\s+|incredibly\s+)?'
+                r'(?:great|awesome|amazing|fantastic|wonderful|terrible|awful|horrible|frustrating|annoying|beautiful)',
+                r'\b(amazing|brilliant|outstanding|superb|marvelous|incredible|fantastic)\s+(work|job|effort|team|result|achievement)!',
+                r'^\w+\s+work\b.*\b(?:on|for|with)\b',
+            ]
+            for pat in strong_emotion_patterns:
+                if re.search(pat, msg_lower):
+                    return self._build_sent_result(message, 0.8)
+
+            # Intensifier + adjective patterns
+            if any(intensifier in msg_lower for intensifier in ['so ', 'really ', 'very ', 'super ', 'absolutely ', 'extremely ']):
+                adj_indicators = [
+                    r'\b(happy|sad|angry|frustrated|annoyed|excited|tired|exhausted|bored|worried|proud|glad|upset)\b',
+                    r'\b(great|good|bad|terrible|awful|nice|cool|lovely|horrible|amazing|fantastic|beautiful)\b',
+                ]
+                if any(re.search(adj, msg_lower) for adj in adj_indicators):
+                    return self._build_sent_result(message, 0.75)
+
+        # === TIER 2: Keyword-based (original) ===
         sentiment_keywords = language_manager.get_keywords('sentiment_marker', language)
-        
-        # Comment in Chinese removedrs
         if language == 'en':
             sentiment_keywords.extend([
                 'great', 'awesome', 'fantastic', 'wonderful', 'excellent', 'amazing',
@@ -946,7 +991,8 @@ class PatternAnalyzer:
                 'proud', 'confident', 'worried', 'scared', 'relaxed',
                 'brilliant', 'superb', 'outstanding', 'marvelous',
                 'loathe', 'detest', 'disappoint', 'delighted', 'thrilled',
-                'depressed', 'irritated', 'panic', 'frighten', 'motivated'
+                'depressed', 'irritated', 'panic', 'frighten', 'motivated',
+                'beautiful', 'bureaucratic',
             ])
         elif language == 'zh-cn':
             sentiment_keywords.extend([
@@ -958,30 +1004,24 @@ class PatternAnalyzer:
                 '累', '疲惫', '无聊', '焦虑', '担心', '害怕',
                 '自豪', '自信', '放松', '失望', '郁闷', '不爽'
             ])
-        
-        message_lower = message.lower()
+
         for keyword in sentiment_keywords:
-            if keyword in message_lower:
-                if language.startswith('zh'):
-                    return {
-                        'memory_type': 'sentiment_marker',
-                        'tier': 3,
-                        'content': f"情感: {message}",
-                        'confidence': 0.6,
-                        'source': 'pattern:sentiment',
-                        'description': '情感模式'
-                    }
-                else:
-                    return {
-                        'memory_type': 'sentiment_marker',
-                        'tier': 3,
-                        'content': f"Sentiment: {message}",
-                        'confidence': 0.6,
-                        'source': 'pattern:sentiment',
-                        'description': '情感模式'
-                    }
-        
+            if keyword in msg_lower:
+                return self._build_sent_result(message, 0.65)
+
         return None
+
+    def _build_sent_result(self, message: str, confidence: float = 0.7) -> Dict[str, Any]:
+        """Build a standardized sentiment result."""
+        content = f"Sentiment: {message}" if not any(c in message for c in '好棒爱喜欢') else f"情感: {message}"
+        return {
+            'memory_type': 'sentiment_marker',
+            'tier': 3,
+            'content': content,
+            'confidence': confidence,
+            'source': 'pattern:sentiment',
+            'description': '情感模式'
+        }
     
     def _detect_location_pattern(self, message: str, language: str) -> Optional[Dict[str, Any]]:
         """Detect location patterns.
