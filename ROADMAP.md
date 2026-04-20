@@ -4,6 +4,7 @@
 
 | Version | Date | Updater | Update Content | Review Status |
 |---------|------|---------|---------------|---------------|
+| **v0.3.2** | 2026-04-20 | Engineering Team | **V4-01~03 Accuracy Overhaul** (Acc 38.9%→66.7%, F1 84.2%→89.9%). Fixed 3 CRASH bugs, enhanced correction detection (F1 +32.4pp), reduced FP 44% (18→10). task_pattern revived (0%→52.2%) | In Progress |
 | **v0.3.1** | 2026-04-19 | Engineering Team + Four-Role Review | **Phase A+B Classification Overhaul** (Precision 40%→94%, F1 57%→84%), **Layered Decoupling Architecture** (v3.1 consensus), Project structure cleanup, MCE-Bench 180-case benchmark, Tech terms whitelist 7→200+ | Reviewed |
 | v0.2.1 | 2026-04-19 | Engineering Team | Pure Upstream Positioning: README rewritten, MCP tools deprecated, STORAGE_STRATEGY.md created, consensus v3 (Route B decision) | Reviewed |
 | v0.2.0 | 2026-04-18 | Engineering Team | Phase 1 optimization complete (-74%), Phase 2 features delivered, MCP Server Production, **874 tests**, Demo 26/30 (87%) | Reviewed |
