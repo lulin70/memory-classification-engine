@@ -121,14 +121,19 @@ class PatternAnalyzer:
             r'^(have\s+you\s+tried|seen)\s+(that|this|the)\s+.*\??$',
             r'^(see\s+you|talk\s+later|goodbye|bye|take\s+care)\.?$',
             r'^(interesting|\.\.\.|hmm|oh\s+really|is\s+that\s+so|cool)[\s!]*$',
+            r'^what\s+a\s+(beautiful|lovely|nice|great)\s+(day|morning|evening)',
+            r'^hmm[,\.]?\s+let\s+me\s+think',
+            r'^let\s+me\s+think\s*(about\s+it)?$',
         ]
         for pattern in chitchat_patterns:
             if re.match(pattern, msg_lower, re.IGNORECASE):
                 return True
 
         # --- B3: Technical noise (10 cases) ---
-        # Log lines
+        # Log lines (with or without brackets)
         if re.match(r'^\[(DEBUG|INFO|WARN|WARNING|ERROR|CRITICAL)\]', msg):
+            return True
+        if re.match(r'^(DEBUG|INFO|WARN|WARNING|ERROR|CRITICAL)[:\s]', msg):
             return True
         # Timestamp-only messages
         if re.match(r'^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}', msg) and len(msg.split()) <= 4:
@@ -154,10 +159,17 @@ class PatternAnalyzer:
                 return True
 
         # --- B4: Question/Query patterns (10 cases) ---
-        if re.match(r'^(how|what|when|where|why|who|which|can|could|would|is|are|do|does|did)\s+', msg_lower):
-            # Exclude decision-like questions ("Why did we choose X?" could be context)
-            # Only filter pure information-seeking questions < 50 chars
-            if len(msg) < 50 and '?' in msg or msg.endswith('?'):
+        # V4-07: Enhanced to cover contractions like "what's", "who's"
+        question_starters = [
+            r'^(how|what|when|where|why|who|which|can|could|would|is|are|do|does|did)\s+',
+            r'^what\'?s\s+',  # "what's the..."
+            r'^who\'?s\s+',   # "who's the..."
+            r'^where\'?s\s+', # "where's the..."
+            r'^how\'?s\s+',   # "how's it..."
+        ]
+        if any(re.match(p, msg_lower) for p in question_starters):
+            # Filter short questions (likely one-off queries, not memory-worthy)
+            if len(msg) < 60:
                 return True
 
         # --- B5: Instruction patterns (5 cases) ---
@@ -180,6 +192,21 @@ class PatternAnalyzer:
                 if any(re.search(indicator, msg_lower) for indicator in workflow_indicators):
                     continue  # Skip noise filtering - this is a workflow rule
                 return True
+
+        # --- C5: Adversarial/anti-memory patterns ---
+        # Messages explicitly stating they should NOT be remembered
+        adversarial_indicators = [
+            r'\bdon\'?t\s+remember\s+(this|it|me)\b',
+            r'\bnot\s+(a\s+)?memory\b',
+            r'\bjust\s+a\s+test\b',
+            r'\bpretend\s+this\s+is\b',
+            r'\bignore\s+(this|the\s+above)\b',
+            r'\bdefinitely\s+not\s+worth\b',
+            r'\bdo\s+not\s+(store|save|remember)\b',
+            r'\bthis\s+is\s+(just\s+)?(a\s+)?(test|fake|random)\b',
+        ]
+        if any(re.search(ind, msg_lower) for ind in adversarial_indicators):
+            return True
 
         # --- Ultra-short messages (< 5 chars likely noise) ---
         if len(msg) < 5 and not re.search(r'[a-z]{3,}', msg_lower):
