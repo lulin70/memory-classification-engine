@@ -936,20 +936,31 @@ def print_report(report: BenchReport):
 
     print(f"\n  PER-TYPE F1 SCORES:")
     for t, ts in d["per_type"].items():
-        f1_val = ts['f1']
+        if t is None:
+            print(f"    [WARNING] Found None type key, skipping: {ts}")
+            continue
+        f1_val = ts.get('f1')
         f1_str = f"{f1_val*100:.1f}%" if isinstance(f1_val, float) else str(f1_val)
-        p_val = ts['precision']
+        p_val = ts.get('precision')
         p_str = f"{p_val*100:.1f}%" if isinstance(p_val, float) else str(p_val)
-        r_val = ts['recall']
+        r_val = ts.get('recall')
         r_str = f"{r_val*100:.1f}%" if isinstance(r_val, float) else str(r_val)
+        tp = ts.get('tp', 0)
+        fp = ts.get('fp', 0)
+        fn = ts.get('fn', 0)
+        exp = ts.get('expected', 0)
         mark = "✅" if isinstance(f1_val, float) and f1_val >= 0.75 else "⚠️"
-        print(f"    {t:20s}: F1={f1_str:>6s}  P={p_str:>6s}  R={r_str:>6s}  "
-              f"(TP={ts['tp']} FP={ts['fp']} FN={ts['fn']} exp={ts['expected']}) {mark}")
+        print(f"    {str(t):20s}: F1={f1_str:>6s}  P={p_str:>6s}  R={r_str:>6s}  "
+              f"(TP={tp} FP={fp} FN={fn} exp={exp}) {mark}")
 
     print(f"\n  PER-CATEGORY ACCURACY:")
     for c, cs in d["per_category"].items():
-        mark = "✅" if cs["accuracy"] >= 0.8 else "⚠️"
-        print(f"    {c:10s}: {cs['correct']}/{cs['total']} = {cs['accuracy']*100:.1f}%  {mark}")
+        acc_val = cs.get('accuracy', 0)
+        correct = cs.get('correct', 0)
+        total = cs.get('total', 0)
+        mark = "✅" if isinstance(acc_val, float) and acc_val >= 0.8 else "⚠️"
+        acc_str = f"{acc_val*100:.1f}%" if isinstance(acc_val, float) else str(acc_val)
+        print(f"    {c:10s}: {correct}/{total} = {acc_str}  {mark}")
 
     if d["failures"]:
         print(f"\n  TOP FAILURES (first {min(len(d['failures']), 20)}):")
@@ -974,45 +985,62 @@ def main():
     from memory_classification_engine import MemoryClassificationEngine
     engine = MemoryClassificationEngine()
 
-    # Phase B Fix: Force patch engine's internal pattern_analyzer with latest code
-    # This bypasses ALL caching issues by replacing the method directly
+    # Phase B Fix (V4-01): Force patch engine's internal pattern_analyzer with latest source code
+    # This bypasses macOS .pyc caching issues by reading .py file directly and replacing instance
     try:
         import memory_classification_engine.layers.pattern_analyzer as _pa_module
-        import inspect
+        import inspect, types
 
-        # Read and compile the LATEST source code
-        with open(_pa_module.__file__, 'r') as f:
+        pa_file = _pa_module.__file__
+        with open(pa_file, 'r') as f:
             latest_source = f.read()
 
-        has_fixes = 'Reorder detection priority' in latest_source
-        if has_fixes:
-            # Create a new PatternAnalyzer class from latest source
-            namespace = {}
-            exec(compile(latest_source, _pa_module.__file__, 'exec'), namespace)
-            NewPatternAnalyzer = namespace.get('PatternAnalyzer')
+        has_phase_b_fixes = 'Phase B Fix #4' in latest_source or 'task/decision BEFORE fact' in latest_source
+        has_noise_filter = 'Phase A Fix #1' in latest_source or 'Noise filtering' in latest_source
+
+        if has_phase_b_fixes and has_noise_filter:
+            # Create a fresh module from source code
+            new_mod = types.ModuleType('pattern_analyzer_latest')
+            new_mod.__file__ = pa_file
+
+            # Execute source in the new module's namespace
+            exec(compile(latest_source, pa_file, 'exec'), new_mod.__dict__)
+
+            NewPatternAnalyzer = getattr(new_mod, 'PatternAnalyzer', None)
 
             if NewPatternAnalyzer:
-                # Replace engine's pattern_analyzer instance entirely
+                # Create new instance and replace in engine
                 old_pa = engine.classification_pipeline.pattern_analyzer
                 new_pa = NewPatternAnalyzer()
 
-                # Copy over any state (patterns history, etc.)
-                if hasattr(old_pa, 'message_history'):
-                    new_pa.message_history = old_pa.message_history
-                if hasattr(old_pa, 'preference_patterns'):
-                    new_pa.preference_patterns = old_pa.preference_patterns
-                if hasattr(old_pa, 'fact_patterns'):
-                    new_pa.fact_patterns = old_pa.fact_patterns
+                # Preserve state from old instance
+                for attr in ['message_history', 'preference_patterns', 'fact_patterns',
+                             'correction_patterns', 'decision_patterns', 'task_patterns']:
+                    if hasattr(old_pa, attr):
+                        setattr(new_pa, attr, getattr(old_pa, attr))
 
-                # Swap the instance in the pipeline
+                # CRITICAL: Replace the actual instance in pipeline
                 engine.classification_pipeline.pattern_analyzer = new_pa
-                print(f"✅ Engine patched with Phase B code (task/decision before fact)")
+
+                # Verify: test a known task_pattern message
+                test_result = new_pa.analyze("Always run linting before committing")
+                has_task = any(m.get('memory_type') == 'task_pattern' for m in (test_result or []))
+
+                if has_task:
+                    print(f"✅ Engine patched successfully (Phase A+B code active)")
+                    print(f"   Verified: task_pattern detection working")
+                else:
+                    print(f"⚠️  Patched but task_pattern not detected (may need investigation)")
             else:
-                print(f"⚠️  Could not extract PatternAnalyzer class")
+                print(f"⚠️  PatternAnalyzer class not found in recompiled source")
         else:
-            print(f"⚠️  Source missing Phase B fixes")
+            print(f"⚠️  Source file missing Phase A or Phase B fixes")
+            print(f"   Has Phase B: {has_phase_b_fixes}, Has Noise Filter: {has_noise_filter}")
     except Exception as e:
-        print(f"⚠️  Patch failed: {e}")
+        import traceback
+        print(f"⚠️  Engine patch failed: {type(e).__name__}: {e}")
+        if '--verbose' in sys.argv:
+            traceback.print_exc()
 
     print(f"Running {len(_build_benchcases())} benchmark cases...")
     report = run_benchmark(engine, verbose=args.verbose)
@@ -1023,7 +1051,9 @@ def main():
         print_report(report)
 
     # Exit with failure code if thresholds not met
-    if not report.to_dict()["summary"]["overall_pass"]:
+    report_dict = report.to_dict()
+    overall_pass = report_dict.get("thresholds", {}).get("overall_pass", False)
+    if not overall_pass:
         sys.exit(1)
     sys.exit(0)
 

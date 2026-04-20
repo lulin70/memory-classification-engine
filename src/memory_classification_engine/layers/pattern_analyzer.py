@@ -56,10 +56,10 @@ class PatternAnalyzer:
                 patterns.append(feedback)
 
         for detector_name, detector_func in [
-            ('preference', self._detect_preference_pattern),
-            ('correction', self._detect_correction_pattern),
+            ('correction', self._detect_correction_pattern),  # V4-02: correction first (strongest signal)
             ('task', self._detect_task_pattern),           # Phase B: before fact
             ('decision', self._detect_decision_pattern),     # Phase B: before fact
+            ('preference', self._detect_preference_pattern), # V4-02: after correction/task
             ('relationship', self._detect_relationship_pattern),
             ('fact', self._detect_fact_pattern),              # Phase B: last (fallback)
             ('sentiment', self._detect_sentiment_pattern),
@@ -152,6 +152,10 @@ class PatternAnalyzer:
                 return True
 
         # --- B5: Instruction patterns (5 cases) ---
+        # Phase C Fix #1 (V4-01): Distinguish immediate commands from workflow rules
+        # Commands like "run tests" should be filtered, but workflow rules like
+        # "Test after every deployment" contain temporal/frequency context and
+        # should be classified as task_pattern, NOT filtered as noise.
         instruction_patterns = [
             r'^(please\s+)?(run|execute|start|launch|deploy|build|test|check|verify)\s+',
             r'^(create|open|send|write|generate|download|install|update|delete|remove)\s+',
@@ -159,6 +163,13 @@ class PatternAnalyzer:
         ]
         for pattern in instruction_patterns:
             if re.match(pattern, msg_lower) and len(msg) < 60:
+                # EXCEPTION: Messages with workflow/temporal context are task_pattern, not noise
+                workflow_indicators = [
+                    r'\bevery\b', r'\balways\b', r'\bbefore\b', r'\bafter\b',
+                    r'\bweekly\b', r'\bmonthly\b', r'\bdaily\b', r'\beach\b',
+                ]
+                if any(re.search(indicator, msg_lower) for indicator in workflow_indicators):
+                    continue  # Skip noise filtering - this is a workflow rule
                 return True
 
         # --- Ultra-short messages (< 5 chars likely noise) ---
@@ -382,72 +393,103 @@ class PatternAnalyzer:
     
     def _detect_correction_pattern(self, message: str, language: str) -> Optional[Dict[str, Any]]:
         """Detect correction patterns.
-        
+
+        V4-02 Enhanced: Comprehensive correction detection with 3-tier strategy.
+        Tier 1: Explicit correction markers (highest confidence)
+        Tier 2: Structural patterns (grammar-based)
+        Tier 3: Keyword-based (broadest coverage)
+
         Args:
             message: The message to analyze.
             language: The detected language code.
-            
+
         Returns:
             A correction pattern if detected, None otherwise.
         """
-        # Comment in Chinese removedr
-        correction_keywords = language_manager.get_keywords('correction', language)
-        
-        # Comment in Chinese removedrs
-        if language == 'en':
-            # 避免误匹配普通否定词，只添加明确的纠正词
-            correction_keywords.extend(['wrong', 'incorrect', 'mistake', 'error', 'fix', 'bug', 'issue', 'problem'])
-        elif language == 'zh-cn':
-            correction_keywords.extend(['错', '误', '修', '改', '问题', 'bug'])
-        
         message_lower = message.lower()
-
         import re
 
-        found_correction = False
-        if not found_correction:
-            structural_patterns = [
-                r'^(?:no|not|wait|hold on|stop)[,\s]+',
-                r'(?:that\'s|it\'s|this is)\s+(?:not\s+)?(?:right|correct|what\s+(?:i|we)\s+(?:want|meant)|what\s+i\s+said)',
-                r'(?:actually|in\s+fact|let\s+me\s+clarify|to\s+be\s+clear)[,\s]',
-                r'(?:instead|rather|use|try|go\s+with)\s+(?:this|that|the)\s+(?:one|approach|way)',
-                r'(?:change|switch|replace|update|modify)\s+(?:to|with|from)',
-                r'(?:undo|revert|rollback|cancel|discard|scrap)\s+',
-            ]
-            for pat in structural_patterns:
-                if re.search(pat, message_lower):
-                    found_correction = True
-                    break
+        # === TIER 1: Explicit correction markers (confidence 0.85) ===
+        explicit_markers = [
+            r'^correction\s*:',                    # "Correction: ..."
+            r'^correction$',                        # Just "Correction"
+            r'\bscratch\s+that\b',                  # "Scratch that..."
+            r'\bforget\s+(about|what|i)\s+(i\s+)?(said|told you)\b',  # "Forget what I said"
+            r'\bignore\s+(what|i)\s+(said|told|mentioned)\b',  # "Ignore what I said"
+            r'\bnever\s+mind\b',                     # "Never mind..."
+            r'\blet\s+me\s+(rephrase|redo|refine|correct|clarify)\b',
+            r'\bi\s+(take\s+that\s+back|didn\'t\s+mean\s+that)\b',
+            r'\bforget\s+about\b.*\b(instead|rather|better|use|go\s+with)\b',  # "Forget about X, Y instead"
+        ]
+        for pat in explicit_markers:
+            if re.search(pat, message_lower):
+                return self._build_correction_result(message, language, 'pattern:correction_explicit', 0.85)
 
-        if found_correction:
-            # Comment in Chinese removednt
-            correction_content = message
-            
-            # Comment in Chinese removedrs to
-            if len(self.message_history) >= 2:
-                previous_message = self.message_history[-2]
-                if language.startswith('zh'):
-                    correction_content = f"纠正: {message}. 针对: {previous_message}"
-                else:
-                    correction_content = f"Correction: {message}. Referring to: {previous_message}"
-            
-            # Comment in Chinese removed
-            correction_hash = hash(correction_content)
-            if correction_hash in self.correction_patterns:
-                self.correction_patterns[correction_hash] += 1
-            else:
-                self.correction_patterns[correction_hash] = 1
-            
-            return {
-                'memory_type': 'correction',
-                'tier': 3,
-                'content': correction_content,
-                'confidence': 0.7,
-                'source': 'pattern:correction',
-                'description': '纠正模式'
-            }
-        
+        # === TIER 2: Structural patterns (confidence 0.75) ===
+        structural_patterns = [
+            # Strong negation + alternative
+            r'^(?:no[,\.]?|not\s+|wait[,\.]?\s+|hold\s+on)',
+            # Explicit wrong/incorrect statements
+            r'(?:that\'s|it\'s|this\s+is)\s+(?:all\s+wrong|wrong|incorrect|not\s+right|not\s+correct|mistaken)',
+            # Clarification patterns
+            r'^(?:actually|in\s+fact|let\s+me\s+clarify|to\s+be\s+clear|let\s+me\s+be\s+clear)[,\s:]',
+            # "Actually is/was" correction pattern
+            r'\bactually\s+(is|was)\b',
+            # "X is actually Y" correction pattern
+            r'\bis\s+actually\b',
+            # Replacement patterns
+            r'(?:use|try|go\s+with|switch\s+to|change\s+to)\s+(?:this|that|the)\s+(?:one|instead|approach|way|method)',
+            # Revert/undo patterns
+            r'(?:undo|revert|rollback|cancel|discard|scrap|remove)\s+(?:that|this|the|it)\s',
+            # Comparison with preference for other option
+            r'(?:\w+\s+is\s+better|prefer\s+\w+\s+instead|rather\s+(?:have|use|go)\s+with)\b.*\b(?:than|over|instead\s+of)\b',
+            # Error acknowledgment + fix intent
+            r'(?:there\'?s?\s+an?\s+|(?:i\s+)?made\s+a\s+)(?:error|mistake|bug|issue|problem|typo).*\bfix\b',
+            # "Not X, Y instead" pattern
+            r'\bnot\s+.+,\s*(?:but\s+)?(instead|rather|use|try)\b',
+            # "Nope/No" + negation
+            r'^(?:nope|no)[,.\s]+(that|it|this)\s+(?:\'?s\s+)?(not\s+)?(right|correct|wrong|what\s+i\s+meant)',
+        ]
+        for pat in structural_patterns:
+            if re.search(pat, message_lower):
+                return self._build_correction_result(message, language, 'pattern:correction_structural', 0.75)
+
+        # === TIER 3: Keyword-based detection (confidence 0.65) ===
+        strong_correction_keywords = [
+            'wrong', 'incorrect', 'mistake', 'error', 'fix it', 'bug in',
+            'change our', 'change strategy', 'different approach',
+            'should be', 'needs to be', 'actually is', 'supposed to be',
+        ]
+        if any(kw in message_lower for kw in strong_correction_keywords):
+            return self._build_correction_result(message, language, 'pattern:correction_keyword', 0.65)
+
         return None
+
+    def _build_correction_result(self, message: str, language: str, source: str, confidence: float) -> Dict[str, Any]:
+        """Build a standardized correction result."""
+        correction_content = message
+
+        if len(self.message_history) >= 2:
+            previous_message = self.message_history[-2]
+            if language.startswith('zh'):
+                correction_content = f"纠正: {message}. 针对: {previous_message}"
+            else:
+                correction_content = f"Correction: {message}. Referring to: {previous_message}"
+
+        correction_hash = hash(correction_content)
+        if correction_hash in self.correction_patterns:
+            self.correction_patterns[correction_hash] += 1
+        else:
+            self.correction_patterns[correction_hash] = 1
+
+        return {
+            'memory_type': 'correction',
+            'tier': 3,
+            'content': correction_content,
+            'confidence': confidence,
+            'source': source,
+            'description': '纠正模式'
+        }
     
     def _detect_fact_pattern(self, message: str, language: str) -> Optional[Dict[str, Any]]:
         """Detect fact declaration patterns.
@@ -600,7 +642,7 @@ class PatternAnalyzer:
             ]
 
             for pattern in fact_patterns:
-                match = re.search(pattern, message_lower)
+                match = re.search(pattern, msg_lower)
                 if match:
                     fact_content = message
 
@@ -860,7 +902,7 @@ class PatternAnalyzer:
             r'\b(use|using|utilizing|leveraging|based\s+on|built\s+(with|on|around))\s+\w+\s+(for|as|instead of|over|rather than)\b',
 
             # Process/Policy decisions
-            r'\b(will\s+move|moving|shift(ing)?|chang(e|ing)?)\s+to)\b.*\b(monday|tuesday|friday|weekly|monthly|agile|scrum|kanban)\b',
+            r'\b(will\s+move|moving|shift(ing)?|chang(e|ing)?)\s+to\b.*\b(monday|tuesday|friday|weekly|monthly|agile|scrum|kanban)\b',
             r'\b(are|is|will be)\s+(mandatory|required|standard|policy|rule|practice|norm|convention|default)\b',
         ]
 

@@ -91,17 +91,22 @@ class ClassificationPipeline:
         return matches
     
     def _get_default_classification(self, message: str, language: str) -> Optional[Dict[str, Any]]:
-        """Get default classification for a message when no other matches are found.
-        
+        """Get default classification for a message when no other matches found.
+
+        V4-03 Fix: Added quality gates to reduce FP from 18 to <10.
+        - Minimum length requirement (skip ultra-short messages)
+        - Chitchat/blacklist keyword filtering
+        - Content substance check (require meaningful keywords)
+
         Args:
             message: The message to classify.
             language: The detected language code.
-            
+
         Returns:
             A default classification match if found, None otherwise.
         """
         from memory_classification_engine.utils.language import language_manager
-        
+
         # Handle None message
         if message is None:
             return {
@@ -113,8 +118,35 @@ class ClassificationPipeline:
                 'description': 'General fact declaration',
                 'language': language
             }
-        
+
         message_lower = message.lower()
+        msg_stripped = message.strip()
+
+        # === V4-03 Quality Gate 1: Minimum length (ultra-short = likely noise) ===
+        if len(msg_stripped) < 8:
+            return None
+
+        # === V4-03 Quality Gate 2: Chitchat/Noise blacklist ===
+        chitchat_blacklist = [
+            # Weather/small talk
+            'sunny', 'rainy', 'weather', 'beautiful day', 'pretty',
+            # Acknowledgments that slipped through
+            'sounds good', 'oh really', 'interesting', 'hmm', 'cool',
+            # Filler responses
+            'see you', 'okay', 'ok then', 'alright', 'sure thing',
+            # Emojis/short reactions
+            '😎', '😊', '👍', '🎉', '❤️', '💪', '🔥',
+            # Question-like but not real questions
+            'really?', 'right?', 'yes?', 'no?',
+        ]
+        if any(black in message_lower for black in chitchat_blacklist):
+            return None
+
+        # === V4-03 Quality Gate 3: Require substantive content ===
+        # Messages with only 1-2 words are likely noise/chitchat
+        word_count = len(msg_stripped.split())
+        if word_count <= 2 and len(msg_stripped) < 20:
+            return None
         
         # Comment in Chinese removedr
         preference_keywords = language_manager.get_keywords('user_preference', language)

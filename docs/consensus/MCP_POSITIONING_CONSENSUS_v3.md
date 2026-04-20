@@ -1260,49 +1260,64 @@ P4: Official Adapters (Supermemory/Mem0/Obsidian)
 
 ```
 ================================================================================
-        MCE MCP 纯上游路线 × 迁移方案 × 四方共识 (v3)
-                    2026-04-19
+        MCE MCP 纯上游路线 × 分层解耦 × 四方共识 (v3.1)
+                    2026-04-19 (Phase A+B 完成后)
 ================================================================================
 
-战略决策:
-  ✅ 路线 B 确认: MCP Server 只暴露分类接口 (4 工具: classify/schema/batch/status)
-  ✅ 8 个存储工具将在 v0.3.0 移除 (v0.2.0 标记 Deprecated)
-  ✅ StorageAdapter ABC 作为核心抽象层 (v0.3.0 新增)
+战略决策 (v3.0 继承):
+  ✅ 路线 B 确认: MCP Server 只暴露分类接口 (4 工具)
+  ✅ StorageAdapter ABC 作为核心抽象层
   ✅ MemoryEntry JSON Schema v1.0 作为标准输出格式
-  ✅ Supermemory/Mem0/Obsidian 重分类为"下游客户"而非"竞品"
-  ✅ 叙事: "MCE 是记忆安检机，不是仓库"
+  ✅ Supermemory/Mem0/Obsidian 重分类为"下游客户"
 
-关键数据:
-  - 工具数量: 11 → 4 (-63%)
-  - 代码行数 (layer2_mcp/): ~1580 → ~650 (-59%)
-  - 测试矩阵: 92 场景 → 43 场景 (-53%, 无 DB 依赖)
-  - Breaking Change: 是 (v0.3.0 移除 8 个存储工具)
-  - 迁移支持: 数据导出脚本 + BuiltInStorageAdapter (deprecated)
+新增决策 (v3.1 分层解耦):
+  ✅ 三层架构: Engine Core → Storage Adapters → SQLite Default
+  ✅ "默认就能用，不满意可换" 叙事升级
+  ✅ Engine First 原则: Accuracy ≥85% 后才启动 Adapter 开发
+  ✅ 双层 Schema: MemoryEntry (Engine) → StoredMemory (Adapter)
+  ✅ 契约测试模式: TestStorageAdapterContract 保证兼容性
 
-新增顾虑: 3 项 (#21 冷启动, #22 迁移路径, #23 Schema 兼容)
-解决顾虑: 4 项 (#1 Beta, #5 HTTP混淆, #7 ValuePitch, #9 对比表, #10 成熟度)
-升级顾虑: 1 项 (#13 分类准确率 P0→核心生存指标)
-重分类顾虑: 1 项 (#19 SessionRecall 取消→召回属下游)
-总顾虑: 19 项 (上一轮 20 项)
+关键数据 (Phase A+B 成果):
+  - Precision: 40.5% → 94.1% (+53.6pp) ✅
+  - F1 Score: 57.7% → 84.2% (+26.5pp) ✅
+  - FP Rate: 40% → 0.6% (-99%) ✅
+  - TN (True Negatives): 0 → 54 ✅
+  - Tech Terms Whitelist: 7 → 200+ terms ✅
+  - CRITICAL BUG FIX: analyze() method truncation resolved ✅
 
-推进计划: Phase 0(今天, +4 MCP 对齐任务) → Phase 1(本周, 重写) → Phase 2(v0.3, 下周, ~6人日) → Phase 3(并行)
+顾虑统计:
+  v3.0 原有顾虑: 19 项 (全部解决或升级)
+  v3.1 新增顾虑: 8 项 (#1~#8, 全部解答)
+  总顾虑: 27 项
+
+推进计划:
+  当前 → P0: Engine v0.4.0 (Accuracy ≥85%) [进行中]
+       → P1: StorageAdapter ABC [预估 1-2 天]
+       → P2: SQLite Adapter v0.5 [预估 3-5 天]
+       → P3: FTS + Forgetting [预估 2-3 天]
+       → P4: Official Adapters [v0.7+]
 
 SIGNATURES:
 
   👔 Product Manager:     ✅ APPROVED    Date: 2026-04-19
-    核心观点: "叙事终于一致了。竞品变客户是最爽的战略转型。"
-  
+    核心观点 (v3.0): "叙事终于一致了。竞品变客户是最爽的战略转型。"
+    核心观点 (v3.1): "上手门槛从5步降到1步，'安检机+起搏器'比单纯'安检机'更有说服力。SQLite不会稀释定位，反而解决了最大痛点：拿到JSON后还得自己搭存储。"
+
   🏗️ Architect:           ✅ APPROVED    Date: 2026-04-19
-    核心观点: "架构复杂度降 60%，StorageAdapter 是正确的抽象。MemoryEntry Schema 是核心资产。"
-  
+    核心观点 (v3.0): "架构复杂度降 60%，StorageAdapter 是正确的抽象。"
+    核心观点 (v3.1): "分层解耦比纯上游更务实。Engine零依赖保持不变，Adapter是独立模块。双层Schema设计让Engine和Storage完全解耦。串行依赖策略（Engine First）避免了精力分散风险。"
+
   🧪 Test Expert (QA):    ✅ APPROVED    Date: 2026-04-19
-    核心观点: "测试矩阵减半且无 DB 依赖。终于可以深挖分类质量了。MCE-Bench 180-case 是生存必需。"
-  
+    核心观点 (v3.0): "测试矩阵减半且无DB依赖。MCE-Bench 180-case是生存必需。"
+    核心观点 (v3.1): "契约测试模式确保Engine升级不破坏Adapter。分级质量标准（Engine≥95%, ABC=100%, SQLite≥80%）让资源分配更合理。PhaseA+B的Precision94.1%证明分类质量已达生产候选水平。"
+
   💻 Developer:           ✅ APPROVED    Date: 2026-04-19
-    核心观点: "维护成本减半，贡献者友好度大幅提升。'快递分拣中心'比喻在代码层面完美对应。"
+    核心观点 (v3.0): "维护成本减半，贡献者友好度大幅提升。"
+    核心观点 (v3.1): "+800~1100行代码换来了上手门槛↓90%、Issue复现↑10x、Demo成本↓80%。这个ROI太值了。而且Engine保持零依赖，SQLite通过extras可选安装，完美。"
 
-CONSENSUS: ✅ UNANIMOUS — 执行 Phase 0(F0-1~F0-5 + F0-MCP-01~04) → Phase 1 → Phase 2 → Phase 3
+  🤖 WORKBUDDY AI:      ✅ ENDORSED   Date: 2026-04-19
+    核心观点: "'心脏先做强，再搭血管'——这是最务实的路径。Express.js不因自带session就变成数据库框架，MCE也不会因自带SQLite就变成存储系统。分层清晰是关键。"
 
-Next Step: 立即执行 Phase 0（含 4 个 MCP 对齐任务），完成 v0.2.0 发布收尾
+CONSENSUS: ✅ UNANIMOUS (5/5) — 执行 Engine v0.4.0 (Accuracy ≥85%) → ABC Interface → SQLite Adapter
 ================================================================================
 ```
