@@ -142,6 +142,15 @@ class PatternAnalyzer:
         ]
         for pattern in command_patterns:
             if re.match(pattern, msg_lower):
+                # EXCEPTION: Messages about language versions or facts are NOT commands
+                # e.g., "Python 3.9 is the minimum required version" is a fact, not a command
+                fact_indicators = [
+                    r'\d+(\.\d+)+',  # Version numbers (3.9, 2.0.0)
+                    r'\b(is|are|was|were|has|have)\s+',  # Fact declaration verbs
+                    r'\b(supports?|requires?|provides?|includes?)\s+',  # Technical facts
+                ]
+                if any(re.search(ind, msg_lower) for ind in fact_indicators):
+                    continue  # Skip noise filtering - this is a fact about the language
                 return True
 
         # --- B4: Question/Query patterns (10 cases) ---
@@ -520,12 +529,12 @@ class PatternAnalyzer:
         else:
             # === TIER 1: Strong technical facts (conf 0.8) ===
             tech_terms = [
-                r'\b(API|SDK|HTTP|HTTPS|TCP|UDP|IP|DNS|SQL|NoSQL|GraphQL|REST|gRPC|JSON|XML|CSV)\b',
-                r'\b(Python|JavaScript|TypeScript|Java|Kotlin|Go|Rust|C\+\+|Ruby|PHP|Bash|Shell)\b',
-                r'\b(PostgreSQL|MySQL|MongoDB|Redis|Elasticsearch|DynamoDB|SQLite|Supabase|Firebase)\b',
-                r'\b(Docker|Kubernetes|AWS|GCP|Azure|Linux|Nginx|Git|GitHub|CI|CD)\b',
-                r'\b(LLM|GPT|Claude|Gemini|Llama|RAG|Vector|Embedding|PyTorch|TensorFlow|MCP)\b',
-                r'\b(OAuth|JWT|Encryption|2FA|MFA|RBAC|SSO|SSL|TLS|API Key)\b',
+                r'\b(api|sdk|http|https|tcp|udp|ip|dns|sql|nosql|graphql|rest|grpc|json|xml|csv)\b',
+                r'\b(python|javascript|typescript|java|kotlin|go|rust|c\+\+|ruby|php|bash|shell)\b',
+                r'\b(postgresql|mysql|mongodb|redis|elasticsearch|dynamodb|sqlite|supabase|firebase)\b',
+                r'\b(docker|kubernetes|aws|gcp|azure|linux|nginx|git|github|ci|cd)\b',
+                r'\b(llm|gpt|claude|gemini|llama|rag|vector|embedding|pytorch|tensorflow|mcp)\b',
+                r'\b(oauth|jwt|encryption|2fa|mfa|rbac|sso|ssl|tls|api\s+key)\b',
                 r'\d+(\.\d+)+', r'\d{4}[-/]\d{2}', r'\b(v?\d+\.\d+)\b',
             ]
             has_tech = any(re.search(t, msg_lower) for t in tech_terms)
@@ -539,10 +548,17 @@ class PatternAnalyzer:
                     r'(?:the|our|my|this)\s+(?:api|database|server|system|service|app|endpoint|port|limit|version|config)\s+.+(?:is|are|=)',
                     r'\b\d+\s*(?:employees?|users?|members?|people|teams?|instances?|pods?)\b',
                     r'(.+)\s+(?:is|are|has|was|were)\s+(.+)',
+                    r'(.+)\s+(?:status)\s+\d+\s+(?:is|means|for)\s+(.+)',
+                    r'(.+)\s+(?:handshake)\s+(?:requires?|needs?|involves?)\s+(.+)',
+                    r'(.+)\s+(?:share[s]?\s+a)\s+(.+)',
+                    r'(.+)\s+(?:by\s+default)\b',
                 ]
                 for pat in tech_patterns:
                     if re.search(pat, msg_lower):
                         return self._build_fact_result(message, 0.8, 'pattern:fact_tech')
+
+                if has_tech:
+                    return self._build_fact_result(message, 0.75, 'pattern:fact_tech_fallback')
 
             # === TIER 2: Quantifiable facts (conf 0.7) ===
             quant_indicators = [
