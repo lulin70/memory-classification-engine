@@ -494,185 +494,105 @@ class PatternAnalyzer:
     def _detect_fact_pattern(self, message: str, language: str) -> Optional[Dict[str, Any]]:
         """Detect fact declaration patterns.
 
-        Phase A Fix #2: Tightened conditions to reduce FP from 68 to <20.
-        Now requires: minimum length, substantive content, factual keywords.
-
-        Args:
-            message: The message to analyze.
-            language: The detected language code.
-
-        Returns:
-            A fact pattern if detected, None otherwise.
+        V4-04 Enhanced: Balanced 3-tier fact detection.
+        Tier 1: Tech terms + structural patterns → conf 0.8
+        Tier 2: Quantifiable facts (numbers/dates/locations) → conf 0.7
+        Tier 3: General declarative statements → conf 0.6
         """
-        # Phase A Fix #2: Pre-filter to avoid false positives on short/noise messages
-        if len(message.strip()) < 15:
+        if len(message.strip()) < 10:
             return None
 
         msg_lower = message.lower().strip()
 
-        # Exclude common non-fact patterns (acknowledgment, chitchat residue)
         noise_indicators = ['ok', 'yeah', 'sure', 'thanks', 'nice', 'cool', 'great',
-                           'got it', 'sounds good', 'alright', 'understood', 'noted']
+                           'got it', 'sounds good', 'alright', 'understood', 'noted',
+                           'interesting', 'hmm', 'oh really', 'pretty']
         if any(indicator in msg_lower for indicator in noise_indicators):
             return None
 
-        # Comment in Chinese removed
+        import re
+
         if language.startswith('zh'):
-            # Comment in Chinese removedrns
-            fact_patterns = [
-                r'(.+)是(.+)',
-                r'(.+)有(.+)',
-                r'(.+)在做(.+)',
-                r'(.+)属于(.+)',
-                r'(.+)位于(.+)'
-            ]
-            
+            fact_patterns = [r'(.+)是(.+)', r'(.+)有(.+)', r'(.+)在做(.+)', r'(.+)属于(.+)', r'(.+)位于(.+)']
             for pattern in fact_patterns:
-                match = re.search(pattern, message)
-                if match:
-                    fact_content = message
-                    
-                    # Comment in Chinese removed
-                    fact_hash = hash(fact_content)
-                    if fact_hash in self.fact_patterns:
-                        self.fact_patterns[fact_hash] += 1
-                        if self.fact_patterns[fact_hash] >= 2:
-                            # Comment in Chinese removedct
-                            return {
-                                'memory_type': 'fact_declaration',
-                                'tier': 4,
-                                'content': fact_content,
-                                'confidence': 0.8,
-                                'source': 'pattern:fact_repeat',
-                                'description': '重复事实模式'
-                            }
-                    else:
-                        self.fact_patterns[fact_hash] = 1
-                    
-                    return {
-                        'memory_type': 'fact_declaration',
-                        'tier': 4,
-                        'content': fact_content,
-                        'confidence': 0.7,
-                        'source': 'pattern:fact',
-                        'description': '事实声明模式'
-                    }
+                if re.search(pattern, message):
+                    return self._build_fact_result(message)
         else:
-            # Phase A Fix #2: Tightened English fact patterns
-            # Require factual indicators: numbers, versions, dates, technical terms
-            # Phase B Fix #2b: Expanded tech terminology whitelist (QA expert review)
-            factual_indicators = [
-                # Version/Release patterns
-                r'\d+(\.\d+)+',                    # Version numbers (3.9, 2.0.0, 1.23.4)
-                r'\d{4}[-/]\d{2}',                # Dates (2024-01, 2026/04)
-                r'\b(v?\d+\.\d+)\b',              # Versions (v1.0, 0.2.0)
-                r'\b\d+\.\d+\.(x|X|\*)\b',        # Semver ranges (1.2.x)
-
-                # Protocols & Standards
-                r'\b(API|SDK|URL|URI|HTTP|HTTPS|FTP|SSH|SSL|TLS|TCP|UDP|IP|DNS|VPN)\b',
-                r'\b(SQL|NoSQL|GraphQL|REST|SOAP|RPC|gRPC|WebSocket|MQTT)\b',
-                r'\b(JSON|XML|CSV|YAML|TOML|INI|HTML|CSS|SCSS|SASS|LESS)\b',
-                r'\b(UTF-8|UTF-16|ASCII|Unicode|Base64|MD5|SHA256|JWT|OAuth|OIDC)\b',
-
-                # Programming Languages (comprehensive)
-                r'\b(Python|JavaScript|TypeScript|Java|Kotlin|Scala|Go|Rust|C\+\+|C#|Swift|Objective-C|Ruby|PHP|Perl|R|MATLAB|Lua|Shell|Bash|PowerShell|Zig|Nim|Elixir|Haskell|Clojure|F#|Dart|Julia)\b',
-                r'\b(JS|TS|py|rb|go|rs|java|kt|swift|vue|jsx|tsx)\b',  # File extensions as language hints
-
-                # Frontend Frameworks & Libraries
-                r'\b(React|Vue|Angular|Svelte|Solid|Qwik|Next\.js|Nuxt|Remix|Astro|Gatsby|Vite|Webpack|Parcel|esbuild|Rollup|Turbopack)\b',
-                r'\b(jQuery|Backbone|Ember|Alpine|HTMX|Tailwind|Bootstrap|Bulma|Foundation|Material-UI|Ant Design|Element Plus|Chakra|Shadcn)\b',
-                r'\b(Three\.js|Babylon|D3|Chart\.js|ECharts|Plotly|Mapbox|Leaflet|Canvas|WebGL|SVG)\b',
-
-                # Backend Frameworks & Runtimes
-                r'\b(Node|Express|Koa|Fastify|Hapi|NestJS|Django|Flask|FastAPI|Spring|SpringBoot|Quarkus|Micronaut|Rails|Sinatra|Laravel|Symfony|Gin|Echo|Fiber|Actix|Axum)\b',
-                r'\b(Deno|Bun|Worker|Edge|Cloudflare|Vercel|Netlify|Railway|Render|Fly|Heroku)\b',
-
-                # Data & Databases
-                r'\b(PostgreSQL|MySQL|MariaDB|SQLite|MongoDB|Redis|Elasticsearch|Cassandra|DynamoDB|CouchDB|Neo4j|TimescaleDB|CockroachDB|PlanetScale|Supabase|Firebase|Firestore|Realm|RealmDB)\b',
-                r'\b(ORM|Prisma|TypeORM|Sequelize|Hibernate|MyBatis|SQLAlchemy|Drizzle|Knex)\b',
-                r'\b(Kafka|RabbitMQ|NATS|ZeroMQ|ActiveMQ|SQS|SNS|PubSub|gRPC|Protobuf|Avro|Thrift)\b',
-
-                # DevOps & Infrastructure
-                r'\b(Docker|Kubernetes|K8s|Helm|Terraform|Pulumi|Ansible|Chef|Puppet|Jenkins|GitHub Actions|GitLab CI|CircleCI|Travis|ArgoCD|Flux)\b',
-                r'\b(AWS|GCP|Azure|OCI|DigitalOcean|Linode|Vultr|Hetzner|Cloudflare|Railway|Vercel|Netlify|Heroku)\b',
-                r'\b(EC2|S3|Lambda|ECS|EKS|RDS|DynamoDB|CloudFront|Route53|IAM|VPC|ALB|NLB|SNS|SQS|CloudWatch| Athena|Redshift|EMR|SageMaker|Bedrock)\b',
-                r'\b(GCE|GKE|Cloud Run|BigQuery|Dataflow|PubSub|Cloud Storage|Firestore|Vertex AI|AI Platform)\b',
-                r'\b(Azure Functions|App Service|AKS|Cosmos DB|Blob Storage|DevOps|AD|Entra ID|Key Vault)\b',
-                r'\b(Linux|Ubuntu|Debian|CentOS|Fedora|RHEL|Alpine|Arch|macOS|Windows|WSL|NixOS|FreeBSD|OpenBSD)\b',
-                r'\b(Nginx|Apache|Caddy|Traefik|Envoy|HAProxy| Kong|Ambassador|Istio|Linkerd)\b',
-                r'\b(Git|GitHub|GitLab|Bitbucket|Gitea|Gitee|SVN|Mercurial|Perforce)\b',
-                r'\b(Poetry|pipenv|conda|npm|yarn|pnpm|bun|cargo|composer|maven|gradle|sbt|leiningen|mix|go mod|NuGet)\b',
-
-                # Testing & Quality
-                r'\b(Jest|Mocha|Vitest|Pytest|unittest|pytest|RSpec|TestNG|JUnit|PHPUnit|Cypress|Playwright|Puppeteer|Selenium|WebDriver|Detox|Maestro)\b',
-                r'\b(CI|CD|TDD|BDD|DDD|SOLID|DRY|KISS|YAGNI|ACID|BASE|CAP|PACELC)\b',
-                r'\b(SonarQube|CodeClimate|Coveralls|Codecov|ESLint|Prettier|Stylelint|PMD|Checkstyle|Rubocop|Black|Ruff|Clippy)\b',
-
-                # Architecture Patterns
-                r'\b(Microservice|Monolith|Serverless|Event-Driven|CQRS|Event Sourcing|Saga|Outbox|Pattern|Anti-Pattern)\b',
-                r'\b(MVC|MVVM|MVP|Clean Architecture|Hexagonal|Onion|Layered|Feature-Sliced|DCI)\b',
-                r'\b(Restful|GraphQL|gRPC|WebSocket|SSE|Webhook|Callback|Promise|Async/Await|Observable|Stream|Reactive)\b',
-                r'\b(Singleton|Factory|Builder|Adapter|Decorator|Facade|Proxy|Strategy|Observer|Command|Chain of Responsibility|Repository|Unit of Work|Service Locator|Dependency Injection|Inversion of Control)\b',
-
-                # Config & Environment
-                r'\b(minimum|maximum|required|limit|threshold|config|default|port|endpoint|host|domain|subnet|CIDR|firewall|load balancer|reverse proxy|CDN|cache)\b',
-                r'\b(\.env|dotenv|environment variable|feature flag|A/B test|canary|blue-green|rolling|zero-downtime)\b',
-
-                # AI/ML Terms
-                r'\b(LLM|GPT|Claude|Gemini|Llama|Mistral|BERT|Transformer|Attention|RAG|Vector|Embedding|Fine-tuning|LoRA|QLoRA|Prompt|Token|Context Window|Temperature|Top-P|Top-K)\b',
-                r'\b(PyTorch|TensorFlow|JAX|ONNX|OpenVINO|TensorRT|vLLM|llama-cpp|Ollama|LangChain|LlamaIndex|Haystack|CrewAI|AutoGen|Semantic Kernel|MCP|Agent|Workflow|Tool|Function Calling)\b',
-                r'\b(Pinecone|Weaviate|Qdrant|Milvus|Chroma|Faiss|pgvector|pgembedding|LanceDB|DocArray|Usearch|Hnswlib|Annoy|ScaNN|Vald)\b',
-
-                # Security
-                r'\b(OAuth|OIDC|SAML|LDAP|2FA|MFA|RBAC|ABAC|JWT|API Key|Secret|Credential|Encryption|Hashing|Salt|Pepper|AES|RSA|ECDSA|XSS|CSRF|SQLi|XXE|SSRF|IDOR|Rate Limit|WAF|DDoS)\b',
+            # === TIER 1: Strong technical facts (conf 0.8) ===
+            tech_terms = [
+                r'\b(API|SDK|HTTP|HTTPS|TCP|UDP|IP|DNS|SQL|NoSQL|GraphQL|REST|gRPC|JSON|XML|CSV)\b',
+                r'\b(Python|JavaScript|TypeScript|Java|Kotlin|Go|Rust|C\+\+|Ruby|PHP|Bash|Shell)\b',
+                r'\b(PostgreSQL|MySQL|MongoDB|Redis|Elasticsearch|DynamoDB|SQLite|Supabase|Firebase)\b',
+                r'\b(Docker|Kubernetes|AWS|GCP|Azure|Linux|Nginx|Git|GitHub|CI|CD)\b',
+                r'\b(LLM|GPT|Claude|Gemini|Llama|RAG|Vector|Embedding|PyTorch|TensorFlow|MCP)\b',
+                r'\b(OAuth|JWT|Encryption|2FA|MFA|RBAC|SSO|SSL|TLS|API Key)\b',
+                r'\d+(\.\d+)+', r'\d{4}[-/]\d{2}', r'\b(v?\d+\.\d+)\b',
             ]
+            has_tech = any(re.search(t, msg_lower) for t in tech_terms)
 
-            has_factual_content = any(re.search(ind, msg_lower) for ind in factual_indicators)
+            if has_tech:
+                tech_patterns = [
+                    r'(.+)\s+(?:is|are|was|were|runs?|operates?)\s+(?:the\s+)?(?:minimum|required|default|located|hosted|running|deployed|based)',
+                    r'(.+)\s+(?:runs?|operates?|works?)\s+(?:on|in|at|with|using|via)\s+(.+)',
+                    r'(.+)\s+(?:supports?|provides?|includes?|contains?|features?)\s+(.+)',
+                    r'(.+)\s+(?:requires?|needs?|uses?|utilizes?)\s+(.+)',
+                    r'(?:the|our|my|this)\s+(?:api|database|server|system|service|app|endpoint|port|limit|version|config)\s+.+(?:is|are|=)',
+                    r'\b\d+\s*(?:employees?|users?|members?|people|teams?|instances?|pods?)\b',
+                    r'(.+)\s+(?:is|are|has|was|were)\s+(.+)',
+                ]
+                for pat in tech_patterns:
+                    if re.search(pat, msg_lower):
+                        return self._build_fact_result(message, 0.8, 'pattern:fact_tech')
 
-            if not has_factual_content:
-                return None
-
-            fact_patterns = [
-                r'(.+) is (.+)',
-                r'(.+) has (.+)',
-                r'(.+) are (.+)',
-                r'(.+) was (.+)',
-                r'(.+) were (.+)',
-                r'(.+) will be (.+)'
+            # === TIER 2: Quantifiable facts (conf 0.7) ===
+            quant_indicators = [
+                r'\b\d+\s*(?:%|percent|mb|gb|tb|ms|sec|min|hour|day|week|month|year|am|pm|jst|utc)\b',
+                r'\b\d+[.,]?\d*\s*(?:employees?|users?|members?|people|teams?|servers?|nodes?|pods?)\b',
+                r'\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?\b',
+                r'\b\d{1,2}(?:am|pm|:)\b',
+                r'\b(?:shanghai|beijing|tokyo|london|singapore|seoul|bangalore|berlin)\b',
+                r'\bus-east-\d|us-west-\d|ap-southeast-\d|eu-west-\d\b',
+                r'\$[\d,]+|\d+\s*k\s*\$|\$\d+k\b',
+                r'\bv\d+[\.\w]*\b',
             ]
+            has_quant = any(re.search(q, msg_lower) for q in quant_indicators)
 
-            for pattern in fact_patterns:
-                match = re.search(pattern, msg_lower)
-                if match:
-                    fact_content = message
+            if has_quant:
+                quant_patterns = [
+                    r'(.+)\s+(?:is|are|has|have|was|were)\s+(.+)',
+                    r'(.+)\s+(?:ends?|starts?|runs?|lasts?)\s+(?:on|at|in|by|every|each)\s*(.+)?',
+                    r'(?:my|our|the|this)\s+(?:office|work|team|standup|sync|meeting|budget|approval)\s+.+',
+                    r'.*\b(?:hours?|schedule|time|deadline|budget|limit|rate|cost|price|version)\b.*',
+                ]
+                for pat in quant_patterns:
+                    if re.search(pat, msg_lower):
+                        return self._build_fact_result(message, 0.7, 'pattern:fact_quant')
 
-                    # Comment in Chinese removed
-                    fact_hash = hash(fact_content)
-                    if fact_hash in self.fact_patterns:
-                        self.fact_patterns[fact_hash] += 1
-                        if self.fact_patterns[fact_hash] >= 2:
-                            # Comment in Chinese removedct
-                            return {
-                                'memory_type': 'fact_declaration',
-                                'tier': 4,
-                                'content': fact_content,
-                                'confidence': 0.8,
-                                'source': 'pattern:fact_repeat',
-                                'description': '重复事实模式'
-                            }
-                    else:
-                        self.fact_patterns[fact_hash] = 1
+            # === TIER 3: General declarative (conf 0.6), only longer messages ===
+            if len(msg_lower) > 25:
+                general_patterns = [
+                    r'^(?:we|i|our|my|the|this)\s+.+\s+(?:is|are|has|have|supports?|uses?|runs?|requires?)\s+.+',
+                    r'.+\s+(?:live[s]?\s+in|work[s]?\s+(?:for|at|on|with)|based?\s+(?:in|on|at)|located?\s+(?:in|at))\s+.+',
+                ]
+                for pat in general_patterns:
+                    if re.search(pat, msg_lower):
+                        return self._build_fact_result(message, 0.6, 'pattern:fact_general')
 
-                    return {
-                        'memory_type': 'fact_declaration',
-                        'tier': 4,
-                        'content': fact_content,
-                        'confidence': 0.7,
-                        'source': 'pattern:fact',
-                        'description': '事实声明模式'
-                    }
-        
         return None
+
+    def _build_fact_result(self, message: str, confidence: float = 0.7, source: str = 'pattern:fact') -> Dict[str, Any]:
+        """Build a standardized fact result."""
+        fact_content = message
+        fact_hash = hash(fact_content)
+        if fact_hash in self.fact_patterns:
+            self.fact_patterns[fact_hash] += 1
+            if self.fact_patterns[fact_hash] >= 2:
+                return {'memory_type': 'fact_declaration', 'tier': 4, 'content': fact_content,
+                        'confidence': 0.8, 'source': 'pattern:fact_repeat', 'description': '重复事实模式'}
+        else:
+            self.fact_patterns[fact_hash] = 1
+        return {'memory_type': 'fact_declaration', 'tier': 4, 'content': fact_content,
+                'confidence': confidence, 'source': source, 'description': '事实声明模式'}
     
     def _detect_relationship_pattern(self, message: str, language: str) -> Optional[Dict[str, Any]]:
         """Detect relationship patterns.
