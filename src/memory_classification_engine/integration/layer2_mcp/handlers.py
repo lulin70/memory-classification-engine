@@ -1,9 +1,10 @@
 """
 MCP Tool handlers for CarryMem.
 
-3+3 Optional Mode (v0.6.0):
+3+3+3 Optional Mode (v0.7.0):
   Core handlers: classify_message, get_classification_schema, batch_classify
-  Optional handlers: classify_and_remember, recall_memories, forget_memory
+  Storage handlers: classify_and_remember, recall_memories, forget_memory
+  Knowledge handlers: index_knowledge, recall_from_knowledge, recall_all
 """
 
 import json
@@ -11,7 +12,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List
 
-from .tools import CLASSIFICATION_SCHEMA, TOOL_NAMES, CORE_TOOL_NAMES, OPTIONAL_TOOL_NAMES
+from .tools import CLASSIFICATION_SCHEMA, TOOL_NAMES, CORE_TOOL_NAMES, OPTIONAL_TOOL_NAMES, KNOWLEDGE_TOOL_NAMES
 
 
 def _format_memory_entry(match: Dict[str, Any], original_message: str) -> Dict[str, Any]:
@@ -261,6 +262,56 @@ def handle_forget_memory(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": str(e)}
 
 
+def handle_index_knowledge(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        result = carrymem.index_knowledge()
+        return {"indexed": True, "stats": result}
+    except Exception as e:
+        if "KnowledgeNotConfiguredError" in type(e).__name__:
+            return {
+                "error": "knowledge_not_configured",
+                "message": "Knowledge adapter not configured. Use CarryMem(knowledge_adapter=ObsidianAdapter('/path/to/vault')) to enable knowledge features.",
+                "available_tools": list(CORE_TOOL_NAMES) + list(OPTIONAL_TOOL_NAMES)
+            }
+        return {"error": str(e)}
+
+
+def handle_recall_from_knowledge(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    query = arguments.get("query", "")
+    filters = arguments.get("filters")
+    limit = arguments.get("limit", 20)
+
+    if not query.strip():
+        return {"error": "Missing required field: query"}
+
+    try:
+        results = carrymem.recall_from_knowledge(query=query, filters=filters, limit=limit)
+        return {"notes": results, "total": len(results), "source": "knowledge"}
+    except Exception as e:
+        if "KnowledgeNotConfiguredError" in type(e).__name__:
+            return {
+                "error": "knowledge_not_configured",
+                "message": "Knowledge adapter not configured. Use CarryMem(knowledge_adapter=ObsidianAdapter('/path/to/vault')) to enable knowledge features.",
+                "available_tools": list(CORE_TOOL_NAMES) + list(OPTIONAL_TOOL_NAMES)
+            }
+        return {"error": str(e)}
+
+
+def handle_recall_all(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    query = arguments.get("query", "")
+    filters = arguments.get("filters")
+    limit = arguments.get("limit", 20)
+
+    if not query.strip():
+        return {"error": "Missing required field: query"}
+
+    try:
+        result = carrymem.recall_all(query=query, filters=filters, limit=limit)
+        return result
+    except Exception as e:
+        return {"error": str(e)}
+
+
 handler_map = {
     "classify_message": handle_classify_message,
     "get_classification_schema": handle_get_classification_schema,
@@ -269,19 +320,35 @@ handler_map = {
     "classify_and_remember": handle_classify_and_remember,
     "recall_memories": handle_recall_memories,
     "forget_memory": handle_forget_memory,
+    "index_knowledge": handle_index_knowledge,
+    "recall_from_knowledge": handle_recall_from_knowledge,
+    "recall_all": handle_recall_all,
 }
 
 
 class Handlers:
-    """CarryMem MCP Handlers — 3+3 optional mode.
+    """CarryMem MCP Handlers — 3+3+3 optional mode.
 
     Core tools use engine directly.
-    Optional tools use CarryMem instance (with storage adapter).
+    Storage tools use CarryMem instance (with storage adapter).
+    Knowledge tools use CarryMem instance (with knowledge adapter).
     """
 
-    def __init__(self, config_path: str = None, data_path: str = None, storage: str = "sqlite"):
+    def __init__(
+        self,
+        config_path: str = None,
+        data_path: str = None,
+        storage: str = "sqlite",
+        vault_path: str = None,
+    ):
         from memory_classification_engine.carrymem import CarryMem
-        self._carrymem = CarryMem(storage=storage)
+        from memory_classification_engine.adapters.obsidian_adapter import ObsidianAdapter
+
+        knowledge_adapter = None
+        if vault_path:
+            knowledge_adapter = ObsidianAdapter(vault_path)
+
+        self._carrymem = CarryMem(storage=storage, knowledge_adapter=knowledge_adapter)
         self._engine = self._carrymem.engine
 
     async def handle_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
@@ -293,7 +360,7 @@ class Handlers:
 
         handler_func = handler_map[tool_name]
         try:
-            if tool_name in OPTIONAL_TOOL_NAMES:
+            if tool_name in OPTIONAL_TOOL_NAMES or tool_name in KNOWLEDGE_TOOL_NAMES:
                 result = handler_func(self._carrymem, arguments or {})
             else:
                 result = handler_func(self._engine, arguments or {})

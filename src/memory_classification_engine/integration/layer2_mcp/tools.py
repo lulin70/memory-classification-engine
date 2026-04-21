@@ -1,9 +1,10 @@
 """
 MCP Tools definitions for CarryMem.
 
-3+3 Optional Mode (v0.6.0):
+3+3+3 Optional Mode (v0.7.0):
   Core (always available): classify_message, get_classification_schema, batch_classify
-  Optional (requires adapter): classify_and_remember, recall_memories, forget_memory
+  Storage Optional (requires storage adapter): classify_and_remember, recall_memories, forget_memory
+  Knowledge Optional (requires knowledge adapter): index_knowledge, recall_from_knowledge, recall_all
 """
 
 from typing import Any, Dict, List
@@ -148,10 +149,97 @@ OPTIONAL_TOOLS: List[Dict[str, Any]] = [
     },
 ]
 
-TOOLS = CORE_TOOLS + OPTIONAL_TOOLS
+KNOWLEDGE_TOOLS: List[Dict[str, Any]] = [
+    {
+        "name": "index_knowledge",
+        "description": "Index an Obsidian vault or knowledge base for full-text search. Scans Markdown files, extracts YAML frontmatter tags and wiki-links, builds FTS5 index. Requires knowledge adapter (ObsidianAdapter).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
+        "name": "recall_from_knowledge",
+        "description": "Search knowledge base (e.g., Obsidian vault) using full-text search. Returns matching notes with title, content preview, tags, and wiki-links. Requires knowledge adapter.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query for full-text search"
+                },
+                "filters": {
+                    "type": "object",
+                    "properties": {
+                        "tags": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {"type": "array", "items": {"type": "string"}}
+                            ],
+                            "description": "Filter by tag(s)"
+                        },
+                        "title": {
+                            "type": "string",
+                            "description": "Filter by title (partial match)"
+                        }
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results (default 20)",
+                    "default": 20,
+                    "minimum": 1,
+                    "maximum": 100
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "recall_all",
+        "description": "Unified retrieval across both memories (SQLite) and knowledge base (Obsidian). Returns results from both sources with priority: memories first, then knowledge. Requires at least one adapter configured.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query"
+                },
+                "filters": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "Memory type filter (for memories only)"
+                        },
+                        "tags": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {"type": "array", "items": {"type": "string"}}
+                            ],
+                            "description": "Tag filter (for knowledge base)"
+                        }
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum results per source (default 20)",
+                    "default": 20,
+                    "minimum": 1,
+                    "maximum": 100
+                }
+            },
+            "required": ["query"]
+        }
+    },
+]
+
+TOOLS = CORE_TOOLS + OPTIONAL_TOOLS + KNOWLEDGE_TOOLS
 TOOL_NAMES = {tool["name"] for tool in TOOLS}
 CORE_TOOL_NAMES = {tool["name"] for tool in CORE_TOOLS}
 OPTIONAL_TOOL_NAMES = {tool["name"] for tool in OPTIONAL_TOOLS}
+KNOWLEDGE_TOOL_NAMES = {tool["name"] for tool in KNOWLEDGE_TOOLS}
 
 CLASSIFICATION_SCHEMA = {
     "schema_version": "1.0.0",

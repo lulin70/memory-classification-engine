@@ -4,6 +4,7 @@
 
 | Version | Date | Updater | Update Content | Review Status |
 |---------|------|---------|---------------|---------------|
+| **v0.7.0** | 2026-04-21 | Engineering Team | **CarryMem v0.7**: ObsidianAdapter知识库适配器 + 3+3+3 MCP模式 + recall_from_knowledge + recall_all统一检索 + KnowledgeNotConfiguredError + 检索优先级(记忆>知识库)。26/26 Obsidian测试通过，18/18 V6回归通过，Benchmark 90.6%/97.9%无回归 | ✅ Complete |
 | **v0.6.0** | 2026-04-20 | Engineering Team | **CarryMem v0.6**: SQLiteAdapter + CarryMem主类 + context增强 + recall_hint预留 + 模块重组 + 目录重命名carrymem。18/18集成测试通过，Benchmark 90.6%/97.9%无回归 | ✅ Complete |
 | **v0.3.2** | 2026-04-20 | Engineering Team | **V4-08 Complete**: Acc 71.7%→**90.6%** (+18.9pp), F1 90.7%→**97.9%**, fact_declaration F1 40%→**90.9%**. Fixed location rule over-matching, benchmark multi-type check. **ALL THRESHOLDS MET** ✅ | ✅ Complete |
 | **v0.3.2** | 2026-04-20 | Engineering Team | **V4-01~05 Complete Overhaul** (Acc 38.9%→71.7%, F1 84.2%→90.7%). Fixed 3 CRASH bugs, correction 3-tier (F1+32.4pp), FP -44%, fact 3-tier (direct+60pp), sentiment 100%/relationship 90%. Accuracy crossed 70% threshold | ✅ Complete |

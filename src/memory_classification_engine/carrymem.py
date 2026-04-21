@@ -13,6 +13,12 @@ Usage:
     # Mode 3: Custom storage adapter
     from carrymem.adapters import SQLiteAdapter
     cm = CarryMem(storage=SQLiteAdapter("/path/to/custom.db"))
+
+    # Mode 4: With knowledge base (Obsidian)
+    from carrymem.adapters import ObsidianAdapter
+    cm = CarryMem(knowledge_adapter=ObsidianAdapter("/path/to/vault"))
+    cm.index_knowledge()
+    results = cm.recall_from_knowledge("Python design patterns")
 """
 
 from typing import Any, Dict, List, Optional
@@ -20,6 +26,7 @@ from typing import Any, Dict, List, Optional
 from memory_classification_engine.engine import MemoryClassificationEngine
 from memory_classification_engine.adapters.base import MemoryEntry, StorageAdapter, StoredMemory
 from memory_classification_engine.adapters.sqlite_adapter import SQLiteAdapter
+from memory_classification_engine.adapters.obsidian_adapter import ObsidianAdapter
 
 
 class StorageNotConfiguredError(Exception):
@@ -31,16 +38,27 @@ class StorageNotConfiguredError(Exception):
         )
 
 
+class KnowledgeNotConfiguredError(Exception):
+    def __init__(self):
+        super().__init__(
+            "Knowledge adapter not configured. "
+            "Use CarryMem(knowledge_adapter=ObsidianAdapter('/path/to/vault')) "
+            "to enable knowledge base features."
+        )
+
+
 class CarryMem:
     """CarryMem — 随身记忆库.
 
     让 AI Agent 记住用户。分类是核心，存储可替换，默认开箱即用。
+    知识库只读，记忆可读写。检索优先级：记忆 > 知识库。
     """
 
     def __init__(
         self,
         storage: Optional[Any] = "sqlite",
         db_path: Optional[str] = None,
+        knowledge_adapter: Optional[StorageAdapter] = None,
         config: Optional[Dict] = None,
     ):
         self._engine = MemoryClassificationEngine()
@@ -57,6 +75,8 @@ class CarryMem:
                 "Use None, 'sqlite', or a StorageAdapter instance."
             )
 
+        self._knowledge_adapter = knowledge_adapter
+
     @property
     def engine(self) -> MemoryClassificationEngine:
         return self._engine
@@ -64,6 +84,63 @@ class CarryMem:
     @property
     def adapter(self) -> Optional[StorageAdapter]:
         return self._adapter
+
+    @property
+    def knowledge_adapter(self) -> Optional[StorageAdapter]:
+        return self._knowledge_adapter
+
+    def index_knowledge(self) -> Dict[str, Any]:
+        if not self._knowledge_adapter:
+            raise KnowledgeNotConfiguredError()
+
+        if isinstance(self._knowledge_adapter, ObsidianAdapter):
+            return self._knowledge_adapter.index_vault()
+
+        return {"error": "Knowledge adapter does not support indexing"}
+
+    def recall_from_knowledge(
+        self,
+        query: str,
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        if not self._knowledge_adapter:
+            raise KnowledgeNotConfiguredError()
+
+        results = self._knowledge_adapter.recall(query, filters=filters, limit=limit)
+        if isinstance(results, list) and results and isinstance(results[0], dict):
+            return results
+        return [r.to_dict() if hasattr(r, 'to_dict') else r for r in results]
+
+    def recall_all(
+        self,
+        query: str,
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 20,
+    ) -> Dict[str, Any]:
+        memory_results = []
+        knowledge_results = []
+
+        if self._adapter:
+            try:
+                memory_results = self.recall_memories(query=query, filters=filters, limit=limit)
+            except Exception:
+                pass
+
+        if self._knowledge_adapter:
+            try:
+                knowledge_results = self.recall_from_knowledge(query=query, filters=filters, limit=limit)
+            except Exception:
+                pass
+
+        return {
+            "memories": memory_results,
+            "knowledge": knowledge_results,
+            "memory_count": len(memory_results),
+            "knowledge_count": len(knowledge_results),
+            "total_count": len(memory_results) + len(knowledge_results),
+            "priority": "memory_first",
+        }
 
     def classify_message(
         self,
