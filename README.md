@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.9.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.3.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/tests-75%20passing-green" alt="Tests">
   <img src="https://img.shields.io/badge/MCP-3%2B3%2B3%2B2-blue" alt="MCP">
   <img src="https://img.shields.io/badge/Accuracy-90.6%25-green" alt="Accuracy">
@@ -220,7 +220,7 @@ carrymem/
 │   ├── architecture/            # Architecture + Design docs
 │   ├── planning/                # User stories + Migration plan
 │   └── testing/                 # Test plan
-└── setup.py                     # carrymem v0.9.0
+└── setup.py                     # carrymem v0.3.0
 ```
 
 ---
