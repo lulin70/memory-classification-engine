@@ -477,15 +477,20 @@ class StorageAdapter(ABC):
    - source_layer="declaration" 标记来源
    - 主动声明 + 被动分类 = 完整的记忆收集体验
 
-### v0.9.0 — Namespace & Project Space (Planned)
+### v0.9.0 — Namespace & Project Space ✅ (2026-04-21)
 
-| Feature | Description |
-|---------|-------------|
-| namespace 参数 | CarryMem(storage="sqlite", namespace="project-alpha") |
-| SQLite schema | memories 表加 namespace 列，默认 "default" |
-| 跨 namespace 查询 | recall_all 支持 namespace=["project-a", "global"] |
-| 检索优先级 | 同namespace > 全局 > 知识库 > 外部 |
-| Schema 迁移 | ALTER TABLE + 数据迁移脚本 |
+**Prerequisite**: v0.8.0 complete ✅
+**Status**: Complete — Namespace isolation delivered
+
+**v0.9.0 Deliverables**:
+- SQLite schema: memories 表加 namespace 列，默认 "default"
+- CarryMem 构造函数: `namespace="default"` 参数
+- SQLiteAdapter: 所有查询按 namespace 过滤 (remember/recall/forget/get_stats/get_profile)
+- 跨 namespace 查询: `recall(namespaces=["project-alpha", "global"])`
+- recall_all: `recall_all(namespaces=[...])` 支持多 namespace
+- Schema 迁移: 自动检测并添加 namespace 列
+- 检索优先级: 同namespace > 全局 > 知识库 > 外部
+- 11/11 Namespace测试 + 18/18 V6回归 + 20/20 V8回归 + Benchmark 90.6%/97.9% 无回归
 
 ### v0.10.0 — Ecosystem & Polish
 
