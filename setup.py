@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name="carrymem",
-    version="0.7.0",
-    description="CarryMem — 随身记忆库. Let your AI agent remember users. 60%+ zero LLM cost classification + SQLite default storage + Obsidian knowledge base.",
+    version="0.8.0",
+    description="CarryMem — 随身记忆库. Let your AI agent remember users. 60%+ zero LLM cost classification + SQLite default storage + Obsidian knowledge base + user declaration + memory profile.",
     author="lulin70",
     author_email="lulin70@example.com",
     packages=find_packages(where="src"),

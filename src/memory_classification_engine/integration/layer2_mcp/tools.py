@@ -1,10 +1,11 @@
 """
 MCP Tools definitions for CarryMem.
 
-3+3+3 Optional Mode (v0.7.0):
+3+3+3+2 Optional Mode (v0.8.0):
   Core (always available): classify_message, get_classification_schema, batch_classify
   Storage Optional (requires storage adapter): classify_and_remember, recall_memories, forget_memory
   Knowledge Optional (requires knowledge adapter): index_knowledge, recall_from_knowledge, recall_all
+  Profile Optional (requires storage adapter): declare_preference, get_memory_profile
 """
 
 from typing import Any, Dict, List
@@ -235,11 +236,37 @@ KNOWLEDGE_TOOLS: List[Dict[str, Any]] = [
     },
 ]
 
-TOOLS = CORE_TOOLS + OPTIONAL_TOOLS + KNOWLEDGE_TOOLS
+PROFILE_TOOLS: List[Dict[str, Any]] = [
+    {
+        "name": "declare_preference",
+        "description": "Let the user proactively tell the AI about themselves. User declarations are classified by the engine but always stored with confidence=1.0 and source_layer='declaration'. Active declaration + passive classification = complete memory coverage.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "description": "What the user wants to declare (e.g., 'I prefer dark mode', 'We use PostgreSQL', 'My timezone is UTC+8')"
+                }
+            },
+            "required": ["message"]
+        }
+    },
+    {
+        "name": "get_memory_profile",
+        "description": "Get a structured summary of what the AI remembers about the user. Returns highlights (top preferences, decisions, corrections), statistics (by type, by tier, avg confidence), and a human-readable summary. Lets users see and audit what AI remembers.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+]
+
+TOOLS = CORE_TOOLS + OPTIONAL_TOOLS + KNOWLEDGE_TOOLS + PROFILE_TOOLS
 TOOL_NAMES = {tool["name"] for tool in TOOLS}
 CORE_TOOL_NAMES = {tool["name"] for tool in CORE_TOOLS}
 OPTIONAL_TOOL_NAMES = {tool["name"] for tool in OPTIONAL_TOOLS}
 KNOWLEDGE_TOOL_NAMES = {tool["name"] for tool in KNOWLEDGE_TOOLS}
+PROFILE_TOOL_NAMES = {tool["name"] for tool in PROFILE_TOOLS}
 
 CLASSIFICATION_SCHEMA = {
     "schema_version": "1.0.0",

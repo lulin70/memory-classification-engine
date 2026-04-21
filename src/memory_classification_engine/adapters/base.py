@@ -269,6 +269,32 @@ class StorageAdapter(ABC):
             "capabilities": self.capabilities,
         }
 
+    def get_profile(self) -> Dict[str, Any]:
+        """Get user memory profile — structured summary for display.
+
+        Returns aggregated statistics and representative content highlights.
+        Used by CarryMem.get_memory_profile() to show users what AI remembers.
+
+        Returns:
+            Dict with:
+            - summary: Human-readable string
+            - total_memories: Total count
+            - highlights: Top N representative memories by type
+            - stats: Aggregated statistics (by_type, by_tier, confidence_avg)
+            - last_updated: ISO timestamp
+        """
+        return {
+            "summary": "No memories yet",
+            "total_memories": 0,
+            "highlights": {},
+            "stats": {
+                "by_type": {},
+                "by_tier": {},
+                "confidence_avg": 0.0,
+            },
+            "last_updated": None,
+        }
+
     @property
     @abstractmethod
     def name(self) -> str:

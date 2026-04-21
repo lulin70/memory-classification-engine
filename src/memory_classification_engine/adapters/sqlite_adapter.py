@@ -301,6 +301,81 @@ class SQLiteAdapter(StorageAdapter):
             "db_path": self._db_path,
         }
 
+    def get_profile(self) -> Dict[str, Any]:
+        total = self._conn.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
+
+        if total == 0:
+            return {
+                "summary": "No memories yet",
+                "total_memories": 0,
+                "highlights": {},
+                "stats": {"by_type": {}, "by_tier": {}, "confidence_avg": 0.0},
+                "last_updated": None,
+            }
+
+        by_type_rows = self._conn.execute(
+            "SELECT type, COUNT(*) as cnt FROM memories GROUP BY type"
+        ).fetchall()
+        by_type = {row["type"]: row["cnt"] for row in by_type_rows}
+
+        by_tier_rows = self._conn.execute(
+            "SELECT tier, COUNT(*) as cnt FROM memories GROUP BY tier"
+        ).fetchall()
+        by_tier = {str(row["tier"]): row["cnt"] for row in by_tier_rows}
+
+        avg_conf = self._conn.execute(
+            "SELECT AVG(confidence) FROM memories"
+        ).fetchone()[0] or 0.0
+
+        highlight_types = [
+            "user_preference",
+            "correction",
+            "decision",
+            "fact_declaration",
+        ]
+        highlights: Dict[str, List[str]] = {}
+        for mem_type in highlight_types:
+            rows = self._conn.execute(
+                "SELECT content FROM memories WHERE type = ? ORDER BY confidence DESC LIMIT 5",
+                (mem_type,),
+            ).fetchall()
+            items = [row["content"][:100] for row in rows]
+            if items:
+                highlights[mem_type] = items
+
+        last_updated_row = self._conn.execute(
+            "SELECT MAX(updated_at) FROM memories"
+        ).fetchone()
+        last_updated = last_updated_row[0] if last_updated_row else None
+
+        type_parts = []
+        type_labels = {
+            "user_preference": "偏好",
+            "correction": "纠正",
+            "decision": "决策",
+            "fact_declaration": "事实",
+            "relationship": "关系",
+            "task_pattern": "任务模式",
+            "sentiment_marker": "情感",
+        }
+        for t, cnt in by_type.items():
+            label = type_labels.get(t, t)
+            type_parts.append(f"{cnt}个{label}")
+
+        summary = f"AI 记住了关于你的 {total} 条信息：" + "、".join(type_parts)
+
+        return {
+            "summary": summary,
+            "total_memories": total,
+            "highlights": highlights,
+            "stats": {
+                "by_type": by_type,
+                "by_tier": by_tier,
+                "confidence_avg": round(avg_conf, 4),
+            },
+            "last_updated": last_updated,
+        }
+
     def _row_to_stored(self, row: Optional[sqlite3.Row]) -> Optional[StoredMemory]:
         if not row:
             return None

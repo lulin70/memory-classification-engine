@@ -1,10 +1,11 @@
 """
 MCP Tool handlers for CarryMem.
 
-3+3+3 Optional Mode (v0.7.0):
+3+3+3+2 Optional Mode (v0.8.0):
   Core handlers: classify_message, get_classification_schema, batch_classify
   Storage handlers: classify_and_remember, recall_memories, forget_memory
   Knowledge handlers: index_knowledge, recall_from_knowledge, recall_all
+  Profile handlers: declare_preference, get_memory_profile
 """
 
 import json
@@ -12,7 +13,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List
 
-from .tools import CLASSIFICATION_SCHEMA, TOOL_NAMES, CORE_TOOL_NAMES, OPTIONAL_TOOL_NAMES, KNOWLEDGE_TOOL_NAMES
+from .tools import CLASSIFICATION_SCHEMA, TOOL_NAMES, CORE_TOOL_NAMES, OPTIONAL_TOOL_NAMES, KNOWLEDGE_TOOL_NAMES, PROFILE_TOOL_NAMES
 
 
 def _format_memory_entry(match: Dict[str, Any], original_message: str) -> Dict[str, Any]:
@@ -312,6 +313,33 @@ def handle_recall_all(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": str(e)}
 
 
+def handle_declare_preference(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    message = arguments.get("message", "")
+
+    if not message.strip():
+        return {"error": "Missing required field: message"}
+
+    try:
+        result = carrymem.declare(message)
+        return result
+    except Exception as e:
+        if "StorageNotConfiguredError" in type(e).__name__:
+            return {
+                "error": "storage_not_configured",
+                "message": "Storage adapter not configured. Use CarryMem(storage='sqlite') to enable storage features.",
+                "available_tools": list(CORE_TOOL_NAMES) + list(KNOWLEDGE_TOOL_NAMES)
+            }
+        return {"error": str(e)}
+
+
+def handle_get_memory_profile(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        profile = carrymem.get_memory_profile()
+        return profile
+    except Exception as e:
+        return {"error": str(e)}
+
+
 handler_map = {
     "classify_message": handle_classify_message,
     "get_classification_schema": handle_get_classification_schema,
@@ -323,15 +351,18 @@ handler_map = {
     "index_knowledge": handle_index_knowledge,
     "recall_from_knowledge": handle_recall_from_knowledge,
     "recall_all": handle_recall_all,
+    "declare_preference": handle_declare_preference,
+    "get_memory_profile": handle_get_memory_profile,
 }
 
 
 class Handlers:
-    """CarryMem MCP Handlers — 3+3+3 optional mode.
+    """CarryMem MCP Handlers — 3+3+3+2 optional mode.
 
     Core tools use engine directly.
     Storage tools use CarryMem instance (with storage adapter).
     Knowledge tools use CarryMem instance (with knowledge adapter).
+    Profile tools use CarryMem instance (with storage adapter).
     """
 
     def __init__(
@@ -360,7 +391,7 @@ class Handlers:
 
         handler_func = handler_map[tool_name]
         try:
-            if tool_name in OPTIONAL_TOOL_NAMES or tool_name in KNOWLEDGE_TOOL_NAMES:
+            if tool_name in OPTIONAL_TOOL_NAMES or tool_name in KNOWLEDGE_TOOL_NAMES or tool_name in PROFILE_TOOL_NAMES:
                 result = handler_func(self._carrymem, arguments or {})
             else:
                 result = handler_func(self._engine, arguments or {})

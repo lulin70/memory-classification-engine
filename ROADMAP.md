@@ -4,6 +4,7 @@
 
 | Version | Date | Updater | Update Content | Review Status |
 |---------|------|---------|---------------|---------------|
+| **v0.8.0** | 2026-04-21 | Engineering Team | **CarryMem v0.8**: declare()主动声明 + get_memory_profile()记忆画像 + 3+3+3+2 MCP模式 + NotebookLM启发三个方向落地。20/20 Profile测试通过，18/18 V6回归，26/26 V7回归，Benchmark 90.6%/97.9%无回归 | ✅ Complete |
 | **v0.7.0** | 2026-04-21 | Engineering Team | **CarryMem v0.7**: ObsidianAdapter知识库适配器 + 3+3+3 MCP模式 + recall_from_knowledge + recall_all统一检索 + KnowledgeNotConfiguredError + 检索优先级(记忆>知识库)。26/26 Obsidian测试通过，18/18 V6回归通过，Benchmark 90.6%/97.9%无回归 | ✅ Complete |
 | **v0.6.0** | 2026-04-20 | Engineering Team | **CarryMem v0.6**: SQLiteAdapter + CarryMem主类 + context增强 + recall_hint预留 + 模块重组 + 目录重命名carrymem。18/18集成测试通过，Benchmark 90.6%/97.9%无回归 | ✅ Complete |
 | **v0.3.2** | 2026-04-20 | Engineering Team | **V4-08 Complete**: Acc 71.7%→**90.6%** (+18.9pp), F1 90.7%→**97.9%**, fact_declaration F1 40%→**90.9%**. Fixed location rule over-matching, benchmark multi-type check. **ALL THRESHOLDS MET** ✅ | ✅ Complete |
@@ -425,23 +426,26 @@ class StorageAdapter(ABC):
 | Contract Tests | 100% | All ABC methods tested with mock |
 | Integration (Engine+SQLite) | ≥50% | End-to-end classify→store→recall flow |
 
-### v0.7.0 — Knowledge Adapter + Official Downstream
+### v0.7.0 — Knowledge Adapter + Official Downstream ✅ (2026-04-21)
 
-**Prerequisite**: v0.6.0 stable
-**Effort**: ~5-8 person-days
+**Prerequisite**: v0.6.0 complete ✅
+**Status**: Complete — ObsidianAdapter delivered
 
-| Adapter | Priority | Effort | Use Case |
+| Adapter | Priority | Status | Use Case |
 |---------|----------|--------|----------|
-| **ObsidianAdapter** | P0 | ~1.5d | 知识库检索源 (Markdown 文件直读 + FTS5) |
-| **SupermemoryAdapter** | P0 | ~2d | Production users wanting cloud sync |
-| **Mem0Adapter** | P1 | ~1.5d | Vector+graph hybrid users |
-| **JSONFileAdapter** | P1 | ~0.5d | Simple local persistence |
-| **PostgreSQLAdapter** | P2 | ~2d | Enterprise / team collaboration |
+| **ObsidianAdapter** | P0 | ✅ Done | 知识库检索源 (Markdown 文件直读 + FTS5 + YAML frontmatter + wiki-links) |
+| **SupermemoryAdapter** | P0 | Pending | Production users wanting cloud sync |
+| **Mem0Adapter** | P1 | Pending | Vector+graph hybrid users |
+| **JSONFileAdapter** | P1 | Pending | Simple local persistence |
+| **PostgreSQLAdapter** | P2 | Pending | Enterprise / team collaboration |
 
-**检索优先级策略模板** (v0.7 新增):
-- Layer 1: 记忆库 (SQLite/其他 adapter)
-- Layer 2: 知识库 (Obsidian adapter)
-- Layer 3: 外部 LLM (Agent 自己决定)
+**v0.7.0 Deliverables**:
+- ObsidianAdapter: Markdown直读 + FTS5索引 + 增量索引 + YAML frontmatter + wiki-links
+- CarryMem: `knowledge_adapter` 参数 + `index_knowledge()` + `recall_from_knowledge()` + `recall_all()`
+- MCP 3+3+3: Core(3) + Storage(3) + Knowledge(3: index_knowledge, recall_from_knowledge, recall_all)
+- KnowledgeNotConfiguredError 异常类
+- 检索优先级策略: 记忆 > 知识库 > 外部 (recall_all 返回 memory_first)
+- 26/26 Obsidian测试 + 18/18 V6回归 + Benchmark 90.6%/97.9% 无回归
 
 ### v0.8.0 — Ecosystem & Polish
 

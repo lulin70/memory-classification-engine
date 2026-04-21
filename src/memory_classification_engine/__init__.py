@@ -16,7 +16,7 @@ from memory_classification_engine.utils.helpers import (
 )
 from memory_classification_engine.utils.logger import logger
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 __all__ = [
     "CarryMem",
     "MemoryClassificationEngine",

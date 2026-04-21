@@ -235,6 +235,78 @@ class CarryMem:
 
         return self._adapter.get_stats()
 
+    def declare(
+        self,
+        message: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        if not self._adapter:
+            raise StorageNotConfiguredError()
+
+        result = self._engine.process_message(message, context=context)
+        matches = result.get("matches", [])
+
+        if not matches:
+            entry = MemoryEntry(
+                id="",
+                type="user_preference",
+                content=message,
+                confidence=1.0,
+                tier=2,
+                source_layer="declaration",
+                reasoning="User主动声明",
+                suggested_action="store",
+                metadata={"original_message": message, "source": "declaration"},
+            )
+            matches = [entry]
+        else:
+            entries = []
+            for m in matches:
+                entry = MemoryEntry(
+                    id=m.get("id", ""),
+                    type=m.get("memory_type") or m.get("type", "unknown"),
+                    content=m.get("content", ""),
+                    confidence=1.0,
+                    tier=m.get("tier", 2),
+                    source_layer="declaration",
+                    reasoning=m.get("reasoning", "") + " (主动声明)",
+                    suggested_action="store",
+                    recall_hint=m.get("recall_hint"),
+                    metadata={**m.get("metadata", {}), "source": "declaration"},
+                )
+                entries.append(entry)
+            matches = entries
+
+        stored_memories = []
+        storage_keys = []
+        for entry in matches:
+            stored = self._adapter.remember(entry)
+            stored_memories.append(stored.to_dict())
+            storage_keys.append(stored.storage_key)
+
+        return {
+            "declared": True,
+            "entries": stored_memories,
+            "storage_keys": storage_keys,
+            "source": "declaration",
+            "summary": {
+                "total_entries": len(stored_memories),
+                "by_type": self._count_by_type(matches),
+            },
+        }
+
+    def get_memory_profile(self) -> Dict[str, Any]:
+        if not self._adapter:
+            return {
+                "summary": "No storage configured",
+                "total_memories": 0,
+                "highlights": {},
+                "stats": {},
+            }
+
+        profile = self._adapter.get_profile()
+        return profile
+
     def _count_by_type(self, entries: List[MemoryEntry]) -> Dict[str, int]:
         counts: Dict[str, int] = {}
         for e in entries:
