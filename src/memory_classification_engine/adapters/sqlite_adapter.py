@@ -1,0 +1,366 @@
+"""SQLite Storage Adapter — CarryMem default storage backend.
+
+Features:
+- Zero-config: auto-creates database at ~/.carrymem/memories.db
+- FTS5 full-text search for content and original_message
+- Content deduplication via content_hash
+- Tier-based TTL expiry
+- Atomic batch operations via transactions
+"""
+
+import hashlib
+import json
+import os
+import sqlite3
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
+from .base import MemoryEntry, StorageAdapter, StoredMemory
+
+_SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS memories (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    content TEXT NOT NULL,
+    original_message TEXT,
+    confidence REAL NOT NULL DEFAULT 0.0,
+    tier INTEGER NOT NULL DEFAULT 2,
+    source_layer TEXT NOT NULL DEFAULT 'unknown',
+    reasoning TEXT,
+    suggested_action TEXT NOT NULL DEFAULT 'store',
+    recall_hint TEXT,
+    metadata TEXT,
+    storage_key TEXT UNIQUE NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT,
+    access_count INTEGER NOT NULL DEFAULT 0,
+    content_hash TEXT NOT NULL
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+    content,
+    original_message,
+    content='memories',
+    content_rowid='rowid',
+    tokenize='unicode61'
+);
+
+CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);
+CREATE INDEX IF NOT EXISTS idx_memories_tier ON memories(tier);
+CREATE INDEX IF NOT EXISTS idx_memories_confidence ON memories(confidence);
+CREATE INDEX IF NOT EXISTS idx_memories_expires ON memories(expires_at);
+CREATE INDEX IF NOT EXISTS idx_memories_content_hash ON memories(content_hash);
+
+CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
+    INSERT INTO memories_fts(rowid, content, original_message)
+    VALUES (new.rowid, new.content, new.original_message);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
+    INSERT INTO memories_fts(memories_fts, rowid, content, original_message)
+    VALUES ('delete', old.rowid, old.content, old.original_message);
+END;
+"""
+
+_TIER_TTL = {
+    1: timedelta(hours=24),
+    2: timedelta(days=90),
+    3: timedelta(days=365),
+    4: None,
+}
+
+
+def _content_hash(content: str, entry_type: str) -> str:
+    return hashlib.sha256(f"{entry_type}:{content}".encode()).hexdigest()[:16]
+
+
+def _default_db_path() -> str:
+    home = os.path.expanduser("~")
+    carrymem_dir = os.path.join(home, ".carrymem")
+    os.makedirs(carrymem_dir, exist_ok=True)
+    return os.path.join(carrymem_dir, "memories.db")
+
+
+class SQLiteAdapter(StorageAdapter):
+    """SQLite-based storage adapter — CarryMem's default backend.
+
+    Usage:
+        adapter = SQLiteAdapter()  # auto-creates ~/.carrymem/memories.db
+        adapter = SQLiteAdapter(":memory:")  # in-memory for testing
+        adapter = SQLiteAdapter("/path/to/custom.db")  # custom path
+    """
+
+    def __init__(self, db_path: Optional[str] = None):
+        self._db_path = db_path or _default_db_path()
+        self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
+        self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA foreign_keys=ON")
+        self._init_schema()
+
+    def _init_schema(self):
+        self._conn.executescript(_SCHEMA_SQL)
+        self._conn.commit()
+
+    @property
+    def name(self) -> str:
+        return "sqlite"
+
+    @property
+    def capabilities(self) -> Dict[str, bool]:
+        return {
+            "vector_search": False,
+            "fts": True,
+            "ttl": True,
+            "batch": True,
+            "graph": False,
+        }
+
+    def remember(self, entry: MemoryEntry) -> StoredMemory:
+        c_hash = _content_hash(entry.content, entry.type)
+
+        existing = self._conn.execute(
+            "SELECT storage_key FROM memories WHERE content_hash = ?",
+            (c_hash,),
+        ).fetchone()
+        if existing:
+            stored = self._row_to_stored(
+                self._conn.execute(
+                    "SELECT * FROM memories WHERE content_hash = ?",
+                    (c_hash,),
+                ).fetchone()
+            )
+            return stored
+
+        storage_key = f"cm_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{c_hash[:8]}"
+        now = datetime.utcnow()
+
+        ttl = _TIER_TTL.get(entry.tier)
+        expires_at = (now + ttl).isoformat() if ttl else None
+
+        metadata_json = json.dumps(entry.metadata) if entry.metadata else "{}"
+        recall_hint_json = json.dumps(entry.recall_hint) if entry.recall_hint else None
+        original_message = entry.metadata.get("original_message", "") if entry.metadata else ""
+
+        self._conn.execute(
+            """INSERT INTO memories
+               (id, type, content, original_message, confidence, tier,
+                source_layer, reasoning, suggested_action, recall_hint,
+                metadata, storage_key, created_at, updated_at, expires_at,
+                access_count, content_hash)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)""",
+            (
+                entry.id or storage_key,
+                entry.type,
+                entry.content,
+                original_message,
+                entry.confidence,
+                entry.tier,
+                entry.source_layer,
+                entry.reasoning,
+                entry.suggested_action,
+                recall_hint_json,
+                metadata_json,
+                storage_key,
+                now.isoformat(),
+                now.isoformat(),
+                expires_at,
+                c_hash,
+            ),
+        )
+        self._conn.commit()
+
+        return StoredMemory.from_memory_entry(entry, storage_key=storage_key, created_at=now)
+
+    def remember_batch(self, entries: List[MemoryEntry]) -> List[StoredMemory]:
+        results = []
+        with self._conn:
+            for entry in entries:
+                results.append(self.remember(entry))
+        return results
+
+    def recall(
+        self,
+        query: str,
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 20,
+    ) -> List[StoredMemory]:
+        filters = filters or {}
+        conditions = []
+        params = []
+
+        if filters.get("type"):
+            conditions.append("type = ?")
+            params.append(filters["type"])
+
+        if filters.get("tier") is not None:
+            conditions.append("tier = ?")
+            params.append(filters["tier"])
+
+        if filters.get("confidence_min") is not None:
+            conditions.append("confidence >= ?")
+            params.append(filters["confidence_min"])
+
+        if filters.get("created_after"):
+            conditions.append("created_at >= ?")
+            params.append(filters["created_after"])
+
+        where_clause = ""
+        if conditions:
+            where_clause = "WHERE " + " AND ".join(conditions)
+
+        if query and query.strip():
+            fts_sql = f"""
+                SELECT m.* FROM memories m
+                JOIN memories_fts f ON m.rowid = f.rowid
+                {where_clause.replace('WHERE', 'AND') if where_clause else ''}
+                WHERE m.rowid IN (
+                    SELECT rowid FROM memories_fts WHERE memories_fts MATCH ?
+                )
+                {"AND " + " AND ".join(conditions) if conditions and not where_clause.startswith("WHERE") else ""}
+                ORDER BY m.confidence DESC
+                LIMIT ?
+            """
+            if conditions and not where_clause.startswith("WHERE"):
+                fts_sql = f"""
+                    SELECT m.* FROM memories m
+                    JOIN memories_fts f ON m.rowid = f.rowid
+                    WHERE m.rowid IN (
+                        SELECT rowid FROM memories_fts WHERE memories_fts MATCH ?
+                    )
+                    AND {" AND ".join(conditions)}
+                    ORDER BY m.confidence DESC
+                    LIMIT ?
+                """
+            else:
+                fts_sql = f"""
+                    SELECT m.* FROM memories m
+                    JOIN memories_fts f ON m.rowid = f.rowid
+                    WHERE m.rowid IN (
+                        SELECT rowid FROM memories_fts WHERE memories_fts MATCH ?
+                    )
+                    {where_clause.replace('WHERE', 'AND') if conditions else ''}
+                    ORDER BY m.confidence DESC
+                    LIMIT ?
+                """
+            params_with_query = [query] + params + [limit]
+            rows = self._conn.execute(fts_sql, params_with_query).fetchall()
+        else:
+            sql = f"""
+                SELECT * FROM memories
+                {where_clause}
+                ORDER BY confidence DESC
+                LIMIT ?
+            """
+            params.append(limit)
+            rows = self._conn.execute(sql, params).fetchall()
+
+        results = []
+        for row in rows:
+            stored = self._row_to_stored(row)
+            if stored:
+                self._conn.execute(
+                    "UPDATE memories SET access_count = access_count + 1 WHERE storage_key = ?",
+                    (stored.storage_key,),
+                )
+                results.append(stored)
+        self._conn.commit()
+
+        return results
+
+    def forget(self, storage_key: str) -> bool:
+        cursor = self._conn.execute(
+            "DELETE FROM memories WHERE storage_key = ?",
+            (storage_key,),
+        )
+        self._conn.commit()
+        return cursor.rowcount > 0
+
+    def forget_expired(self) -> int:
+        now = datetime.utcnow().isoformat()
+        cursor = self._conn.execute(
+            "DELETE FROM memories WHERE expires_at IS NOT NULL AND expires_at < ?",
+            (now,),
+        )
+        self._conn.commit()
+        return cursor.rowcount
+
+    def get_stats(self) -> Dict[str, Any]:
+        total = self._conn.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
+        by_type_rows = self._conn.execute(
+            "SELECT type, COUNT(*) as cnt FROM memories GROUP BY type"
+        ).fetchall()
+        by_type = {row["type"]: row["cnt"] for row in by_type_rows}
+
+        return {
+            "adapter": self.name,
+            "total_count": total,
+            "by_type": by_type,
+            "capabilities": self.capabilities,
+            "db_path": self._db_path,
+        }
+
+    def _row_to_stored(self, row: Optional[sqlite3.Row]) -> Optional[StoredMemory]:
+        if not row:
+            return None
+
+        metadata = {}
+        if row["metadata"]:
+            try:
+                metadata = json.loads(row["metadata"])
+            except (json.JSONDecodeError, TypeError):
+                metadata = {}
+
+        recall_hint = None
+        if row["recall_hint"]:
+            try:
+                recall_hint = json.loads(row["recall_hint"])
+            except (json.JSONDecodeError, TypeError):
+                recall_hint = None
+
+        expires_at = None
+        if row["expires_at"]:
+            try:
+                expires_at = datetime.fromisoformat(row["expires_at"])
+            except (ValueError, TypeError):
+                expires_at = None
+
+        created_at = None
+        if row["created_at"]:
+            try:
+                created_at = datetime.fromisoformat(row["created_at"])
+            except (ValueError, TypeError):
+                created_at = None
+
+        updated_at = None
+        if row["updated_at"]:
+            try:
+                updated_at = datetime.fromisoformat(row["updated_at"])
+            except (ValueError, TypeError):
+                updated_at = None
+
+        return StoredMemory(
+            id=row["id"],
+            type=row["type"],
+            content=row["content"],
+            confidence=row["confidence"],
+            tier=row["tier"],
+            source_layer=row["source_layer"] or "unknown",
+            reasoning=row["reasoning"] or "",
+            suggested_action=row["suggested_action"] or "store",
+            recall_hint=recall_hint,
+            metadata=metadata,
+            storage_key=row["storage_key"],
+            created_at=created_at,
+            updated_at=updated_at,
+            expires_at=expires_at,
+            access_count=row["access_count"] or 0,
+        )
+
+    def close(self):
+        if self._conn:
+            self._conn.close()
+
+    def __del__(self):
+        self.close()

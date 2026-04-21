@@ -29,12 +29,13 @@ class PatternAnalyzer:
         """
         patterns = []
 
-        # Handle None message
         if message is None:
             return patterns
 
-        # Phase A Fix #1: Noise filtering (P0-3d) - Early rejection
-        if self._is_noise(message):
+        from memory_classification_engine.utils.confirmation import is_confirmation, has_confirmation_context
+        confirmation_with_context = has_confirmation_context(context) and is_confirmation(message)
+
+        if self._is_noise(message) and not confirmation_with_context:
             return patterns
 
         # Append to message history
@@ -55,15 +56,35 @@ class PatternAnalyzer:
                 feedback['language'] = language
                 patterns.append(feedback)
 
+        from memory_classification_engine.utils.confirmation import is_confirmation, has_confirmation_context
+        if has_confirmation_context(context) and is_confirmation(message):
+            ai_reply = context.get('ai_reply', '')
+            from memory_classification_engine.utils.confirmation import summarize_context
+            ai_summary = summarize_context(ai_reply)
+            patterns.append({
+                'memory_type': 'decision',
+                'type': 'decision',
+                'content': f'确认: {ai_summary}',
+                'confidence': 0.85,
+                'tier': 3,
+                'source_layer': 'pattern_analyzer',
+                'reasoning': 'User confirmation of AI suggestion',
+                'suggested_action': 'store',
+                'context_source': 'ai_reply',
+                'original_user_message': message,
+                'language': language,
+            })
+            return patterns
+
         for detector_name, detector_func in [
             ('correction', self._detect_correction_pattern),  # V4-02: correction first
-            ('sentiment', self._detect_sentiment_pattern),    # V4-05: sentiment before task (emotion is strong)
+            ('sentiment', self._detect_sentiment_pattern),    # V4-05: sentiment before task
             ('task', self._detect_task_pattern),           # Phase B: before fact
             ('decision', self._detect_decision_pattern),     # Phase B: before fact
             ('preference', self._detect_preference_pattern),
             ('relationship', self._detect_relationship_pattern),
-            ('fact', self._detect_fact_pattern),              # Phase B: last (fallback)
-            ('location', self._detect_location_pattern),
+            ('fact', self._detect_fact_pattern),              # V4-08: fact BEFORE location
+            ('location', self._detect_location_pattern),      # Location is weak signal, last
         ]:
             result = detector_func(message, language)
             if result:
@@ -1068,30 +1089,50 @@ class PatternAnalyzer:
     
     def _detect_location_pattern(self, message: str, language: str) -> Optional[Dict[str, Any]]:
         """Detect location patterns.
-        
+
+        V4-08: Restricted to pure location info, not facts containing locations.
+
         Args:
             message: The message to analyze.
             language: The detected language code.
-            
+
         Returns:
             A location pattern if detected, None otherwise.
         """
-        # 位置关键词
+        import re
+        msg_lower = message.lower()
+
+        # V4-08: Skip if this looks like a fact/decision/task (those take priority)
+        # Location should only match pure location statements like "I'm at the office"
+        fact_indicators = [
+            r'\b(is|are|was|were|has|have)\s+',  # Fact verbs
+            r'\b(supports?|requires?|provides?|includes?)\s+',  # Technical facts
+            r'\b(every|always|weekly|monthly|daily)\b',  # Recurring patterns
+            r'\b(approval|budget|deadline|schedule|sprint)\b',  # Business facts
+            r'\d+(\.\d+)+',  # Version numbers
+            r'\b(employees?|users?|members?|teams?)\s+\d+',  # Team facts
+            r'\b(we\s+have|our\s+\w+)\s+',  # Organizational facts
+            r'\b(runs?|operates?|works?)\s+(on|in|at)\s+',  # Infrastructure facts
+            r'\b(latency|throughput|performance|uptime)\b',  # Performance metrics
+            r'\b(live[s]?\s+in|work[s]?\s+(for|at|remotely))\b',  # Personal location facts
+            r'\b(stands?|meets?|sync)\s+',  # Meeting patterns
+            r'\b(ends?|starts?|begins?)\s+(on|at)\s+',  # Schedule facts
+            r'\b\d+\s*(employees?|users?|ms|sec|min|hour)\b',  # Quantifiable facts
+        ]
+        if any(re.search(ind, msg_lower) for ind in fact_indicators):
+            return None
+
+        # Location keywords
         location_keywords = {
             'en': ['at', 'in', 'on', 'located', 'place', 'location', 'address'],
             'zh-cn': ['在', '位于', '地址', '地方', '位置']
         }
-        
-        # 检查语言对应的关键词
+
         keywords = location_keywords.get(language, location_keywords.get('en', []))
-        
-        message_lower = message.lower()
+
         for keyword in keywords:
-            if keyword in message_lower:
-                # 位置内容
-                location_content = message
-                
-                # 检查是否包含常见地点名称
+            if keyword in msg_lower:
+                # Check for common location names
                 common_locations = {
                     'en': ['park', 'station', 'airport', 'hotel', 'restaurant', 'office', 'building', 'street', 'avenue', 'road'],
                     'zh-cn': ['公园', '车站', '机场', '酒店', '餐厅', '办公室', '大楼', '街道', '大道', '路']
@@ -1099,8 +1140,8 @@ class PatternAnalyzer:
                 
                 location_terms = common_locations.get(language, common_locations.get('en', []))
                 for term in location_terms:
-                    if term in message_lower:
-                        # 生成位置模式
+                    if term in msg_lower:
+                        location_content = message
                         location_hash = hash(location_content)
                         if location_hash in self.location_patterns:
                             self.location_patterns[location_hash] += 1

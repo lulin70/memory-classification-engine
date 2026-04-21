@@ -45,6 +45,7 @@ class MemoryEntry:
     source_layer: str = "unknown"
     reasoning: str = ""
     suggested_action: str = "store"
+    recall_hint: Optional[Dict[str, Any]] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -58,6 +59,7 @@ class MemoryEntry:
             "source_layer": self.source_layer,
             "reasoning": self.reasoning,
             "suggested_action": self.suggested_action,
+            "recall_hint": self.recall_hint,
             "metadata": self.metadata,
         }
 
@@ -73,6 +75,7 @@ class MemoryEntry:
             source_layer=data.get("source_layer", "unknown"),
             reasoning=data.get("reasoning", ""),
             suggested_action=data.get("suggested_action", "store"),
+            recall_hint=data.get("recall_hint"),
             metadata=data.get("metadata", {}),
         )
 
@@ -139,6 +142,7 @@ class StoredMemory(MemoryEntry):
             source_layer=entry.source_layer,
             reasoning=entry.reasoning,
             suggested_action=entry.suggested_action,
+            recall_hint=entry.recall_hint,
             metadata=entry.metadata,
             storage_key=storage_key,
             created_at=created_at or datetime.utcnow(),

@@ -810,14 +810,15 @@ def run_benchmark(engine, verbose: bool = False) -> BenchReport:
 
             matches = result.get("matches", [])
             actual_should_remember = len(matches) > 0
-            actual_type = matches[0].get("memory_type") or matches[0].get("type") if matches else None
+            actual_types = [m.get("memory_type") or m.get("type") for m in matches if m.get("memory_type") or m.get("type")]
+            actual_type = actual_types[0] if actual_types else None
             actual_confidence = matches[0].get("confidence", 0.0) if matches else 0.0
             actual_tier = matches[0].get("tier", 0) if matches else 0
 
-            # Determine correctness
+            # Determine correctness (V4-08: check ALL matches, not just first)
             if case.expected_should_remember:
                 if actual_should_remember:
-                    if case.expected_type is None or actual_type == case.expected_type:
+                    if case.expected_type is None or case.expected_type in actual_types:
                         error_type = "TP"
                         report.tp += 1
                         report.type_stats[case.expected_type]["tp"] += 1

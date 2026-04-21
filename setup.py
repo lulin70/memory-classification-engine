@@ -1,9 +1,9 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="memory-classification-engine",
-    version="0.2.0",
-    description="Real-time memory classification engine for AI Agents. 60%+ zero LLM cost. Classify, store, and recall what matters.",
+    name="carrymem",
+    version="0.6.0",
+    description="CarryMem — 随身记忆库. Let your AI agent remember users. 60%+ zero LLM cost classification + SQLite default storage.",
     author="lulin70",
     author_email="lulin70@example.com",
     packages=find_packages(where="src"),

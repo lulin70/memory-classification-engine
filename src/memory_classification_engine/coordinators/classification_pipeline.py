@@ -1,10 +1,12 @@
 """Classification pipeline for coordinating classification layers."""
 
+import re
 from typing import Dict, List, Optional, Any
 from memory_classification_engine.layers.rule_matcher import RuleMatcher
 from memory_classification_engine.layers.pattern_analyzer import PatternAnalyzer
 from memory_classification_engine.layers.semantic_classifier import SemanticClassifier
 from memory_classification_engine.utils.logger import logger
+from memory_classification_engine.utils.confirmation import is_confirmation, summarize_context
 
 
 class ClassificationPipeline:
@@ -77,16 +79,37 @@ class ClassificationPipeline:
         """
         # Phase A Fix #1: Pipeline-level noise filtering (P0-3d)
         # This prevents _get_default_classification from matching noise messages
-        if self.pattern_analyzer._is_noise(message):
+        ai_reply = None
+        if context and isinstance(context, dict):
+            ai_reply = context.get('ai_reply', '')
+
+        is_confirmation_with_context = bool(ai_reply and is_confirmation(message))
+
+        if self.pattern_analyzer._is_noise(message) and not is_confirmation_with_context:
             return []
 
         matches = self.classify(message, context, execution_context)
         
         if not matches:
-            # Comment in Chinese removedr
             default_match = self._get_default_classification(message, language)
             if default_match:
                 matches = [default_match]
+
+        if matches and context and isinstance(context, dict):
+            ai_reply = context.get('ai_reply', '')
+            if ai_reply and is_confirmation(message):
+                for match in matches:
+                    match_type = match.get('memory_type') or match.get('type', '')
+                    if match_type in ('decision', 'correction'):
+                        if not match.get('context_source'):
+                            ai_summary = summarize_context(ai_reply)
+                            original_content = match.get('content', '')
+                            if original_content and len(original_content) > 5:
+                                match['content'] = f"{original_content}: {ai_summary}"
+                            else:
+                                match['content'] = f"确认: {ai_summary}"
+                            match['context_source'] = 'ai_reply'
+                            match['original_user_message'] = message
         
         return matches
     

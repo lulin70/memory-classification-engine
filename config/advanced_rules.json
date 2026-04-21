@@ -116,24 +116,6 @@
       "description": "Preference (Chinese)",
       "language": "zh-cn",
       "priority": 7
-    },
-    {
-      "pattern": "\\b(?:at|in|on)\\s+\\w+",
-      "memory_type": "location",
-      "tier": 3,
-      "action": "extract",
-      "description": "Location",
-      "language": "en",
-      "priority": 6
-    },
-    {
-      "pattern": "\\b(?:在|位于)\\s+\\w+",
-      "memory_type": "location",
-      "tier": 3,
-      "action": "extract",
-      "description": "Location (Chinese)",
-      "language": "zh-cn",
-      "priority": 6
     }
   ]
 }

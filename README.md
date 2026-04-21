@@ -1,9 +1,9 @@
-# Memory Classification Engine (MCE)
+# CarryMem — 随身记忆库
 
 <p align="center">
-  <strong>记忆分类中间件 — AI Agent 的"记忆安检机"</strong><br>
-  <sub>MCE 不存储记忆。MCE 告诉你<strong>什么值得记</strong>、<strong>记成什么类型</strong>、<strong>存在哪一层</strong>。<br>
-  存储的事，交给 Supermemory / Mem0 / Obsidian / 你自己的系统。</sub>
+  <strong>带着你的记忆走 — 让 AI Agent 记住用户</strong><br>
+  <sub>CarryMem = <strong>MCE 分类引擎</strong>（核心壁垒）+ <strong>SQLite 默认存储</strong>（开箱即用）+ <strong>可替换适配器</strong>（你的选择）<br>
+  分类是核心，存储可替换，默认开箱即用。</sub>
 </p>
 
 <p align="center">
@@ -43,13 +43,13 @@ The result:
 
 **60%+ of messages should NOT be stored.** But current systems either store everything (noise explosion) or store nothing (amnesia).
 
-**MCE is the missing pre-filter.**
+**MCE is the missing pre-filter.** Now with CarryMem, it also provides default storage so your Agent can remember users out of the box.
 
 ---
 
-## What MCE Does
+## What CarryMem Does
 
-MCE is a **classification middleware**. It sits between your Agent and your memory system:
+CarryMem is a **memory system with classification at its core**. The MCE (Memory Classification Engine) sits between your Agent and storage:
 
 ```
 Your AI Agent / Claude Code
@@ -79,7 +79,7 @@ Your AI Agent / Claude Code
 
 **MCE does one thing extremely well**: decide whether a message contains memorable information, and if so, classify it into one of 7 types with confidence scoring.
 
-**MCE does NOT do**: store, retrieve, search, delete, export, import, or recall memories. Those are downstream responsibilities.
+**CarryMem adds**: SQLite default storage so you can classify AND remember in one step. Storage is optional and replaceable — use Supermemory, Mem0, Obsidian, or your own system.
 
 ---
 
