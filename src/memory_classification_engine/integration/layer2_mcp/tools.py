@@ -1,17 +1,17 @@
 """
-MCP Tools definitions for Memory Classification Engine.
+MCP Tools definitions for CarryMem.
 
-Pure Upstream Mode (v0.3.0): Only classification tools are exposed.
-Storage, retrieval, and CRUD operations are delegated to downstream systems
-(Supermemory / Mem0 / Obsidian / custom) via StorageAdapter interface.
+3+3 Optional Mode (v0.6.0):
+  Core (always available): classify_message, get_classification_schema, batch_classify
+  Optional (requires adapter): classify_and_remember, recall_memories, forget_memory
 """
 
 from typing import Any, Dict, List
 
-TOOLS: List[Dict[str, Any]] = [
+CORE_TOOLS: List[Dict[str, Any]] = [
     {
         "name": "classify_message",
-        "description": "Analyze a message and determine if it contains memorable information. Returns a standardized MemoryEntry JSON with type, tier, confidence, and suggested_action. MCE is a memory classification middleware — it does NOT store memories. Output can be sent to any downstream storage system (Supermemory/Mem0/Obsidian/custom).",
+        "description": "Analyze a message and determine if it contains memorable information. Returns a standardized MemoryEntry JSON with type, tier, confidence, and suggested_action. CarryMem is a memory classification engine with optional storage — it tells you WHAT to remember, and can optionally store it too.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -21,7 +21,7 @@ TOOLS: List[Dict[str, Any]] = [
                 },
                 "context": {
                     "type": "string",
-                    "description": "Conversation context for more accurate classification (optional)"
+                    "description": "Conversation context (optional). When user confirms/accepts AI suggestion, pass the previous AI reply to improve decision/correction classification quality."
                 }
             },
             "required": ["message"]
@@ -29,7 +29,7 @@ TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "get_classification_schema",
-        "description": "Return MCE's complete classification schema definition including 7 memory types, 4 storage tiers, confidence thresholds, and downstream mapping tables. Use this to understand the MemoryEntry output format and map MCE types to your storage system's categories.",
+        "description": "Return CarryMem's complete classification schema definition including 7 memory types, 4 storage tiers, confidence thresholds, and downstream mapping tables.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -44,7 +44,7 @@ TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "batch_classify",
-        "description": "Batch classify multiple messages, each returning an independent MemoryEntry. MCE is a memory classification middleware — output can be sent to any downstream storage system. Suitable for conversation history replay, log analysis, and batch processing scenarios.",
+        "description": "Batch classify multiple messages, each returning an independent MemoryEntry.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -70,24 +70,88 @@ TOOLS: List[Dict[str, Any]] = [
             "required": ["messages"]
         }
     },
+]
+
+OPTIONAL_TOOLS: List[Dict[str, Any]] = [
     {
-        "name": "mce_status",
-        "description": "MCE engine status information (version, capabilities, uptime). Does NOT include storage statistics — query your downstream system for those.",
+        "name": "classify_and_remember",
+        "description": "Classify a message AND store it if worth remembering. One-step operation: classify → store → return. Requires storage adapter to be configured.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "detail_level": {
+                "message": {
                     "type": "string",
-                    "enum": ["summary", "full"],
-                    "default": "summary",
-                    "description": "Detail level of status output"
+                    "description": "The message content to classify and store"
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Conversation context (optional)"
+                }
+            },
+            "required": ["message"]
+        }
+    },
+    {
+        "name": "recall_memories",
+        "description": "Retrieve stored memories. Supports filtering by type, tier, and confidence. Supports full-text search. Requires storage adapter.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query for full-text search (optional)"
+                },
+                "filters": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "Memory type filter (user_preference, correction, fact_declaration, decision, relationship, task_pattern, sentiment_marker)"
+                        },
+                        "tier": {
+                            "type": "integer",
+                            "description": "Tier filter (1-4)",
+                            "minimum": 1,
+                            "maximum": 4
+                        },
+                        "confidence_min": {
+                            "type": "number",
+                            "description": "Minimum confidence threshold (0.0-1.0)",
+                            "minimum": 0.0,
+                            "maximum": 1.0
+                        }
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results (default 20)",
+                    "default": 20,
+                    "minimum": 1,
+                    "maximum": 100
                 }
             }
         }
-    }
+    },
+    {
+        "name": "forget_memory",
+        "description": "Delete a stored memory by ID. Requires storage adapter.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "memory_id": {
+                    "type": "string",
+                    "description": "Memory ID (storage_key) to delete"
+                }
+            },
+            "required": ["memory_id"]
+        }
+    },
 ]
 
+TOOLS = CORE_TOOLS + OPTIONAL_TOOLS
 TOOL_NAMES = {tool["name"] for tool in TOOLS}
+CORE_TOOL_NAMES = {tool["name"] for tool in CORE_TOOLS}
+OPTIONAL_TOOL_NAMES = {tool["name"] for tool in OPTIONAL_TOOLS}
 
 CLASSIFICATION_SCHEMA = {
     "schema_version": "1.0.0",

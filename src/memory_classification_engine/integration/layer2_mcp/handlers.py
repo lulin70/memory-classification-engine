@@ -1,9 +1,9 @@
 """
-MCP Tool handlers for Memory Classification Engine.
+MCP Tool handlers for CarryMem.
 
-Pure Upstream Mode (v0.3.0): Only classification handlers are present.
-Storage, retrieval, and CRUD operations have been removed.
-Output follows MemoryEntry JSON Schema v1.0 for downstream compatibility.
+3+3 Optional Mode (v0.6.0):
+  Core handlers: classify_message, get_classification_schema, batch_classify
+  Optional handlers: classify_and_remember, recall_memories, forget_memory
 """
 
 import json
@@ -11,7 +11,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List
 
-from .tools import CLASSIFICATION_SCHEMA, TOOL_NAMES
+from .tools import CLASSIFICATION_SCHEMA, TOOL_NAMES, CORE_TOOL_NAMES, OPTIONAL_TOOL_NAMES
 
 
 def _format_memory_entry(match: Dict[str, Any], original_message: str) -> Dict[str, Any]:
@@ -183,61 +183,108 @@ def handle_batch_classify(engine, arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def handle_mce_status(engine, arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Return MCE engine status (version, capabilities, uptime).
-
-    Does NOT include storage statistics — those belong to downstream systems.
-    """
-    detail_level = arguments.get("detail_level", "summary")
-
     status = {
         "status": "active",
-        "mode": "classification_only",
-        "version": getattr(engine, 'ENGINE_VERSION', '0.3.0'),
+        "mode": "3+3_optional",
+        "version": "0.6.0",
         "schema_version": "1.0.0",
         "capabilities": {
             "memory_types": 7,
             "storage_tiers": 4,
-            "supported_output_formats": ["json"],
-            "available_tools": list(TOOL_NAMES)
+            "available_tools": list(TOOL_NAMES),
+            "core_tools": list(CORE_TOOL_NAMES),
+            "optional_tools": list(OPTIONAL_TOOL_NAMES),
         },
         "uptime_seconds": round(time.time() - getattr(engine, '_start_time', time.time()), 1)
     }
-
-    if detail_level == "full":
-        rules_config = getattr(engine, '_rules_config', None)
-        if rules_config:
-            status["configuration"] = {
-                "llm_enabled": getattr(engine, '_llm_enabled', False),
-                "rule_count": len(rules_config.get('rules', [])) if isinstance(rules_config, dict) else 0,
-                "auto_learning_enabled": getattr(engine, '_auto_learn', True)
-            }
-
     return status
+
+
+def handle_classify_and_remember(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    message = arguments.get("message", "")
+    context = arguments.get("context")
+
+    if not message.strip():
+        return {"error": "Empty message provided"}
+
+    try:
+        ctx = None
+        if context:
+            ctx = {"ai_reply": context}
+
+        result = carrymem.classify_and_remember(message, context=ctx)
+        return result
+    except Exception as e:
+        if "StorageNotConfiguredError" in type(e).__name__:
+            return {
+                "error": "storage_not_configured",
+                "message": "Storage adapter not configured. Use CarryMem(storage='sqlite') to enable storage features.",
+                "available_tools": list(CORE_TOOL_NAMES)
+            }
+        return {"error": str(e)}
+
+
+def handle_recall_memories(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    query = arguments.get("query")
+    filters = arguments.get("filters")
+    limit = arguments.get("limit", 20)
+
+    try:
+        results = carrymem.recall_memories(query=query, filters=filters, limit=limit)
+        return {"memories": results, "total": len(results)}
+    except Exception as e:
+        if "StorageNotConfiguredError" in type(e).__name__:
+            return {
+                "error": "storage_not_configured",
+                "message": "Storage adapter not configured. Use CarryMem(storage='sqlite') to enable storage features.",
+                "available_tools": list(CORE_TOOL_NAMES)
+            }
+        return {"error": str(e)}
+
+
+def handle_forget_memory(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    memory_id = arguments.get("memory_id", "")
+
+    if not memory_id:
+        return {"error": "Missing required field: memory_id"}
+
+    try:
+        deleted = carrymem.forget_memory(memory_id)
+        return {"deleted": deleted, "memory_id": memory_id}
+    except Exception as e:
+        if "StorageNotConfiguredError" in type(e).__name__:
+            return {
+                "error": "storage_not_configured",
+                "message": "Storage adapter not configured. Use CarryMem(storage='sqlite') to enable storage features.",
+                "available_tools": list(CORE_TOOL_NAMES)
+            }
+        return {"error": str(e)}
 
 
 handler_map = {
     "classify_message": handle_classify_message,
     "get_classification_schema": handle_get_classification_schema,
     "batch_classify": handle_batch_classify,
-    "mce_status": handle_mce_status
+    "mce_status": handle_mce_status,
+    "classify_and_remember": handle_classify_and_remember,
+    "recall_memories": handle_recall_memories,
+    "forget_memory": handle_forget_memory,
 }
 
 
 class Handlers:
-    """Backward-compatible wrapper for server.py integration.
+    """CarryMem MCP Handlers — 3+3 optional mode.
 
-    Server.py expects a Handlers class with __init__(config_path, data_path)
-    and async handle_tool(tool_name, arguments) method.
-    This class bridges that interface to the new function-based handlers.
+    Core tools use engine directly.
+    Optional tools use CarryMem instance (with storage adapter).
     """
 
-    def __init__(self, config_path: str = None, data_path: str = None):
-        from memory_classification_engine import MemoryClassificationEngine
-        self._engine = MemoryClassificationEngine(config_path=config_path)
+    def __init__(self, config_path: str = None, data_path: str = None, storage: str = "sqlite"):
+        from memory_classification_engine.carrymem import CarryMem
+        self._carrymem = CarryMem(storage=storage)
+        self._engine = self._carrymem.engine
 
     async def handle_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
-        """Route tool calls to the appropriate handler function."""
         if tool_name not in handler_map:
             return {
                 "error": f"Unknown tool: {tool_name}. Available: {list(handler_map.keys())}",
@@ -246,11 +293,13 @@ class Handlers:
 
         handler_func = handler_map[tool_name]
         try:
-            result = handler_func(self._engine, arguments or {})
+            if tool_name in OPTIONAL_TOOL_NAMES:
+                result = handler_func(self._carrymem, arguments or {})
+            else:
+                result = handler_func(self._engine, arguments or {})
             return {"success": True, "data": result}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
     def cleanup(self):
-        """Cleanup resources (no-op in pure classification mode)."""
         pass
