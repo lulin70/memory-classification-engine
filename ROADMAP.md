@@ -4,6 +4,7 @@
 
 | Version | Date | Updater | Update Content | Review Status |
 |---------|------|---------|---------------|---------------|
+| **v0.9.0** | 2026-04-21 | Engineering Team | **CarryMem v0.9**: Namespace项目空间隔离 + 跨namespace检索 + Schema迁移 + recall_all(namespaces)。11/11 Namespace测试通过，18/18 V6回归，20/20 V8回归，Benchmark 90.6%/97.9%无回归 | ✅ Complete |
 | **v0.8.0** | 2026-04-21 | Engineering Team | **CarryMem v0.8**: declare()主动声明 + get_memory_profile()记忆画像 + 3+3+3+2 MCP模式 + NotebookLM启发三个方向落地。20/20 Profile测试通过，18/18 V6回归，26/26 V7回归，Benchmark 90.6%/97.9%无回归 | ✅ Complete |
 | **v0.7.0** | 2026-04-21 | Engineering Team | **CarryMem v0.7**: ObsidianAdapter知识库适配器 + 3+3+3 MCP模式 + recall_from_knowledge + recall_all统一检索 + KnowledgeNotConfiguredError + 检索优先级(记忆>知识库)。26/26 Obsidian测试通过，18/18 V6回归通过，Benchmark 90.6%/97.9%无回归 | ✅ Complete |
 | **v0.6.0** | 2026-04-20 | Engineering Team | **CarryMem v0.6**: SQLiteAdapter + CarryMem主类 + context增强 + recall_hint预留 + 模块重组 + 目录重命名carrymem。18/18集成测试通过，Benchmark 90.6%/97.9%无回归 | ✅ Complete |
@@ -447,7 +448,46 @@ class StorageAdapter(ABC):
 - 检索优先级策略: 记忆 > 知识库 > 外部 (recall_all 返回 memory_first)
 - 26/26 Obsidian测试 + 18/18 V6回归 + Benchmark 90.6%/97.9% 无回归
 
-### v0.8.0 — Ecosystem & Polish
+### v0.8.0 — User Declaration + Memory Profile ✅ (2026-04-21)
+
+**Prerequisite**: v0.7.0 complete ✅
+**Status**: Complete — NotebookLM 启发三个方向落地
+**Inspiration**: Gemini × NotebookLM 打通 → CarryMem 的差异化响应
+
+**核心判断**：NotebookLM 的"记忆可视化"和"项目空间"验证了用户需求，但 CarryMem 的响应方式不同——不做 UI，做数据 API。
+
+**v0.8.0 Deliverables**:
+- `CarryMem.declare()`: 主动声明 API，经过分类引擎但 confidence=1.0, source_layer="declaration"
+- `StorageAdapter.get_profile()`: ABC 新增方法
+- `SQLiteAdapter.get_profile()`: SQL 聚合实现，by_type/by_tier/highlights/summary
+- `CarryMem.get_memory_profile()`: 主类入口，返回结构化记忆画像
+- MCP 3+3+3+2: Core(3) + Storage(3) + Knowledge(3) + Profile(2: declare_preference, get_memory_profile)
+- 20/20 Profile测试 + 18/18 V6回归 + 26/26 V7回归 + Benchmark 90.6%/97.9% 无回归
+
+**三个方向**：
+1. ✅ 记忆画像 (get_memory_profile) — v0.8 完成
+   - 让记忆对用户可见、可审计、可掌控
+   - 数据在 CarryMem，展示在 Agent
+   - 不是 NotebookLM 的生成式输出，是结构化聚合
+2. 📋 项目空间 (namespace) — v0.9 计划
+   - 轻量 namespace 字段，不是完整的"项目"概念
+   - 检索优先级：同namespace > 全局 > 知识库 > 外部
+3. ✅ 主动声明 (declare) — v0.8 完成
+   - 主动声明也经过分类引擎，但 confidence=1.0
+   - source_layer="declaration" 标记来源
+   - 主动声明 + 被动分类 = 完整的记忆收集体验
+
+### v0.9.0 — Namespace & Project Space (Planned)
+
+| Feature | Description |
+|---------|-------------|
+| namespace 参数 | CarryMem(storage="sqlite", namespace="project-alpha") |
+| SQLite schema | memories 表加 namespace 列，默认 "default" |
+| 跨 namespace 查询 | recall_all 支持 namespace=["project-a", "global"] |
+| 检索优先级 | 同namespace > 全局 > 知识库 > 外部 |
+| Schema 迁移 | ALTER TABLE + 数据迁移脚本 |
+
+### v0.10.0 — Ecosystem & Polish
 
 | Feature | Description |
 |---------|-------------|

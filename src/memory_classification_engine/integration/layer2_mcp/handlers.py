@@ -371,6 +371,7 @@ class Handlers:
         data_path: str = None,
         storage: str = "sqlite",
         vault_path: str = None,
+        namespace: str = "default",
     ):
         from memory_classification_engine.carrymem import CarryMem
         from memory_classification_engine.adapters.obsidian_adapter import ObsidianAdapter
@@ -379,7 +380,11 @@ class Handlers:
         if vault_path:
             knowledge_adapter = ObsidianAdapter(vault_path)
 
-        self._carrymem = CarryMem(storage=storage, knowledge_adapter=knowledge_adapter)
+        self._carrymem = CarryMem(
+            storage=storage,
+            knowledge_adapter=knowledge_adapter,
+            namespace=namespace,
+        )
         self._engine = self._carrymem.engine
 
     async def handle_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:

@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS memories (
     recall_hint TEXT,
     metadata TEXT,
     storage_key TEXT UNIQUE NOT NULL,
+    namespace TEXT NOT NULL DEFAULT 'default',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     expires_at TEXT,
@@ -51,6 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_memories_tier ON memories(tier);
 CREATE INDEX IF NOT EXISTS idx_memories_confidence ON memories(confidence);
 CREATE INDEX IF NOT EXISTS idx_memories_expires ON memories(expires_at);
 CREATE INDEX IF NOT EXISTS idx_memories_content_hash ON memories(content_hash);
+CREATE INDEX IF NOT EXISTS idx_memories_namespace ON memories(namespace);
 
 CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
     INSERT INTO memories_fts(rowid, content, original_message)
@@ -61,6 +63,14 @@ CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
     INSERT INTO memories_fts(memories_fts, rowid, content, original_message)
     VALUES ('delete', old.rowid, old.content, old.original_message);
 END;
+"""
+
+_MIGRATION_SQL = """
+ALTER TABLE memories ADD COLUMN namespace TEXT NOT NULL DEFAULT 'default';
+"""
+
+_CREATE_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_memories_namespace ON memories(namespace);
 """
 
 _TIER_TTL = {
@@ -89,19 +99,34 @@ class SQLiteAdapter(StorageAdapter):
         adapter = SQLiteAdapter()  # auto-creates ~/.carrymem/memories.db
         adapter = SQLiteAdapter(":memory:")  # in-memory for testing
         adapter = SQLiteAdapter("/path/to/custom.db")  # custom path
+        adapter = SQLiteAdapter(namespace="project-alpha")  # namespace isolation
     """
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: Optional[str] = None, namespace: str = "default"):
+        self._namespace = namespace
         self._db_path = db_path or _default_db_path()
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._init_schema()
+        self._migrate_namespace()
 
     def _init_schema(self):
         self._conn.executescript(_SCHEMA_SQL)
         self._conn.commit()
+
+    def _migrate_namespace(self):
+        try:
+            self._conn.execute("SELECT namespace FROM memories LIMIT 1")
+        except sqlite3.OperationalError:
+            self._conn.executescript(_MIGRATION_SQL)
+            self._conn.executescript(_CREATE_INDEX_SQL)
+            self._conn.commit()
+
+    @property
+    def namespace(self) -> str:
+        return self._namespace
 
     @property
     def name(self) -> str:
@@ -121,14 +146,14 @@ class SQLiteAdapter(StorageAdapter):
         c_hash = _content_hash(entry.content, entry.type)
 
         existing = self._conn.execute(
-            "SELECT storage_key FROM memories WHERE content_hash = ?",
-            (c_hash,),
+            "SELECT storage_key FROM memories WHERE content_hash = ? AND namespace = ?",
+            (c_hash, self._namespace),
         ).fetchone()
         if existing:
             stored = self._row_to_stored(
                 self._conn.execute(
-                    "SELECT * FROM memories WHERE content_hash = ?",
-                    (c_hash,),
+                    "SELECT * FROM memories WHERE content_hash = ? AND namespace = ?",
+                    (c_hash, self._namespace),
                 ).fetchone()
             )
             return stored
@@ -147,9 +172,9 @@ class SQLiteAdapter(StorageAdapter):
             """INSERT INTO memories
                (id, type, content, original_message, confidence, tier,
                 source_layer, reasoning, suggested_action, recall_hint,
-                metadata, storage_key, created_at, updated_at, expires_at,
+                metadata, storage_key, namespace, created_at, updated_at, expires_at,
                 access_count, content_hash)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)""",
             (
                 entry.id or storage_key,
                 entry.type,
@@ -163,6 +188,7 @@ class SQLiteAdapter(StorageAdapter):
                 recall_hint_json,
                 metadata_json,
                 storage_key,
+                self._namespace,
                 now.isoformat(),
                 now.isoformat(),
                 expires_at,
@@ -185,10 +211,11 @@ class SQLiteAdapter(StorageAdapter):
         query: str,
         filters: Optional[Dict[str, Any]] = None,
         limit: int = 20,
+        namespaces: Optional[List[str]] = None,
     ) -> List[StoredMemory]:
         filters = filters or {}
-        conditions = []
-        params = []
+        conditions = ["namespace IN ({})".format(",".join("?" * len(ns))) if (ns := namespaces or [self._namespace]) else "namespace = ?"]
+        params = list(namespaces or [self._namespace])
 
         if filters.get("type"):
             conditions.append("type = ?")
@@ -206,45 +233,20 @@ class SQLiteAdapter(StorageAdapter):
             conditions.append("created_at >= ?")
             params.append(filters["created_after"])
 
-        where_clause = ""
-        if conditions:
-            where_clause = "WHERE " + " AND ".join(conditions)
+        where_clause = "WHERE " + " AND ".join(conditions)
 
         if query and query.strip():
             fts_sql = f"""
                 SELECT m.* FROM memories m
                 JOIN memories_fts f ON m.rowid = f.rowid
-                {where_clause.replace('WHERE', 'AND') if where_clause else ''}
-                WHERE m.rowid IN (
+                {where_clause}
+                AND m.rowid IN (
                     SELECT rowid FROM memories_fts WHERE memories_fts MATCH ?
                 )
-                {"AND " + " AND ".join(conditions) if conditions and not where_clause.startswith("WHERE") else ""}
                 ORDER BY m.confidence DESC
                 LIMIT ?
             """
-            if conditions and not where_clause.startswith("WHERE"):
-                fts_sql = f"""
-                    SELECT m.* FROM memories m
-                    JOIN memories_fts f ON m.rowid = f.rowid
-                    WHERE m.rowid IN (
-                        SELECT rowid FROM memories_fts WHERE memories_fts MATCH ?
-                    )
-                    AND {" AND ".join(conditions)}
-                    ORDER BY m.confidence DESC
-                    LIMIT ?
-                """
-            else:
-                fts_sql = f"""
-                    SELECT m.* FROM memories m
-                    JOIN memories_fts f ON m.rowid = f.rowid
-                    WHERE m.rowid IN (
-                        SELECT rowid FROM memories_fts WHERE memories_fts MATCH ?
-                    )
-                    {where_clause.replace('WHERE', 'AND') if conditions else ''}
-                    ORDER BY m.confidence DESC
-                    LIMIT ?
-                """
-            params_with_query = [query] + params + [limit]
+            params_with_query = params + [query, limit]
             rows = self._conn.execute(fts_sql, params_with_query).fetchall()
         else:
             sql = f"""
@@ -271,8 +273,8 @@ class SQLiteAdapter(StorageAdapter):
 
     def forget(self, storage_key: str) -> bool:
         cursor = self._conn.execute(
-            "DELETE FROM memories WHERE storage_key = ?",
-            (storage_key,),
+            "DELETE FROM memories WHERE storage_key = ? AND namespace = ?",
+            (storage_key, self._namespace),
         )
         self._conn.commit()
         return cursor.rowcount > 0
@@ -280,21 +282,26 @@ class SQLiteAdapter(StorageAdapter):
     def forget_expired(self) -> int:
         now = datetime.utcnow().isoformat()
         cursor = self._conn.execute(
-            "DELETE FROM memories WHERE expires_at IS NOT NULL AND expires_at < ?",
-            (now,),
+            "DELETE FROM memories WHERE namespace = ? AND expires_at IS NOT NULL AND expires_at < ?",
+            (self._namespace, now),
         )
         self._conn.commit()
         return cursor.rowcount
 
     def get_stats(self) -> Dict[str, Any]:
-        total = self._conn.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
+        total = self._conn.execute(
+            "SELECT COUNT(*) FROM memories WHERE namespace = ?",
+            (self._namespace,),
+        ).fetchone()[0]
         by_type_rows = self._conn.execute(
-            "SELECT type, COUNT(*) as cnt FROM memories GROUP BY type"
+            "SELECT type, COUNT(*) as cnt FROM memories WHERE namespace = ? GROUP BY type",
+            (self._namespace,),
         ).fetchall()
         by_type = {row["type"]: row["cnt"] for row in by_type_rows}
 
         return {
             "adapter": self.name,
+            "namespace": self._namespace,
             "total_count": total,
             "by_type": by_type,
             "capabilities": self.capabilities,
@@ -302,7 +309,10 @@ class SQLiteAdapter(StorageAdapter):
         }
 
     def get_profile(self) -> Dict[str, Any]:
-        total = self._conn.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
+        total = self._conn.execute(
+            "SELECT COUNT(*) FROM memories WHERE namespace = ?",
+            (self._namespace,),
+        ).fetchone()[0]
 
         if total == 0:
             return {
@@ -310,21 +320,25 @@ class SQLiteAdapter(StorageAdapter):
                 "total_memories": 0,
                 "highlights": {},
                 "stats": {"by_type": {}, "by_tier": {}, "confidence_avg": 0.0},
+                "namespace": self._namespace,
                 "last_updated": None,
             }
 
         by_type_rows = self._conn.execute(
-            "SELECT type, COUNT(*) as cnt FROM memories GROUP BY type"
+            "SELECT type, COUNT(*) as cnt FROM memories WHERE namespace = ? GROUP BY type",
+            (self._namespace,),
         ).fetchall()
         by_type = {row["type"]: row["cnt"] for row in by_type_rows}
 
         by_tier_rows = self._conn.execute(
-            "SELECT tier, COUNT(*) as cnt FROM memories GROUP BY tier"
+            "SELECT tier, COUNT(*) as cnt FROM memories WHERE namespace = ? GROUP BY tier",
+            (self._namespace,),
         ).fetchall()
         by_tier = {str(row["tier"]): row["cnt"] for row in by_tier_rows}
 
         avg_conf = self._conn.execute(
-            "SELECT AVG(confidence) FROM memories"
+            "SELECT AVG(confidence) FROM memories WHERE namespace = ?",
+            (self._namespace,),
         ).fetchone()[0] or 0.0
 
         highlight_types = [
@@ -336,15 +350,16 @@ class SQLiteAdapter(StorageAdapter):
         highlights: Dict[str, List[str]] = {}
         for mem_type in highlight_types:
             rows = self._conn.execute(
-                "SELECT content FROM memories WHERE type = ? ORDER BY confidence DESC LIMIT 5",
-                (mem_type,),
+                "SELECT content FROM memories WHERE namespace = ? AND type = ? ORDER BY confidence DESC LIMIT 5",
+                (self._namespace, mem_type),
             ).fetchall()
             items = [row["content"][:100] for row in rows]
             if items:
                 highlights[mem_type] = items
 
         last_updated_row = self._conn.execute(
-            "SELECT MAX(updated_at) FROM memories"
+            "SELECT MAX(updated_at) FROM memories WHERE namespace = ?",
+            (self._namespace,),
         ).fetchone()
         last_updated = last_updated_row[0] if last_updated_row else None
 
@@ -373,6 +388,7 @@ class SQLiteAdapter(StorageAdapter):
                 "by_tier": by_tier,
                 "confidence_avg": round(avg_conf, 4),
             },
+            "namespace": self._namespace,
             "last_updated": last_updated,
         }
 

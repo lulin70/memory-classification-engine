@@ -59,14 +59,16 @@ class CarryMem:
         storage: Optional[Any] = "sqlite",
         db_path: Optional[str] = None,
         knowledge_adapter: Optional[StorageAdapter] = None,
+        namespace: str = "default",
         config: Optional[Dict] = None,
     ):
         self._engine = MemoryClassificationEngine()
+        self._namespace = namespace
 
         if storage is None:
             self._adapter = None
         elif storage == "sqlite":
-            self._adapter = SQLiteAdapter(db_path=db_path)
+            self._adapter = SQLiteAdapter(db_path=db_path, namespace=namespace)
         elif isinstance(storage, StorageAdapter):
             self._adapter = storage
         else:
@@ -76,6 +78,10 @@ class CarryMem:
             )
 
         self._knowledge_adapter = knowledge_adapter
+
+    @property
+    def namespace(self) -> str:
+        return self._namespace
 
     @property
     def engine(self) -> MemoryClassificationEngine:
@@ -117,13 +123,20 @@ class CarryMem:
         query: str,
         filters: Optional[Dict[str, Any]] = None,
         limit: int = 20,
+        namespaces: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         memory_results = []
         knowledge_results = []
 
         if self._adapter:
             try:
-                memory_results = self.recall_memories(query=query, filters=filters, limit=limit)
+                if isinstance(self._adapter, SQLiteAdapter) and namespaces:
+                    stored = self._adapter.recall(
+                        query or "", filters=filters, limit=limit, namespaces=namespaces,
+                    )
+                    memory_results = [r.to_dict() for r in stored]
+                else:
+                    memory_results = self.recall_memories(query=query, filters=filters, limit=limit)
             except Exception:
                 pass
 
@@ -139,6 +152,7 @@ class CarryMem:
             "memory_count": len(memory_results),
             "knowledge_count": len(knowledge_results),
             "total_count": len(memory_results) + len(knowledge_results),
+            "namespace": self._namespace,
             "priority": "memory_first",
         }
 
