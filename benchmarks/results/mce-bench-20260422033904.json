@@ -1,0 +1,402 @@
+{
+  "benchmark_id": "mce-bench-20260422033904",
+  "timestamp": "2026-04-22T03:39:04.094435",
+  "engine_version": "0.3.0",
+  "total_cases": 249,
+  "duration_seconds": 73.13,
+  "summary": {
+    "accuracy": 0.5341,
+    "precision": 0.8542,
+    "recall": 0.4457,
+    "f1": 0.5857,
+    "tp": 82,
+    "tn": 51,
+    "fp": 14,
+    "fn": 102
+  },
+  "per_type": {
+    "user_preference": {
+      "f1": 0.5312,
+      "precision": 0.9444,
+      "recall": 0.3696,
+      "expected": 46
+    },
+    "correction": {
+      "f1": 0.386,
+      "precision": 0.9167,
+      "recall": 0.2444,
+      "expected": 45
+    },
+    "fact_declaration": {
+      "f1": 0.7451,
+      "precision": 0.7308,
+      "recall": 0.76,
+      "expected": 25
+    },
+    "decision": {
+      "f1": 0.6452,
+      "precision": 0.9091,
+      "recall": 0.5,
+      "expected": 20
+    },
+    "relationship": {
+      "f1": 0.72,
+      "precision": 1.0,
+      "recall": 0.5625,
+      "expected": 16
+    },
+    "task_pattern": {
+      "f1": 0.6667,
+      "precision": 0.8182,
+      "recall": 0.5625,
+      "expected": 16
+    },
+    "sentiment_marker": {
+      "f1": 0.56,
+      "precision": 0.7778,
+      "recall": 0.4375,
+      "expected": 16
+    }
+  },
+  "per_language": {
+    "en": {
+      "total": 115,
+      "correct": 82,
+      "accuracy": 0.713
+    },
+    "zh": {
+      "total": 67,
+      "correct": 31,
+      "accuracy": 0.4627
+    },
+    "ja": {
+      "total": 67,
+      "correct": 20,
+      "accuracy": 0.2985
+    }
+  },
+  "per_category": {
+    "A1": {
+      "total": 45,
+      "correct": 16,
+      "accuracy": 0.3556
+    },
+    "A2": {
+      "total": 45,
+      "correct": 11,
+      "accuracy": 0.2444
+    },
+    "A3": {
+      "total": 25,
+      "correct": 19,
+      "accuracy": 0.76
+    },
+    "A4": {
+      "total": 20,
+      "correct": 10,
+      "accuracy": 0.5
+    },
+    "A5": {
+      "total": 16,
+      "correct": 9,
+      "accuracy": 0.5625
+    },
+    "A6": {
+      "total": 16,
+      "correct": 9,
+      "accuracy": 0.5625
+    },
+    "A7": {
+      "total": 16,
+      "correct": 7,
+      "accuracy": 0.4375
+    },
+    "B1": {
+      "total": 15,
+      "correct": 15,
+      "accuracy": 1.0
+    },
+    "B2": {
+      "total": 15,
+      "correct": 13,
+      "accuracy": 0.8667
+    },
+    "B3": {
+      "total": 9,
+      "correct": 5,
+      "accuracy": 0.5556
+    },
+    "B4": {
+      "total": 9,
+      "correct": 6,
+      "accuracy": 0.6667
+    },
+    "C1": {
+      "total": 8,
+      "correct": 8,
+      "accuracy": 1.0
+    },
+    "C2": {
+      "total": 2,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "C3": {
+      "total": 4,
+      "correct": 3,
+      "accuracy": 0.75
+    },
+    "C4": {
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0
+    },
+    "C5": {
+      "total": 3,
+      "correct": 1,
+      "accuracy": 0.3333
+    }
+  },
+  "failures": [
+    {
+      "id": "EN-A1-03",
+      "message": "My default editor font is Fira Code 14px",
+      "expected": "user_preference",
+      "actual": "fact_declaration",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A1-06",
+      "message": "When writing Python, I always include type hints",
+      "expected": "user_preference",
+      "actual": null,
+      "correct": false,
+      "error_type": "FN"
+    },
+    {
+      "id": "EN-A1-11",
+      "message": "In React projects, I organize components by feature not by type",
+      "expected": "user_preference",
+      "actual": "fact_declaration",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A1-14",
+      "message": "My testing philosophy: unit tests for logic, integration for data flow",
+      "expected": "user_preference",
+      "actual": "task_pattern",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A1-15",
+      "message": "I avoid magic numbers and extract them into named constants",
+      "expected": "user_preference",
+      "actual": "fact_declaration",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A2-01",
+      "message": "No, do it like this instead",
+      "expected": "correction",
+      "actual": "user_preference",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A2-05",
+      "message": "Correction: the port should be 5432 not 5433",
+      "expected": "correction",
+      "actual": "task",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A2-13",
+      "message": "The previous number was off, it's actually 42",
+      "expected": "correction",
+      "actual": "fact_declaration",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A2-14",
+      "message": "We need to change our strategy here",
+      "expected": "correction",
+      "actual": "task",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A3-14",
+      "message": "Data retention policy requires 7-year storage for financial records",
+      "expected": "fact_declaration",
+      "actual": "task_pattern",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A4-03",
+      "message": "We'll deploy to production every Friday",
+      "expected": "decision",
+      "actual": "task_pattern",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A4-06",
+      "message": "From now on, all new services will be written in Go",
+      "expected": "decision",
+      "actual": "fact_declaration",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A4-07",
+      "message": "Let's standardize on OpenAPI 3.1 for all service contracts",
+      "expected": "decision",
+      "actual": "user_preference",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A4-09",
+      "message": "The team voted to use feature flags for all releases",
+      "expected": "decision",
+      "actual": "task_pattern",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A5-06",
+      "message": "Bob and I pair-program on Tuesdays",
+      "expected": "relationship",
+      "actual": "fact_declaration",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A5-07",
+      "message": "Our tech lead David reviews all architecture proposals",
+      "expected": "relationship",
+      "actual": "task_pattern",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A5-08",
+      "message": "Maria from legal needs to approve all data processing changes",
+      "expected": "relationship",
+      "actual": "task_pattern",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A6-01",
+      "message": "Every Monday we have a team standup at 10am",
+      "expected": "task_pattern",
+      "actual": "relationship",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A6-05",
+      "message": "Every PR needs at least 2 approvals before merge",
+      "expected": "task_pattern",
+      "actual": "fact_declaration",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A6-08",
+      "message": "All database changes go through migration scripts",
+      "expected": "task_pattern",
+      "actual": "fact_declaration",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A7-04",
+      "message": "The documentation is confusing and unhelpful",
+      "expected": "sentiment_marker",
+      "actual": "fact_declaration",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A7-05",
+      "message": "I love how clean the API design turned out",
+      "expected": "sentiment_marker",
+      "actual": "user_preference",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A7-06",
+      "message": "This legacy code is a nightmare to maintain",
+      "expected": "sentiment_marker",
+      "actual": "fact_declaration",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A7-08",
+      "message": "The deployment process is painfully slow",
+      "expected": "sentiment_marker",
+      "actual": "task_pattern",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-A7-10",
+      "message": "This refactoring makes the code so much more readable",
+      "expected": "sentiment_marker",
+      "actual": "task_pattern",
+      "correct": false,
+      "error_type": "TYPE_MISMATCH"
+    },
+    {
+      "id": "EN-B2-04",
+      "message": "Happy Friday!",
+      "expected": null,
+      "actual": "sentiment_marker",
+      "correct": false,
+      "error_type": "FP"
+    },
+    {
+      "id": "EN-B2-05",
+      "message": "Have a great weekend",
+      "expected": null,
+      "actual": "sentiment_marker",
+      "correct": false,
+      "error_type": "FP"
+    },
+    {
+      "id": "EN-B3-01",
+      "message": "Error: Cannot read property 'map' of undefined",
+      "expected": null,
+      "actual": "correction",
+      "correct": false,
+      "error_type": "FP"
+    },
+    {
+      "id": "EN-B3-05",
+      "message": "127.0.0.1 - - [GET /api/health] 200",
+      "expected": null,
+      "actual": "fact_declaration",
+      "correct": false,
+      "error_type": "FP"
+    },
+    {
+      "id": "EN-C2-01",
+      "message": "const result = items.filter(x => x.active).map(x => x.name)",
+      "expected": null,
+      "actual": "fact_declaration",
+      "correct": false,
+      "error_type": "FP"
+    }
+  ]
+}

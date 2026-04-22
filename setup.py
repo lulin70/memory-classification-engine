@@ -19,7 +19,11 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "memory-engine=memory_classification_engine.cli:main",
+            "carrymem=memory_classification_engine.cli:main",
+        ],
+        "carrymem.adapters": [
+            "sqlite=memory_classification_engine.adapters.sqlite_adapter:SQLiteAdapter",
+            "obsidian=memory_classification_engine.adapters.obsidian_adapter:ObsidianAdapter",
         ],
     },
     classifiers=[

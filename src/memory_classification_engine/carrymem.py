@@ -27,6 +27,7 @@ from memory_classification_engine.engine import MemoryClassificationEngine
 from memory_classification_engine.adapters.base import MemoryEntry, StorageAdapter, StoredMemory
 from memory_classification_engine.adapters.sqlite_adapter import SQLiteAdapter
 from memory_classification_engine.adapters.obsidian_adapter import ObsidianAdapter
+from memory_classification_engine.adapters.loader import load_adapter
 
 
 class StorageNotConfiguredError(Exception):
@@ -71,6 +72,18 @@ class CarryMem:
             self._adapter = SQLiteAdapter(db_path=db_path, namespace=namespace)
         elif isinstance(storage, StorageAdapter):
             self._adapter = storage
+        elif isinstance(storage, str):
+            adapter_cls = load_adapter(storage)
+            if adapter_cls is None:
+                raise ValueError(
+                    f"Unknown adapter: {storage!r}. "
+                    "Use 'sqlite', 'obsidian', a StorageAdapter instance, "
+                    "or install a plugin that registers this adapter name."
+                )
+            if storage == "obsidian":
+                self._adapter = adapter_cls()
+            else:
+                self._adapter = adapter_cls()
         else:
             raise ValueError(
                 f"Invalid storage type: {storage!r}. "
