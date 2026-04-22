@@ -334,6 +334,134 @@ class CarryMem:
         profile = self._adapter.get_profile()
         return profile
 
+    def build_system_prompt(
+        self,
+        context: Optional[str] = None,
+        max_memories: int = 10,
+        max_knowledge: int = 5,
+        language: str = "en",
+    ) -> str:
+        memories_section = ""
+        knowledge_section = ""
+
+        if self._adapter:
+            try:
+                query = context or ""
+                if query:
+                    mem_results = self.recall_memories(query=query, limit=max_memories)
+                else:
+                    mem_results = self.recall_memories(limit=max_memories)
+
+                if mem_results:
+                    type_labels = {
+                        "user_preference": "Preference",
+                        "correction": "Correction",
+                        "decision": "Decision",
+                        "fact_declaration": "Fact",
+                        "relationship": "Relationship",
+                        "task_pattern": "Pattern",
+                        "sentiment_marker": "Sentiment",
+                    }
+                    lines = []
+                    for m in mem_results:
+                        label = type_labels.get(m.get("type", ""), m.get("type", "Info"))
+                        content = m.get("content", "")
+                        conf = m.get("confidence", 0)
+                        source = m.get("source_layer", "")
+                        src_tag = f" [{source}]" if source and source != "unknown" else ""
+                        lines.append(f"- [{label}{src_tag}] {content} (confidence: {conf:.0%})")
+                    memories_section = "\n".join(lines)
+            except Exception:
+                pass
+
+        if self._knowledge_adapter and context:
+            try:
+                kn_results = self.recall_from_knowledge(query=context, limit=max_knowledge)
+                if kn_results:
+                    lines = []
+                    for k in kn_results:
+                        title = k.get("title", "Untitled")
+                        content = k.get("content", "")[:200]
+                        tags = k.get("tags", [])
+                        tag_str = f" [{', '.join(tags[:3])}]" if tags else ""
+                        lines.append(f"- {title}{tag_str}: {content}")
+                    knowledge_section = "\n".join(lines)
+            except Exception:
+                pass
+
+        if language == "zh":
+            return self._build_prompt_zh(memories_section, knowledge_section, context)
+        elif language == "ja":
+            return self._build_prompt_ja(memories_section, knowledge_section, context)
+        else:
+            return self._build_prompt_en(memories_section, knowledge_section, context)
+
+    def _build_prompt_en(self, memories: str, knowledge: str, context: Optional[str]) -> str:
+        parts = [
+            "You are an AI assistant with access to the user's memory and knowledge base.",
+            "Follow these retrieval priorities when responding:",
+            "1. **User Memories** (highest priority) — Personal preferences, corrections, and decisions the user has shared.",
+            "2. **Knowledge Base** — Notes and documents from the user's personal vault.",
+            "3. **General Knowledge** (lowest priority) — Use only when memories and knowledge base don't cover the topic.",
+        ]
+
+        if memories:
+            parts.append("\n## User Memories\n" + memories)
+
+        if knowledge:
+            parts.append("\n## Knowledge Base\n" + knowledge)
+
+        parts.append("\n## Guidelines")
+        parts.append("- Always respect user preferences and corrections, even if they contradict general best practices.")
+        parts.append("- If a user previously corrected something, the correction overrides the original.")
+        parts.append("- Reference specific memories when relevant: 'Based on your preference for...'")
+
+        return "\n".join(parts)
+
+    def _build_prompt_zh(self, memories: str, knowledge: str, context: Optional[str]) -> str:
+        parts = [
+            "你是一个拥有用户记忆和知识库访问权限的AI助手。",
+            "回复时请遵循以下检索优先级：",
+            "1. **用户记忆**（最高优先级）— 用户的个人偏好、纠正和决策。",
+            "2. **知识库** — 来自用户个人笔记库的文档。",
+            "3. **通用知识**（最低优先级）— 仅在记忆和知识库未覆盖时使用。",
+        ]
+
+        if memories:
+            parts.append("\n## 用户记忆\n" + memories)
+
+        if knowledge:
+            parts.append("\n## 知识库\n" + knowledge)
+
+        parts.append("\n## 指导原则")
+        parts.append("- 始终尊重用户的偏好和纠正，即使与通用最佳实践矛盾。")
+        parts.append("- 如果用户之前纠正过某事，纠正内容覆盖原始内容。")
+        parts.append("- 相关时引用具体记忆：'根据你对...的偏好...'")
+
+        return "\n".join(parts)
+
+    def _build_prompt_ja(self, memories: str, knowledge: str, context: Optional[str]) -> str:
+        parts = [
+            "あなたはユーザーの記憶とナレッジベースにアクセスできるAIアシスタントです。",
+            "回答時は以下の検索優先度に従ってください：",
+            "1. **ユーザー記憶**（最優先）— ユーザーの個人的な好み、訂正、決定。",
+            "2. **ナレッジベース** — ユーザーの個人vaultのドキュメント。",
+            "3. **一般知識**（最低優先）— 記憶とナレッジベースでカバーされていない場合のみ使用。",
+        ]
+
+        if memories:
+            parts.append("\n## ユーザー記憶\n" + memories)
+
+        if knowledge:
+            parts.append("\n## ナレッジベース\n" + knowledge)
+
+        parts.append("\n## ガイドライン")
+        parts.append("- 一般的なベストプラクティスと矛盾しても、ユーザーの好みと訂正を常に尊重してください。")
+        parts.append("- ユーザーが以前何かを訂正した場合、訂正が元の内容を上書きします。")
+        parts.append("- 関連する場合は具体的な記憶を参照：'...の好みに基づいて...'")
+
+        return "\n".join(parts)
+
     def _count_by_type(self, entries: List[MemoryEntry]) -> Dict[str, int]:
         counts: Dict[str, int] = {}
         for e in entries:

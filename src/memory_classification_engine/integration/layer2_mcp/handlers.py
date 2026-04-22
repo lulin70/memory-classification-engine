@@ -1,11 +1,12 @@
 """
 MCP Tool handlers for CarryMem.
 
-3+3+3+2 Optional Mode (v0.8.0):
+3+3+3+2+1 Optional Mode (v0.3.0):
   Core handlers: classify_message, get_classification_schema, batch_classify
   Storage handlers: classify_and_remember, recall_memories, forget_memory
   Knowledge handlers: index_knowledge, recall_from_knowledge, recall_all
   Profile handlers: declare_preference, get_memory_profile
+  Prompt handlers: get_system_prompt
 """
 
 import json
@@ -13,7 +14,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List
 
-from .tools import CLASSIFICATION_SCHEMA, TOOL_NAMES, CORE_TOOL_NAMES, OPTIONAL_TOOL_NAMES, KNOWLEDGE_TOOL_NAMES, PROFILE_TOOL_NAMES
+from .tools import CLASSIFICATION_SCHEMA, TOOL_NAMES, CORE_TOOL_NAMES, OPTIONAL_TOOL_NAMES, KNOWLEDGE_TOOL_NAMES, PROFILE_TOOL_NAMES, PROMPT_TOOL_NAMES
 
 
 def _format_memory_entry(match: Dict[str, Any], original_message: str) -> Dict[str, Any]:
@@ -340,6 +341,24 @@ def handle_get_memory_profile(carrymem, arguments: Dict[str, Any]) -> Dict[str, 
         return {"error": str(e)}
 
 
+def handle_get_system_prompt(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    context = arguments.get("context")
+    max_memories = arguments.get("max_memories", 10)
+    max_knowledge = arguments.get("max_knowledge", 5)
+    language = arguments.get("language", "en")
+
+    try:
+        prompt = carrymem.build_system_prompt(
+            context=context,
+            max_memories=max_memories,
+            max_knowledge=max_knowledge,
+            language=language,
+        )
+        return {"system_prompt": prompt, "language": language}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 handler_map = {
     "classify_message": handle_classify_message,
     "get_classification_schema": handle_get_classification_schema,
@@ -353,16 +372,18 @@ handler_map = {
     "recall_all": handle_recall_all,
     "declare_preference": handle_declare_preference,
     "get_memory_profile": handle_get_memory_profile,
+    "get_system_prompt": handle_get_system_prompt,
 }
 
 
 class Handlers:
-    """CarryMem MCP Handlers — 3+3+3+2 optional mode.
+    """CarryMem MCP Handlers — 3+3+3+2+1 optional mode.
 
     Core tools use engine directly.
     Storage tools use CarryMem instance (with storage adapter).
     Knowledge tools use CarryMem instance (with knowledge adapter).
     Profile tools use CarryMem instance (with storage adapter).
+    Prompt tools use CarryMem instance (with storage adapter).
     """
 
     def __init__(
@@ -396,7 +417,7 @@ class Handlers:
 
         handler_func = handler_map[tool_name]
         try:
-            if tool_name in OPTIONAL_TOOL_NAMES or tool_name in KNOWLEDGE_TOOL_NAMES or tool_name in PROFILE_TOOL_NAMES:
+            if tool_name in OPTIONAL_TOOL_NAMES or tool_name in KNOWLEDGE_TOOL_NAMES or tool_name in PROFILE_TOOL_NAMES or tool_name in PROMPT_TOOL_NAMES:
                 result = handler_func(self._carrymem, arguments or {})
             else:
                 result = handler_func(self._engine, arguments or {})

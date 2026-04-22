@@ -1,11 +1,12 @@
 """
 MCP Tools definitions for CarryMem.
 
-3+3+3+2 Optional Mode (v0.8.0):
+3+3+3+2+1 Optional Mode (v0.3.0):
   Core (always available): classify_message, get_classification_schema, batch_classify
   Storage Optional (requires storage adapter): classify_and_remember, recall_memories, forget_memory
   Knowledge Optional (requires knowledge adapter): index_knowledge, recall_from_knowledge, recall_all
   Profile Optional (requires storage adapter): declare_preference, get_memory_profile
+  Prompt Optional (requires storage adapter): get_system_prompt
 """
 
 from typing import Any, Dict, List
@@ -261,12 +262,49 @@ PROFILE_TOOLS: List[Dict[str, Any]] = [
     },
 ]
 
-TOOLS = CORE_TOOLS + OPTIONAL_TOOLS + KNOWLEDGE_TOOLS + PROFILE_TOOLS
+PROMPT_TOOLS: List[Dict[str, Any]] = [
+    {
+        "name": "get_system_prompt",
+        "description": "Generate a system prompt with user memories and knowledge base context injected. The prompt follows the 'memory-first' retrieval priority: User Memories > Knowledge Base > General Knowledge. Use this to inject CarryMem context into any AI agent's system prompt.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "context": {
+                    "type": "string",
+                    "description": "Optional context/topic to filter relevant memories (e.g., 'database setup', 'coding style'). If empty, returns all memories."
+                },
+                "max_memories": {
+                    "type": "integer",
+                    "description": "Maximum number of memories to include (default 10)",
+                    "default": 10,
+                    "minimum": 1,
+                    "maximum": 50
+                },
+                "max_knowledge": {
+                    "type": "integer",
+                    "description": "Maximum number of knowledge base entries to include (default 5)",
+                    "default": 5,
+                    "minimum": 1,
+                    "maximum": 20
+                },
+                "language": {
+                    "type": "string",
+                    "description": "Language for the prompt template: en, zh, or ja (default en)",
+                    "default": "en",
+                    "enum": ["en", "zh", "ja"]
+                }
+            }
+        }
+    },
+]
+
+TOOLS = CORE_TOOLS + OPTIONAL_TOOLS + KNOWLEDGE_TOOLS + PROFILE_TOOLS + PROMPT_TOOLS
 TOOL_NAMES = {tool["name"] for tool in TOOLS}
 CORE_TOOL_NAMES = {tool["name"] for tool in CORE_TOOLS}
 OPTIONAL_TOOL_NAMES = {tool["name"] for tool in OPTIONAL_TOOLS}
 KNOWLEDGE_TOOL_NAMES = {tool["name"] for tool in KNOWLEDGE_TOOLS}
 PROFILE_TOOL_NAMES = {tool["name"] for tool in PROFILE_TOOLS}
+PROMPT_TOOL_NAMES = {tool["name"] for tool in PROMPT_TOOLS}
 
 CLASSIFICATION_SCHEMA = {
     "schema_version": "1.0.0",
