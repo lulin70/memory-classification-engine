@@ -233,6 +233,61 @@ class PatternAnalyzer:
         if len(msg) < 5 and not re.search(r'[a-z]{3,}', msg_lower):
             return True
 
+        # --- B1-ZH: Chinese acknowledgment patterns ---
+        zh_ack_patterns = [
+            r'^好的[。.]?$', r'^嗯[。.]?$', r'^行[。.]?$', r'^对[。.]?$',
+            r'^收到[。.]?$', r'^明白[。.]?$', r'^知道了[。.]?$',
+            r'^没问题[。.]?$', r'^可以[。.]?$', r'^谢谢[。.]?$',
+        ]
+        for pat in zh_ack_patterns:
+            if re.match(pat, msg):
+                return True
+
+        # --- B1-JA: Japanese acknowledgment patterns ---
+        ja_ack_patterns = [
+            r'^はい[。.]?$', r'^いいえ[。.]?$', r'^わかりました[。.]?$',
+            r'^了解[。.]?$', r'^ありがとう[。.]?$', r'^OK[。.]?$',
+            r'^なるほど[。.]?$', r'^そうですね[。.]?$',
+        ]
+        for pat in ja_ack_patterns:
+            if re.match(pat, msg):
+                return True
+
+        # --- B2-ZH: Chinese chitchat patterns ---
+        zh_chitchat_patterns = [
+            r'^你好[！!？?]?$', r'^嗨[！!？?]?$',
+            r'^早上好[！!]?$', r'^下午好[！!]?$',
+            r'^再见[！!]?$', r'^回头见[！!]?$',
+        ]
+        for pat in zh_chitchat_patterns:
+            if re.match(pat, msg):
+                return True
+
+        # --- B2-JA: Japanese chitchat patterns ---
+        ja_chitchat_patterns = [
+            r'^こんにちは[！!？]?$', r'^おはよう[！!？]?$',
+            r'^さようなら[！!？]?$', r'^またね[！!？]?$',
+        ]
+        for pat in ja_chitchat_patterns:
+            if re.match(pat, msg):
+                return True
+
+        # --- B4-ZH: Chinese question patterns ---
+        zh_question_patterns = [
+            r'^(怎么|如何|为什么|什么|哪里|谁|多少|是不是|能不能|可以吗)',
+        ]
+        for pat in zh_question_patterns:
+            if re.match(pat, msg) and len(msg) < 60:
+                return True
+
+        # --- B4-JA: Japanese question patterns ---
+        ja_question_patterns = [
+            r'^(どう|なぜ|何|どこ|誰|いくら|どうやって)',
+        ]
+        for pat in ja_question_patterns:
+            if re.match(pat, msg) and len(msg) < 60:
+                return True
+
         return False
 
     def _detect_execution_feedback_pattern(self, message: str, execution_context: Dict[str, Any], language: str) -> Optional[Dict[str, Any]]:
@@ -387,31 +442,73 @@ class PatternAnalyzer:
                     'description': '明确偏好模式'
                 }
 
+        zh_strong_pref_patterns = [
+            r'我(喜欢|偏好|偏爱|倾向于|习惯|爱|讨厌|不喜欢)',
+            r'(别用|不要用|避免)',
+            r'(总是|从不|通常|一般)',
+            r'我的(默认|标准|风格|习惯|选择)',
+            r'我喜欢用',
+            r'我不喜欢',
+        ]
+        ja_strong_pref_patterns = [
+            r'(好き|嫌い|好む|欲しい)',
+            r'(いつも|常に|通常|習慣的に)',
+            r'(使いたい|使ってください|お願い)',
+            r'(避けて|使わず)',
+            r'(デフォルト|標準|スタイル|選択)',
+        ]
+
+        for pat in zh_strong_pref_patterns:
+            if language.startswith('zh') and re.search(pat, message):
+                return {
+                    'memory_type': 'user_preference',
+                    'tier': 2,
+                    'content': message,
+                    'confidence': 0.75,
+                    'source': 'pattern:preference_strong',
+                    'description': '明确偏好模式'
+                }
+        for pat in ja_strong_pref_patterns:
+            if language == 'ja' and re.search(pat, message):
+                return {
+                    'memory_type': 'user_preference',
+                    'tier': 2,
+                    'content': message,
+                    'confidence': 0.75,
+                    'source': 'pattern:preference_strong',
+                    'description': '明确偏好模式'
+                }
+
         # Comment in Chinese removedr
         preference_keywords = language_manager.get_keywords('user_preference', language)
 
-        # 添加更多偏好关键词 (Phase B-3 expansion)
         if language == 'en':
             preference_keywords.extend([
-                # Core preference words
                 'prefer', 'preference', 'favorite', 'favourite', 'preferred',
                 'like', 'love', 'hate', 'dislike', 'enjoy', 'adore',
-                # Style/choice words
                 'default', 'standard', 'convention', 'style', 'approach', 'choice',
                 'habit', 'practice', 'routine', 'ritual', 'rule', 'policy',
-                # Frequency-based preference markers
                 'always', 'never', 'usually', 'typically', 'normally', 'consistently',
-                # Comparative preference
                 'over', 'instead of', 'rather than', 'better than', 'worse than',
-                # Opinion markers
                 'think', 'believe', 'feel', 'find', 'consider', 'opinion', 'view',
             ])
-        elif language == 'zh-cn':
+        elif language.startswith('zh'):
             preference_keywords.extend([
                 '爱好', '喜好', '偏爱', '最爱的', '喜欢的', '偏好',
                 '喜欢', '爱', '讨厌', '不喜欢', '习惯', '通常',
                 '总是', '从不', '默认', '标准', '风格', '选择',
                 '觉得', '认为', '看法', '观点', '意见',
+                '倾向于', '倾向于用', '习惯用', '喜欢用',
+                '别用', '不要用', '避免',
+            ])
+        elif language == 'ja':
+            preference_keywords.extend([
+                '好き', '嫌い', '好む', '欲しい', '嫌う',
+                '好きです', '好きではありません', 'いいです', 'ほしい',
+                'いつも', '常に', '通常', '習慣', 'デフォルト',
+                '標準', 'スタイル', '選択', '好み', '傾向',
+                '使いたい', '使ってください', 'お願いします',
+                '避けて', '使わず',
             ])
         
         message_lower = message.lower()
@@ -478,8 +575,47 @@ class PatternAnalyzer:
             r'\bi\s+(take\s+that\s+back|didn\'t\s+mean\s+that)\b',
             r'\bforget\s+about\b.*\b(instead|rather|better|use|go\s+with)\b',  # "Forget about X, Y instead"
         ]
+
+        zh_explicit_markers = [
+            r'^纠正[：:]',
+            r'^纠正一下',
+            r'^更正[：:]',
+            r'我之前说错了',
+            r'之前说的不对',
+            r'忽略之前说的',
+            r'忘掉之前说的',
+            r'不是这样的',
+            r'不对[，,]应该',
+            r'错了[，,]应该是',
+            r'不对不对',
+            r'那个不对',
+            r'方法错了',
+            r'配置有错',
+            r'之前说的忽略',
+            r'上个想法作废',
+        ]
+
+        ja_explicit_markers = [
+            r'^訂正[：:]',
+            r'^訂正します',
+            r'^修正[：:]',
+            r'前に言ったのは間違い',
+            r'前の発言は無視',
+            r'いやいや',
+            r'それは違います',
+            r'間違ったアプローチ',
+            r'設定にエラー',
+            r'前の数字は間違って',
+        ]
+
         for pat in explicit_markers:
             if re.search(pat, message_lower):
+                return self._build_correction_result(message, language, 'pattern:correction_explicit', 0.85)
+        for pat in zh_explicit_markers:
+            if language.startswith('zh') and re.search(pat, message):
+                return self._build_correction_result(message, language, 'pattern:correction_explicit', 0.85)
+        for pat in ja_explicit_markers:
+            if language == 'ja' and re.search(pat, message):
                 return self._build_correction_result(message, language, 'pattern:correction_explicit', 0.85)
 
         # === TIER 2: Structural patterns (confidence 0.75) ===
@@ -509,6 +645,33 @@ class PatternAnalyzer:
         ]
         for pat in structural_patterns:
             if re.search(pat, message_lower):
+                return self._build_correction_result(message, language, 'pattern:correction_structural', 0.75)
+
+        zh_structural_patterns = [
+            r'不对[，,]?',
+            r'错了[，,]?',
+            r'不是.*而是',
+            r'应该是.*不是',
+            r'其实.*决定',
+            r'我澄清一下',
+            r'等等.*不是那个意思',
+            r'回退到.*方案',
+            r'不是.*用.*才对',
+        ]
+        ja_structural_patterns = [
+            r'いや[、,]?',
+            r'間違って',
+            r'実は.*に決め',
+            r'確認しますが',
+            r'正しくありません',
+            r'前のアプローチに戻',
+        ]
+
+        for pat in zh_structural_patterns:
+            if language.startswith('zh') and re.search(pat, message):
+                return self._build_correction_result(message, language, 'pattern:correction_structural', 0.75)
+        for pat in ja_structural_patterns:
+            if language == 'ja' and re.search(pat, message):
                 return self._build_correction_result(message, language, 'pattern:correction_structural', 0.75)
 
         # === TIER 3: Keyword-based detection (confidence 0.65) ===
@@ -573,6 +736,15 @@ class PatternAnalyzer:
             fact_patterns = [r'(.+)是(.+)', r'(.+)有(.+)', r'(.+)在做(.+)', r'(.+)属于(.+)', r'(.+)位于(.+)']
             for pattern in fact_patterns:
                 if re.search(pattern, message):
+                    return self._build_fact_result(message)
+        elif language == 'ja':
+            ja_fact_patterns = [
+                r'(.+)(は|が)(.+)(です|である|します|あります)',
+                r'(.+)(に)(あります|あります|あります)',
+                r'(.+)(の)(要件|バージョン|仕様|制限)',
+            ]
+            for pat in ja_fact_patterns:
+                if re.search(pat, message):
                     return self._build_fact_result(message)
         else:
             # === TIER 1: Strong technical facts (conf 0.8) ===
@@ -668,11 +840,14 @@ class PatternAnalyzer:
         import re
         msg_lower = message.lower().strip()
 
-        if len(msg_lower) < 12:
+        min_len = 12
+        if language.startswith('zh') or language == 'ja':
+            min_len = 6
+        if len(msg_lower) < min_len:
             return None
 
         # === TIER 1: Structural patterns ===
-        if not language.startswith('zh'):
+        if not language.startswith('zh') and language != 'ja':
             # Role patterns (who does what / who is what)
             role_patterns = [
                 r'^(\w+)\s+(?:owns?|leads?|manages?|heads?|runs?)\s+(?:the\s+)?(.+)',
@@ -700,6 +875,25 @@ class PatternAnalyzer:
             for pat in dep_patterns:
                 if re.search(pat, msg_lower):
                     return self._build_rel_result(message)
+
+        zh_role_patterns = [
+            r'(.+)(负责|管理|处理|担当)(.+)',
+            r'(.+)(是|在)(.+)(团队|组)',
+            r'(我的|我们的)(经理|同事|队友|领导)',
+            r'(.+)(和|与)(.+)(一起|合作)',
+        ]
+        ja_role_patterns = [
+            r'(.+)(が|は)(.+)(を)?(担当|管理|処理)',
+            r'(.+)(の)(マネージャー|リード|担当者)',
+            r'(.+)(と)(.+)(一緒に|協力)',
+        ]
+
+        for pat in zh_role_patterns:
+            if language.startswith('zh') and re.search(pat, message):
+                return self._build_rel_result(message)
+        for pat in ja_role_patterns:
+            if language == 'ja' and re.search(pat, message):
+                return self._build_rel_result(message)
 
         # === TIER 2: Keyword-based (original) ===
         relationship_keywords = language_manager.get_keywords('relationship', language)
@@ -754,7 +948,7 @@ class PatternAnalyzer:
                 # Common task markers
                 'todo', 'task', 'action item', 'follow up', 'next step',
             ])
-        elif language == 'zh-cn':
+        elif language.startswith('zh'):
             task_keywords.extend([
                 '实现', '重构', '优化', '修复', '调试', '解决',
                 '添加', '创建', '构建', '制作', '生成', '开发', '编写',
@@ -762,6 +956,19 @@ class PatternAnalyzer:
                 '计划', '设计', '研究', '调查', '分析',
                 '审查', '测试', '验证', '检查', '监控',
                 '需要', '应该', '必须', '要', '待办', '下一步',
+                '每次', '每周', '每天', '定期', '例行',
+                '站会', '冒烟测试', '代码审查',
+            ])
+        elif language == 'ja':
+            task_keywords.extend([
+                '実装', 'リファクタ', '最適化', '修正', 'デバッグ', '解決',
+                '追加', '作成', '構築', '生成', '開発', '記述',
+                '更新', 'アップグレード', '移行', '統合', 'デプロイ', 'リリース',
+                '計画', '設計', '研究', '調査', '分析',
+                'レビュー', 'テスト', '検証', '確認', '監視',
+                '必要', 'すべき', '必須', 'やるべき', '次のステップ',
+                '毎回', '毎週', '毎日', '定期的', 'ルーティン',
+                'スタンドアップ', 'スモークテスト', 'コードレビュー',
             ])
 
         message_lower = message.lower()
@@ -920,6 +1127,39 @@ class PatternAnalyzer:
                     'description': '明确决策模式'
                 }
 
+        zh_decision_patterns = [
+            r'我们(用|采用|选了|决定用)',
+            r'(决定|确定|选定)',
+            r'(方案|策略|架构)',
+            r'团队(同意|采用)',
+        ]
+        ja_decision_patterns = [
+            r'(使いましょう|行きましょう|に決めました|選びました)',
+            r'(採用|決定|選択)',
+            r'(チーム|合意)',
+        ]
+
+        for pat in zh_decision_patterns:
+            if language.startswith('zh') and re.search(pat, message):
+                return {
+                    'memory_type': 'decision',
+                    'tier': 2,
+                    'content': message,
+                    'confidence': 0.75,
+                    'source': 'pattern:decision_strong',
+                    'description': '明确决策模式'
+                }
+        for pat in ja_decision_patterns:
+            if language == 'ja' and re.search(pat, message):
+                return {
+                    'memory_type': 'decision',
+                    'tier': 2,
+                    'content': message,
+                    'confidence': 0.75,
+                    'source': 'pattern:decision_strong',
+                    'description': '明确决策模式'
+                }
+
         # Weaker decision indicators (require context length > 15)
         weak_decision_keywords = [
             'let\'s use', 'let\'s go with', 'let\'s adopt', 'let\'s choose',
@@ -945,15 +1185,21 @@ class PatternAnalyzer:
         decision_keywords = language_manager.get_keywords('decision', language)
 
         if language == 'en':
-            # Phase B-2: Removed noise words (okay, ok, yes, sure), kept only meaningful ones
             decision_keywords.extend([
                 'decide', 'determine', 'conclude', 'resolve', 'finalize',
                 'preference', 'verdict', 'ruling', 'judgment',
             ])
-        elif language == 'zh-cn':
+        elif language.startswith('zh'):
             decision_keywords.extend([
                 '决定', '选定', '确定', '采用', '选用', '敲定',
                 '方案', '策略', '架构', '共识', '一致同意',
+                '我们用', '选了', '就用',
+            ])
+        elif language == 'ja':
+            decision_keywords.extend([
+                '決める', '決定', '選ぶ', '選択', '確認', '合意',
+                '使いましょう', '行きましょう', 'に決めました',
+                '選びました', '採用', '採用しました',
             ])
         
         message_lower = message.lower()
@@ -1013,11 +1259,14 @@ class PatternAnalyzer:
         import re
         msg_lower = message.lower().strip()
 
-        if len(msg_lower) < 10:
+        min_len = 10
+        if language.startswith('zh') or language == 'ja':
+            min_len = 5
+        if len(msg_lower) < min_len:
             return None
 
         # === TIER 1: Structural patterns ===
-        if not language.startswith('zh'):
+        if not language.startswith('zh') and language != 'ja':
             # Emotion + subject patterns (strong signal)
             strong_emotion_patterns = [
                 r'^(?:i\s+)?(?:\'?m|am|was|feel|feeling|get|getting)\s+(?:so\s+|really\s+|very\s+|super\s+)?'
@@ -1043,6 +1292,28 @@ class PatternAnalyzer:
                 if any(re.search(adj, msg_lower) for adj in adj_indicators):
                     return self._build_sent_result(message, 0.75)
 
+        # ZH sentiment structural patterns
+        if language.startswith('zh'):
+            zh_sentiment_patterns = [
+                r'(太|真|好|非常|特别)(棒|好|差|烂|烦|慢|快|美|糟糕|赞|牛)(了|！|!)?',
+                r'(很|非常|特别)(开心|难过|生气|满意|失望|焦虑|担心|害怕)',
+                r'.*(烦|崩溃|心碎|无语|郁闷|不爽|焦虑|太棒)',
+            ]
+            for pat in zh_sentiment_patterns:
+                if re.search(pat, message):
+                    return self._build_sent_result(message, 0.8)
+
+        # JA sentiment structural patterns
+        if language == 'ja':
+            ja_sentiment_patterns = [
+                r'(とても|すごく|本当に|めちゃくちゃ)(嬉しい|悲しい|楽しい|つまらない|怖い|不安|心配)',
+                r'.*(イライラ|ストレス|疲れた|うんざり|残念)',
+                r'(素晴らしい|最高|ひどい|最悪|すごい|やばい)',
+            ]
+            for pat in ja_sentiment_patterns:
+                if re.search(pat, message):
+                    return self._build_sent_result(message, 0.8)
+
         # === TIER 2: Keyword-based (original) ===
         sentiment_keywords = language_manager.get_keywords('sentiment_marker', language)
         if language == 'en':
@@ -1058,7 +1329,7 @@ class PatternAnalyzer:
                 'depressed', 'irritated', 'panic', 'frighten', 'motivated',
                 'beautiful', 'bureaucratic',
             ])
-        elif language == 'zh-cn':
+        elif language.startswith('zh'):
             sentiment_keywords.extend([
                 '棒', '很棒', '真好', '太好了', '优秀', '惊人',
                 '可怕', '糟糕', '恶心', '恐怖',
@@ -1066,7 +1337,18 @@ class PatternAnalyzer:
                 '开心', '难过', '生气', '激动', '不满', '超赞',
                 '无语', '无语了', '太赞了', '绝了', '牛', '牛逼',
                 '累', '疲惫', '无聊', '焦虑', '担心', '害怕',
-                '自豪', '自信', '放松', '失望', '郁闷', '不爽'
+                '自豪', '自信', '放松', '失望', '郁闷', '不爽',
+                '太慢', '太烦', '很担心', '棒极了',
+            ])
+        elif language == 'ja':
+            sentiment_keywords.extend([
+                '嬉しい', '悲しい', '怒っている', '興奮', '失望',
+                '満足', '素晴らしい', '最高', 'ひどい', '最悪',
+                '好き', '嫌い', '楽しい', '面白い', 'つまらない',
+                '感動', '驚き', '不安', '心配', '怖い',
+                'イライラ', 'ストレス', '疲れた', 'うんざり',
+                'すごい', 'やばい', '素敵', '残念',
+                '遅い', '不便', '迷惑',
             ])
 
         for keyword in sentiment_keywords:

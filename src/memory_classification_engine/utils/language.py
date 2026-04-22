@@ -127,37 +127,36 @@ class LanguageManager:
         Returns:
             A tuple of (language_code, confidence).
         """
-        # Handle None input
         if text is None:
             return "en", 0.5
-        
-        # Comment in Chinese removedrs
-        if any("\u4e00" <= char <= "\u9fff" for char in text):
+
+        has_cjk = any("\u4e00" <= char <= "\u9fff" for char in text)
+        has_hiragana = any("\u3040" <= char <= "\u309f" for char in text)
+        has_katakana = any("\u30a0" <= char <= "\u30ff" for char in text)
+
+        if has_hiragana or has_katakana:
+            return "ja", 0.95
+
+        if has_cjk and not has_hiragana and not has_katakana:
             return "zh-cn", 0.95
-        
-        # Comment in Chinese removedction
+
         try:
             is_reliable, text_bytes_found, details = cld2.detect(text)
             if is_reliable and details:
-                # Comment in Chinese removed
                 language_code = details[0][1].lower()
                 confidence = details[0][2] / 100.0
-                # Comment in Chinese removeds
                 language_code = self._map_language_code(language_code)
                 return language_code, confidence
         except Exception:
             pass
-        
-        # Comment in Chinese removedct
+
         try:
             language_code = detect(text)
-            # Comment in Chinese removeds
             language_code = self._map_language_code(language_code)
-            return language_code, 0.8  # Comment in Chinese removedct
+            return language_code, 0.8
         except LangDetectException:
             pass
-        
-        # Comment in Chinese removedils
+
         return 'en', 0.5
     
     def _map_language_code(self, code: str) -> str:
