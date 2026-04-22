@@ -1,7 +1,7 @@
-# CarryMem v0.9 设计文档 (v2.0)
+# CarryMem v0.3 设计文档 (v3.0)
 
-**日期**: 2026-04-21
-**版本**: v2.0 (对应 CarryMem v0.7~v0.9)
+**日期**: 2026-04-22
+**版本**: v3.0 (对应 CarryMem v0.3.0)
 **参考**: CARRYMEM_ARCHITECTURE_v4.md, CARRYMEM_USER_STORIES.md
 
 ---
@@ -35,7 +35,10 @@ class CarryMem:
         cm = CarryMem(namespace="project-alpha")
         cm.declare("I prefer dark mode")
 
-        # Mode 6: Full-featured
+        # Mode 6: Plugin adapter
+        cm = CarryMem(storage="my_custom_adapter")
+
+        # Mode 7: Full-featured
         cm = CarryMem(
             storage="sqlite",
             knowledge_adapter=ObsidianAdapter("/path/to/vault"),
@@ -51,14 +54,6 @@ class CarryMem:
         namespace: str = "default",
         config: Optional[Dict] = None,
     ):
-        """
-        Args:
-            storage: 存储适配器。"sqlite"(默认) / None(纯分类) / StorageAdapter实例
-            db_path: SQLite 数据库路径 (默认 ~/.carrymem/memories.db)
-            knowledge_adapter: 知识库适配器 (如 ObsidianAdapter)
-            namespace: 记忆空间隔离 (默认 "default")
-            config: 引擎配置 (可选)
-        """
 ```
 
 ### 1.2 方法列表
@@ -74,6 +69,7 @@ class CarryMem:
 | `index_knowledge()` | v0.7 | knowledge | 索引知识库 |
 | `recall_from_knowledge()` | v0.7 | knowledge | 检索知识库 |
 | `recall_all()` | v0.7 | storage or knowledge | 统一检索 |
+| `build_system_prompt()` | v0.10 | storage or knowledge | 智能调度 Prompt |
 
 ### 1.3 错误类型
 
@@ -105,7 +101,7 @@ CREATE TABLE IF NOT EXISTS memories (
     recall_hint TEXT,
     metadata TEXT,
     storage_key TEXT UNIQUE NOT NULL,
-    namespace TEXT NOT NULL DEFAULT 'default',  -- v0.9 新增
+    namespace TEXT NOT NULL DEFAULT 'default',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     expires_at TEXT,
@@ -113,38 +109,17 @@ CREATE TABLE IF NOT EXISTS memories (
     content_hash TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_memories_namespace ON memories(namespace);  -- v0.9 新增
+CREATE INDEX IF NOT EXISTS idx_memories_namespace ON memories(namespace);
 ```
 
 ### 2.2 Namespace 隔离策略
 
 ```python
-# 写入时自动附加 namespace
 adapter = SQLiteAdapter(db_path="memories.db", namespace="project-alpha")
 adapter.remember(entry)  # → namespace="project-alpha"
-
-# 查询时自动过滤 namespace
 adapter.recall("query")  # → WHERE namespace = 'project-alpha'
-
-# 跨 namespace 查询
 adapter.recall("query", namespaces=["project-alpha", "global"])
 # → WHERE namespace IN ('project-alpha', 'global')
-
-# 删除时只删除当前 namespace
-adapter.forget("storage_key")  # → WHERE namespace = 'project-alpha'
-```
-
-### 2.3 Schema 迁移
-
-```python
-def _migrate_namespace(self):
-    """自动检测并添加 namespace 列"""
-    try:
-        self._conn.execute("SELECT namespace FROM memories LIMIT 1")
-    except sqlite3.OperationalError:
-        self._conn.executescript("ALTER TABLE memories ADD COLUMN namespace TEXT NOT NULL DEFAULT 'default'")
-        self._conn.executescript("CREATE INDEX IF NOT EXISTS idx_memories_namespace ON memories(namespace)")
-        self._conn.commit()
 ```
 
 ---
@@ -162,31 +137,9 @@ def _migrate_namespace(self):
 | 只读设计 | remember/forget 抛出 NotImplementedError |
 | 增量索引 | 只索引变更文件（基于 mtime） |
 
-### 3.2 索引结构
-
-```sql
--- ~/.carrymem/obsidian_{vault_hash}.db
-CREATE TABLE notes (
-    path TEXT PRIMARY KEY,
-    title TEXT,
-    content TEXT,
-    frontmatter TEXT,  -- JSON
-    tags TEXT,         -- JSON array
-    wiki_links TEXT,   -- JSON array
-    mtime REAL,
-    indexed_at TEXT
-);
-
-CREATE VIRTUAL TABLE notes_fts USING fts5(
-    title, content, tags,
-    content='notes',
-    content_rowid='rowid'
-);
-```
-
 ---
 
-## 4. MCP 工具设计 (3+3+3+2 模式)
+## 4. MCP 工具设计 (3+3+3+2+1 模式)
 
 ### 4.1 工具分组
 
@@ -195,47 +148,35 @@ Core (3):       classify_message, get_classification_schema, batch_classify
 Storage (3):    classify_and_remember, recall_memories, forget_memory
 Knowledge (3):  index_knowledge, recall_from_knowledge, recall_all
 Profile (2):    declare_preference, get_memory_profile
+Prompt (1):     get_system_prompt
 ```
 
-### 4.2 declare_preference (v0.8 新增)
+### 4.2 get_system_prompt (v0.10 新增)
 
 ```json
 {
-    "name": "declare_preference",
-    "description": "Let the user proactively tell the AI about themselves. User declarations are classified by the engine but always stored with confidence=1.0 and source_layer='declaration'.",
+    "name": "get_system_prompt",
+    "description": "Generate a context-aware system prompt with user memories and knowledge base entries. Supports EN/CN/JP languages with memory-first retrieval priority.",
     "inputSchema": {
         "type": "object",
         "properties": {
-            "message": {
-                "type": "string",
-                "description": "What the user wants to declare"
-            }
-        },
-        "required": ["message"]
+            "context": {"type": "string", "description": "Current conversation context for relevance filtering"},
+            "max_memories": {"type": "integer", "default": 10},
+            "max_knowledge": {"type": "integer", "default": 5},
+            "language": {"type": "string", "enum": ["en", "zh", "ja"], "default": "en"}
+        }
     }
 }
 ```
 
-### 4.3 get_memory_profile (v0.8 新增)
-
-```json
-{
-    "name": "get_memory_profile",
-    "description": "Get a structured summary of what the AI remembers about the user. Returns highlights, statistics, and a human-readable summary.",
-    "inputSchema": {
-        "type": "object",
-        "properties": {}
-    }
-}
-```
-
-### 4.4 无适配器时的行为
+### 4.3 无适配器时的行为
 
 | 工具组 | 缺失适配器 | 错误 |
 |--------|-----------|------|
 | Storage 工具 | 无 storage | `storage_not_configured` |
 | Knowledge 工具 | 无 knowledge_adapter | `knowledge_not_configured` |
 | Profile 工具 | 无 storage | `storage_not_configured` |
+| Prompt 工具 | 无 storage | 返回基础 prompt（无记忆） |
 | Core 工具 | 无 | 永远可用 |
 
 ---
@@ -270,19 +211,74 @@ Profile (2):    declare_preference, get_memory_profile
         "confidence_avg": 0.87
     },
     "namespace": "default",
-    "last_updated": "2026-04-21T10:30:00Z"
+    "last_updated": "2026-04-22T10:30:00Z"
 }
 ```
 
-**设计原则**：
-- 不做 UI，做数据 API
-- highlights 只返回 top 5 条代表性内容
-- summary 包含人类可读的中文摘要
-- 任何 Agent UI 都可以消费这个 JSON
+**设计原则**：不做 UI，做数据 API
 
 ---
 
-## 7. 过期策略
+## 7. build_system_prompt() 设计 (v0.10)
+
+### 7.1 Prompt 模板结构
+
+```
+[语言特定的角色描述]
+[检索优先级说明]
+  1. User Memories (highest priority)
+  2. Knowledge Base
+  3. General Knowledge (lowest priority)
+
+## User Memories (if any)
+- [Type] content (confidence: XX%)
+
+## Knowledge Base (if any)
+- title [tags]: content[:200]
+
+## Guidelines
+- Always respect user preferences and corrections
+- Corrections override original facts
+```
+
+### 7.2 多语言支持
+
+| 语言 | 角色描述 | 优先级标题 | 指导原则 |
+|------|---------|-----------|---------|
+| EN | "You are an AI assistant with access to the user's memory..." | User Memories / Knowledge Base | "Always respect user preferences..." |
+| ZH | "你是一个拥有用户记忆和知识库访问权限的AI助手..." | 用户记忆 / 知识库 | "始终尊重用户的偏好和纠正..." |
+| JA | "あなたはユーザーの記憶とナレッジベースにアクセスできるAIアシスタント..." | ユーザー記憶 / ナレッジベース | "ユーザーの好みと訂正を常に尊重..." |
+
+---
+
+## 8. Plugin 适配器加载 (v0.10)
+
+### 8.1 加载策略
+
+```python
+def load_adapter(name: str) -> Optional[Type[StorageAdapter]]:
+    # 1. Check builtins (sqlite, obsidian)
+    # 2. Check entry_points (carrymem.adapters group)
+    # 3. Try as fully-qualified class name
+```
+
+### 8.2 注册方式
+
+```python
+# setup.py of plugin package
+setup(
+    name="carrymem-redis",
+    entry_points={
+        "carrymem.adapters": [
+            "redis = carrymem_redis:RedisAdapter",
+        ]
+    },
+)
+```
+
+---
+
+## 9. 过期策略
 
 | Tier | 名称 | 默认 TTL | 说明 |
 |------|------|---------|------|

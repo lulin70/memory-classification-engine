@@ -1,43 +1,92 @@
-# CarryMem — 随身记忆库
+# CarryMem
 
-<p align="center">
-  <strong>带着你的记忆走 — 让 AI Agent 记住用户</strong><br>
-  <sub>CarryMem = <strong>MCE 分类引擎</strong>（核心壁垒）+ <strong>SQLite 默认存储</strong>（开箱即用）+ <strong>Obsidian 知识库</strong>（只读检索）+ <strong>可替换适配器</strong>（你的选择）</sub>
-</p>
+**Your portable AI memory layer.**
+
+> Don't remember everything. Remember what matters.
+
+CarryMem gives AI Agents a persistent, portable memory layer. It classifies conversations in real-time, stores what's worth remembering, and lets users take their memory anywhere — across models, across tools, across devices.
+
+**AI remembers you. Not the other way around.**
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-0.3.0-blue" alt="Version">
-  <img src="https://img.shields.io/badge/tests-75%20passing-green" alt="Tests">
-  <img src="https://img.shields.io/badge/MCP-3%2B3%2B3%2B2-blue" alt="MCP">
+  <img src="https://img.shields.io/badge/tests-32%20passing-green" alt="Tests">
+  <img src="https://img.shields.io/badge/MCP-3%2B3%2B3%2B2%2B1-blue" alt="MCP">
   <img src="https://img.shields.io/badge/Accuracy-90.6%25-green" alt="Accuracy">
-</p>
-
-<p align="center">
-  <a href="./ROADMAP.md">Roadmap</a> ·
-  <a href="./docs/architecture/CARRYMEM_ARCHITECTURE_v4.md">Architecture</a> ·
-  <a href="./docs/architecture/CARRYMEM_DESIGN_v4.md">Design</a> ·
-  <a href="./docs/consensus/MCP_POSITIONING_CONSENSUS_v3.md">Consensus</a>
 </p>
 
 ---
 
-## The Problem: Nobody Classifies Before Storing
+## The Problem
 
-Every AI memory system has the same blind spot.
+Every time you start a new conversation with an AI Agent, it forgets you.
 
-**Supermemory** receives a message → stores it. No classification.
-**Mem0** receives a message → stores it. No classification.
-**Claude Code CLAUDE.md** → you manually decide what to write. No structure.
+Your preferences, your corrections, your decisions — gone. You repeat yourself. The Agent recommends things you already rejected. Switch from Claude to GPT, from Cursor to Windsurf, from one MCP server to another, and it's like meeting a stranger again.
 
-They all answer **"how to store"** but never **"what's worth storing"**.
+Existing solutions have three problems:
+
+1. **Memory is locked in.** Most memory tools store your data in their own system. Change the tool, lose the memory.
+2. **Everything is stored.** They dump entire conversations into vector databases and hope semantic search will figure it out. Expensive, noisy, and slow.
+3. **No classification.** Without understanding what a message *is* (a preference? a correction? a casual remark?), retrieval is blind.
 
 **60%+ of messages should NOT be stored.** But current systems either store everything (noise explosion) or store nothing (amnesia).
 
-**MCE is the missing pre-filter.** Now with CarryMem, it also provides default storage, knowledge base retrieval, and user declaration — so your Agent can remember users out of the box.
+CarryMem solves all three.
+
+---
+
+## How It Works
+
+```
+User message → MCE Engine (classify) → Storage Layer (store) → Agent Context (retrieve)
+```
+
+### Step 1: Classify (MCE Engine)
+
+Every user message flows through a three-layer classification funnel:
+
+| Layer | Method | Cost | Coverage |
+|-------|--------|------|----------|
+| Rule matching | Regex + keywords | Zero | ~60% |
+| Pattern analysis | NLP patterns | Near-zero | ~30% |
+| Semantic inference | LLM (only when needed) | Token cost | <10% |
+
+**60%+ of classifications happen with zero LLM cost.**
+
+### Step 2: Classify into 7 Memory Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `user_preference` | Stated likes/dislikes | "I prefer dark mode" |
+| `correction` | Explicit correction to AI | "No, I meant the Python version" |
+| `fact_declaration` | Stated facts about the user | "I work at a startup in Tokyo" |
+| `decision` | Made a choice | "Let's go with React" |
+| `relationship` | Social/contextual info | "My teammate handles the backend" |
+| `task_pattern` | Recurring workflow | "I always start with a README" |
+| `sentiment_marker` | Emotional response to output | "This is exactly what I needed" |
+
+### Step 3: Store with Priority Tiers
+
+Not all memories are equal. CarryMem assigns a tier to every classified memory:
+
+| Tier | Name | Default TTL | Description |
+|------|------|-------------|-------------|
+| **Tier 1** | Sensory | 24 hours | Temporary info, fast decay |
+| **Tier 2** | Procedural | 90 days | Habits/preferences, medium retention |
+| **Tier 3** | Episodic | 365 days | Important events, long retention |
+| **Tier 4** | Semantic | Permanent | Core knowledge, never expires |
+
+### Step 4: Retrieve When Needed
+
+When a new conversation starts, CarryMem injects relevant memories into the Agent's context window. The Agent doesn't just respond — it *remembers*.
+
+Retrieval priority: **Memories > Knowledge Base > External LLM**
 
 ---
 
 ## Quick Start
+
+### Install
 
 ```bash
 pip install carrymem
@@ -53,7 +102,7 @@ result = cm.classify_and_remember("I prefer dark mode in my editor")
 # → {"type": "user_preference", "confidence": 0.95, "stored": True}
 ```
 
-### Declare Preferences (v0.8)
+### Declare Preferences
 
 ```python
 # User proactively tells the AI about themselves
@@ -61,7 +110,7 @@ result = cm.declare("I prefer dark mode")
 # → confidence=1.0, source_layer="declaration", always stored
 ```
 
-### See What AI Remembers (v0.8)
+### See What AI Remembers
 
 ```python
 profile = cm.get_memory_profile()
@@ -72,7 +121,7 @@ profile = cm.get_memory_profile()
 #   }
 ```
 
-### Obsidian Knowledge Base (v0.7)
+### Obsidian Knowledge Base
 
 ```python
 from carrymem import CarryMem
@@ -83,7 +132,7 @@ cm.index_knowledge()
 results = cm.recall_from_knowledge("Python design patterns")
 ```
 
-### Project-Level Isolation (v0.9)
+### Project-Level Isolation
 
 ```python
 cm_alpha = CarryMem(namespace="project-alpha")
@@ -96,49 +145,36 @@ cm_beta.declare("I prefer light mode")    # Isolated in project-beta
 result = cm_alpha.recall_all("PostgreSQL", namespaces=["project-alpha", "global"])
 ```
 
----
+### Smart System Prompt
 
-## Why Classification Matters
-
-### The 60% Filter
-
-MCE's three-layer pipeline filters out 60%+ of messages before any expensive processing:
-
-```
-Layer 1: Rule Match     → 60%+ filtered, zero cost (regex + keywords)
-Layer 2: Pattern Analysis → 30%+ classified, still zero LLM
-Layer 3: Semantic (LLM)  → <10% reach here, LLM fallback only
+```python
+# Generate context-aware system prompts for your Agent
+prompt = cm.build_system_prompt(context="dark mode", language="en")
+# → Includes relevant memories and knowledge with priority ordering
 ```
 
-**Cost per 1,000 messages:**
+### Plugin Adapters
 
-| Approach | LLM Calls | Cost |
-|----------|-----------|------|
-| Send everything to LLM | 1,000 | $0.50 - $2.00 |
-| **MCE (Layer 1 + 2 first)** | **<100** | **$0.05 - $0.20** |
+```python
+# Load third-party adapters via entry_points
+from carrymem.adapters import load_adapter, list_available_adapters
 
-### 7 Types > 1 Bucket
-
-| Type | Example | Why it matters |
-|------|---------|---------------|
-| **user_preference** | "I prefer spaces over tabs" | Affects ALL future code generation |
-| **correction** | "No, do it like this instead" | Must override previous fact/decision |
-| **fact_declaration** | "We have 100 employees" | Verifiable truth, rarely changes |
-| **decision** | "Let's go with Redis for caching" | Explains WHY architecture looks this way |
-| **relationship** | "Alice handles backend" | Enables role-aware responses |
-| **task_pattern** | "Always test before deploy" | Automatable workflow rules |
-| **sentiment_marker** | "This workflow is frustrating" | Signals process pain points |
+CustomAdapter = load_adapter("my_custom_adapter")
+adapters = list_available_adapters()
+# → {"sqlite": "...", "obsidian": "...", "my_custom_adapter": "... (plugin)"}
+```
 
 ---
 
-## MCP Server: 3+3+3+2 Optional Mode
+## MCP Server: 3+3+3+2+1 Optional Mode
 
 | Group | Tools | Requirement |
 |-------|-------|-------------|
-| **Core (3)** | classify_message, get_classification_schema, batch_classify | Always available |
-| **Storage (3)** | classify_and_remember, recall_memories, forget_memory | Storage adapter |
-| **Knowledge (3)** | index_knowledge, recall_from_knowledge, recall_all | Knowledge adapter |
-| **Profile (2)** | declare_preference, get_memory_profile | Storage adapter |
+| **Core (3)** | `classify_message`, `get_classification_schema`, `batch_classify` | Always available |
+| **Storage (3)** | `classify_and_remember`, `recall_memories`, `forget_memory` | Storage adapter |
+| **Knowledge (3)** | `index_knowledge`, `recall_from_knowledge`, `recall_all` | Knowledge adapter |
+| **Profile (2)** | `declare_preference`, `get_memory_profile` | Storage adapter |
+| **Prompt (1)** | `get_system_prompt` | Storage adapter |
 
 ### Setup
 
@@ -156,16 +192,22 @@ Layer 3: Semantic (LLM)  → <10% reach here, LLM fallback only
 
 ---
 
-## Retrieval Priority
+## Comparison
 
-```
-recall_all(query, namespaces=[...])
-  │
-  ├─ Layer 1a: Current namespace memories (project-specific)
-  ├─ Layer 1b: Global namespace memories (user-level preferences)
-  ├─ Layer 2:  Knowledge base (Obsidian vault)
-  └─ Layer 3:  External LLM (Agent decides)
-```
+|  | CarryMem | Mem0 | LangMem | Zep |
+|--|----------|------|---------|-----|
+| **Classification** | Real-time, 7 types | None (full dump) | Via LLM chain | Post-hoc summary |
+| **Storage** | Portable (SQLite/your DB) | Locked in Mem0 Cloud | Locked in LangChain | Locked in Zep |
+| **LLM Cost** | 60%+ zero cost | Always-on embedding | Always-on LLM | Always-on LLM |
+| **Memory Types** | 7 structured types | Unstructured | 3 types | 2 types |
+| **Forgetting** | Active (4-tier TTL) | TTL only | Manual | TTL only |
+| **Knowledge Base** | Obsidian (read-only) | No | No | No |
+| **Active Declaration** | Yes (confidence=1.0) | No | No | No |
+| **Project Isolation** | Namespace-based | No | No | No |
+| **Open Source** | Full | Partial | Full | Partial |
+| **Portability** | Your files, take anywhere | No | No | No |
+
+**The key difference:** CarryMem's memory is yours. Not ours, not anyone else's. Switch models, switch tools, switch devices — your memory follows you.
 
 ---
 
@@ -175,7 +217,7 @@ recall_all(query, namespaces=[...])
 |--------|-------|
 | Classification Accuracy | **90.6%** |
 | F1 Score | **97.9%** |
-| Integration Tests | **75/75 passing** |
+| Integration Tests | **32/32 passing** |
 | LLM Call Ratio | **<10%** |
 | P50 Latency (rule match) | ~45ms |
 
@@ -186,12 +228,17 @@ recall_all(query, namespaces=[...])
 ```
 CarryMem (Main Class)
   ├── MCE Engine (3-layer classification funnel)
+  │   ├── Rule Matcher (60%+ hit, zero cost)
+  │   ├── Pattern Analyzer (30%+ hit, near-zero cost)
+  │   └── Semantic Classifier (<10% hit, LLM fallback)
   ├── StorageAdapter (SQLite default, replaceable)
   │   ├── SQLiteAdapter: FTS5 + Dedup + TTL + Namespace
-  │   └── ObsidianAdapter: Markdown + Frontmatter + Wiki-links (read-only)
+  │   ├── ObsidianAdapter: Markdown + Frontmatter + Wiki-links (read-only)
+  │   └── Plugin Adapters: via entry_points
   ├── declare(): Active declaration (confidence=1.0)
   ├── get_memory_profile(): Structured memory profile
-  └── MCP Server: 3+3+3+2 tools
+  ├── build_system_prompt(): Smart prompt generation (EN/CN/JP)
+  └── MCP Server: 3+3+3+2+1 tools
 ```
 
 ---
@@ -202,26 +249,37 @@ CarryMem (Main Class)
 carrymem/
 ├── src/memory_classification_engine/
 │   ├── carrymem.py              # CarryMem main class
-│   ├── engine.py                # MCE core engine
+│   ├── engine.py                # MCE core engine (slim)
 │   ├── adapters/
 │   │   ├── base.py              # StorageAdapter ABC + MemoryEntry + StoredMemory
 │   │   ├── sqlite_adapter.py    # SQLite + FTS5 + Namespace
-│   │   └── obsidian_adapter.py  # Obsidian (read-only)
+│   │   ├── obsidian_adapter.py  # Obsidian (read-only)
+│   │   └── loader.py            # Plugin adapter loader
 │   ├── layers/                  # 3-layer classification funnel
 │   ├── coordinators/            # Classification pipeline
 │   ├── utils/
 │   │   ├── confirmation.py      # Confirmation detection (EN/CN/JP)
 │   │   └── ...
 │   └── integration/layer2_mcp/  # MCP Server
-├── tests/                       # 75 tests passing
-├── benchmarks/                  # Accuracy benchmark
+├── tests/                       # 32 tests passing
+├── benchmarks/                  # MCE-Bench 180-case dataset
 ├── docs/
 │   ├── consensus/               # Strategic decisions
 │   ├── architecture/            # Architecture + Design docs
-│   ├── planning/                # User stories + Migration plan
+│   ├── planning/                # User stories + Status
 │   └── testing/                 # Test plan
 └── setup.py                     # carrymem v0.3.0
 ```
+
+---
+
+## Who Is This For?
+
+**Developers** building AI Agents that need to remember users across sessions.
+
+**Agent product teams** who want persistent memory without building classification logic from scratch.
+
+**Power users** who want their AI tools to remember them, not the other way around.
 
 ---
 

@@ -1,8 +1,8 @@
-# CarryMem v0.9 用户故事 (v2.0)
+# CarryMem v0.3 用户故事 (v3.0)
 
-**日期**: 2026-04-21
-**版本**: v2.0 (对应 CarryMem v0.7~v0.9)
-**参考**: MCP_POSITIONING_CONSENSUS_v3.md §11, NotebookLM 启发分析
+**日期**: 2026-04-22
+**版本**: v3.0 (对应 CarryMem v0.3.0)
+**参考**: MCP_POSITIONING_CONSENSUS_v3.md §11~§12
 
 ---
 
@@ -261,8 +261,59 @@ result = cm_alpha.recall_all("PostgreSQL", namespaces=["project-alpha", "global"
 
 **验收标准**:
 - [x] 目录名从 memory-classification-engine → carrymem
-- [x] 包名 carrymem，版本 0.9.0
+- [x] 包名 carrymem，版本 0.3.0
 - [x] 旧版 API 调用方式完全兼容
+
+---
+
+## P1++ 用户故事（v0.10 — 智能调度 + Plugin System）
+
+### US-015: 智能调度 Prompt ✅ (v0.10)
+
+**作为** 独立开发者
+**我希望** CarryMem 自动生成包含用户记忆和知识库的 system prompt
+**以便** Agent 在新会话中自动获得上下文，无需手动编排
+
+```python
+prompt = cm.build_system_prompt(context="dark mode", language="en")
+# → 包含相关记忆、知识库条目、检索优先级说明
+```
+
+**验收标准**:
+- [x] build_system_prompt() 支持 EN/CN/JP 三语
+- [x] 检索优先级：Memories > Knowledge > External
+- [x] context 参数过滤相关记忆
+- [x] MCP 工具 get_system_prompt 可用
+
+### US-016: Plugin 适配器 ✅ (v0.10)
+
+**作为** Agent 产品团队
+**我希望** 通过 pip 安装第三方存储适配器
+**以便** 使用 Redis/PostgreSQL 等企业级存储
+
+```python
+from carrymem.adapters import load_adapter, list_available_adapters
+
+RedisAdapter = load_adapter("carrymem-redis")
+adapters = list_available_adapters()
+```
+
+**验收标准**:
+- [x] load_adapter() 支持内置 + entry_points + 全限定类名
+- [x] list_available_adapters() 返回所有可用适配器
+- [x] CarryMem(storage="plugin_name") 字符串加载
+- [x] setup.py 包含 carrymem.adapters entry_points
+
+### US-017: MCE-Bench 公开基准 ✅ (v0.10)
+
+**作为** 独立开发者
+**我希望** 看到客观的分类准确率基准
+**以便** 评估 CarryMem 是否满足我的需求
+
+**验收标准**:
+- [x] 180 用例数据集 (EN/CN/JP × 60)
+- [x] run_benchmark.py 一键运行
+- [x] leaderboard.py 排行榜输出
 
 ---
 
@@ -275,4 +326,5 @@ result = cm_alpha.recall_all("PostgreSQL", namespaces=["project-alpha", "global"
 | US-008~009 | v0.7 | ✅ 完成 |
 | US-010~011 | v0.8 | ✅ 完成 |
 | US-012 | v0.9 | ✅ 完成 |
+| US-015~017 | v0.10 | ✅ 完成 |
 | US-013~014 | v1.0+ | 📋 计划中 |
