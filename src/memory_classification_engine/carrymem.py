@@ -22,6 +22,9 @@ Usage:
 """
 
 from typing import Any, Dict, List, Optional
+import json
+import os
+from datetime import datetime
 
 from memory_classification_engine.engine import MemoryClassificationEngine
 from memory_classification_engine.adapters.base import MemoryEntry, StorageAdapter, StoredMemory
@@ -333,6 +336,176 @@ class CarryMem:
 
         profile = self._adapter.get_profile()
         return profile
+
+    def export_memories(
+        self,
+        output_path: Optional[str] = None,
+        format: str = "json",
+        namespace: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Export memories to a portable format.
+
+        Args:
+            output_path: File path to write. If None, returns dict without writing.
+            format: Export format ('json' or 'markdown').
+            namespace: Export only this namespace. If None, export current namespace.
+
+        Returns:
+            Dict with export metadata and data.
+        """
+        if not self._adapter:
+            raise StorageNotConfiguredError()
+
+        ns = namespace or self._namespace
+        stats = self._adapter.get_stats()
+        all_memories = self._adapter.recall("", limit=10000)
+
+        if ns != "default" and isinstance(self._adapter, SQLiteAdapter):
+            all_memories = self._adapter.recall("", limit=10000, namespaces=[ns])
+
+        export_data = {
+            "schema_version": "1.0.0",
+            "export_format": "carrymem_portable",
+            "exported_at": datetime.utcnow().isoformat() + "Z",
+            "source": {
+                "version": "0.3.0",
+                "namespace": ns,
+                "total_memories": len(all_memories),
+            },
+            "memories": [m.to_dict() for m in all_memories],
+        }
+
+        if format == "markdown":
+            md_lines = [
+                f"# CarryMem Memory Export",
+                f"",
+                f"- **Exported**: {export_data['exported_at']}",
+                f"- **Namespace**: {ns}",
+                f"- **Total memories**: {len(all_memories)}",
+                f"",
+            ]
+            by_type: Dict[str, list] = {}
+            for m in all_memories:
+                d = m.to_dict()
+                t = d.get("type", "unknown")
+                by_type.setdefault(t, []).append(d)
+
+            for mem_type, items in sorted(by_type.items()):
+                md_lines.append(f"## {mem_type}")
+                md_lines.append("")
+                for item in items:
+                    content = item.get("content", "")
+                    conf = item.get("confidence", 0)
+                    tier = item.get("tier", "?")
+                    md_lines.append(f"- [{tier}] {content} (confidence: {conf:.0%})")
+                md_lines.append("")
+
+            md_content = "\n".join(md_lines)
+            if output_path:
+                with open(output_path, "w", encoding="utf-8") as f:
+                    f.write(md_content)
+            return {
+                "exported": True,
+                "format": "markdown",
+                "path": output_path,
+                "total_memories": len(all_memories),
+                "namespace": ns,
+                "content": md_content if not output_path else None,
+            }
+
+        json_content = json.dumps(export_data, ensure_ascii=False, indent=2)
+        if output_path:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(json_content)
+
+        return {
+            "exported": True,
+            "format": "json",
+            "path": output_path,
+            "total_memories": len(all_memories),
+            "namespace": ns,
+            "data": export_data if not output_path else None,
+        }
+
+    def import_memories(
+        self,
+        input_path: Optional[str] = None,
+        data: Optional[Dict[str, Any]] = None,
+        namespace: Optional[str] = None,
+        merge_strategy: str = "skip_existing",
+    ) -> Dict[str, Any]:
+        """Import memories from a portable format.
+
+        Args:
+            input_path: File path to read. If None, uses data parameter.
+            data: Direct dict data (alternative to file).
+            namespace: Import into this namespace. If None, uses current.
+            merge_strategy: 'skip_existing' or 'overwrite'.
+
+        Returns:
+            Dict with import results.
+        """
+        if not self._adapter:
+            raise StorageNotConfiguredError()
+
+        if input_path:
+            with open(input_path, "r", encoding="utf-8") as f:
+                import_data = json.load(f)
+        elif data:
+            import_data = data
+        else:
+            raise ValueError("Either input_path or data must be provided")
+
+        target_ns = namespace or self._namespace
+        memories = import_data.get("memories", [])
+
+        imported = 0
+        skipped = 0
+        errors = 0
+
+        for mem_dict in memories:
+            try:
+                content_hash = mem_dict.get("content_hash", "")
+                if merge_strategy == "skip_existing" and content_hash:
+                    existing = self._adapter.recall(
+                        mem_dict.get("content", "")[:50], limit=5
+                    )
+                    if any(
+                        hasattr(e, 'content_hash') and e.content_hash == content_hash
+                        for e in existing
+                    ):
+                        skipped += 1
+                        continue
+
+                entry = MemoryEntry(
+                    id=mem_dict.get("id", ""),
+                    type=mem_dict.get("type", "unknown"),
+                    content=mem_dict.get("content", ""),
+                    confidence=mem_dict.get("confidence", 0.5),
+                    tier=mem_dict.get("tier", 2),
+                    source_layer=mem_dict.get("source_layer", "import"),
+                    reasoning=mem_dict.get("reasoning", ""),
+                    suggested_action="store",
+                    recall_hint=mem_dict.get("recall_hint"),
+                    metadata={
+                        **mem_dict.get("metadata", {}),
+                        "imported_from": import_data.get("source", {}).get("namespace", "unknown"),
+                        "imported_at": datetime.utcnow().isoformat() + "Z",
+                    },
+                )
+                self._adapter.remember(entry)
+                imported += 1
+            except Exception:
+                errors += 1
+
+        return {
+            "imported": imported,
+            "skipped": skipped,
+            "errors": errors,
+            "total_processed": len(memories),
+            "namespace": target_ns,
+            "merge_strategy": merge_strategy,
+        }
 
     def build_system_prompt(
         self,

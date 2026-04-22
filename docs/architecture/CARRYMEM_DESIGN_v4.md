@@ -70,6 +70,8 @@ class CarryMem:
 | `recall_from_knowledge()` | v0.7 | knowledge | 检索知识库 |
 | `recall_all()` | v0.7 | storage or knowledge | 统一检索 |
 | `build_system_prompt()` | v0.10 | storage or knowledge | 智能调度 Prompt |
+| `export_memories()` | v0.3.0 | storage | 导出记忆 (JSON/Markdown) |
+| `import_memories()` | v0.3.0 | storage | 导入记忆 (JSON) |
 
 ### 1.3 错误类型
 
