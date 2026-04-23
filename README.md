@@ -132,8 +132,8 @@ profile = cm.get_memory_profile()
 ### Obsidian Knowledge Base
 
 ```python
-from carrymem import CarryMem
-from carrymem.adapters import ObsidianAdapter
+from memory_classification_engine import CarryMem
+from memory_classification_engine.adapters import ObsidianAdapter
 
 cm = CarryMem(knowledge_adapter=ObsidianAdapter("/path/to/vault"))
 cm.index_knowledge()
@@ -165,7 +165,7 @@ prompt = cm.build_system_prompt(context="dark mode", language="en")
 
 ```python
 # Load third-party adapters via entry_points
-from carrymem.adapters import load_adapter, list_available_adapters
+from memory_classification_engine.adapters import load_adapter, list_available_adapters
 
 CustomAdapter = load_adapter("my_custom_adapter")
 adapters = list_available_adapters()
