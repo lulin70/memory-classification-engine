@@ -44,7 +44,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
     original_message,
     content='memories',
     content_rowid='rowid',
-    tokenize='unicode61'
+    tokenize='trigram'
 );
 
 CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);
@@ -115,6 +115,7 @@ class SQLiteAdapter(StorageAdapter):
     def _init_schema(self):
         self._conn.executescript(_SCHEMA_SQL)
         self._conn.commit()
+        self._migrate_fts_tokenizer()
 
     def _migrate_namespace(self):
         try:
@@ -123,6 +124,17 @@ class SQLiteAdapter(StorageAdapter):
             self._conn.executescript(_MIGRATION_SQL)
             self._conn.executescript(_CREATE_INDEX_SQL)
             self._conn.commit()
+
+    def _migrate_fts_tokenizer(self):
+        try:
+            row = self._conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='memories_fts'"
+            ).fetchone()
+            if row and 'unicode61' in (row[0] or ''):
+                self._conn.execute("INSERT INTO memories_fts(memories_fts) VALUES('rebuild')")
+                self._conn.commit()
+        except sqlite3.OperationalError:
+            pass
 
     @property
     def namespace(self) -> str:
@@ -236,18 +248,10 @@ class SQLiteAdapter(StorageAdapter):
         where_clause = "WHERE " + " AND ".join(conditions)
 
         if query and query.strip():
-            fts_sql = f"""
-                SELECT m.* FROM memories m
-                JOIN memories_fts f ON m.rowid = f.rowid
-                {where_clause}
-                AND m.rowid IN (
-                    SELECT rowid FROM memories_fts WHERE memories_fts MATCH ?
-                )
-                ORDER BY m.confidence DESC
-                LIMIT ?
-            """
-            params_with_query = params + [query, limit]
-            rows = self._conn.execute(fts_sql, params_with_query).fetchall()
+            rows = self._fts_search(query, where_clause, params, limit)
+
+            if not rows and self._has_cjk(query):
+                rows = self._like_search(query, where_clause, params, limit)
         else:
             sql = f"""
                 SELECT * FROM memories
@@ -259,9 +263,11 @@ class SQLiteAdapter(StorageAdapter):
             rows = self._conn.execute(sql, params).fetchall()
 
         results = []
+        seen_keys = set()
         for row in rows:
             stored = self._row_to_stored(row)
-            if stored:
+            if stored and stored.storage_key not in seen_keys:
+                seen_keys.add(stored.storage_key)
                 self._conn.execute(
                     "UPDATE memories SET access_count = access_count + 1 WHERE storage_key = ?",
                     (stored.storage_key,),
@@ -270,6 +276,44 @@ class SQLiteAdapter(StorageAdapter):
         self._conn.commit()
 
         return results
+
+    def _has_cjk(self, text: str) -> bool:
+        return any(
+            "\u4e00" <= char <= "\u9fff"
+            or "\u3040" <= char <= "\u309f"
+            or "\u30a0" <= char <= "\u30ff"
+            for char in text
+        )
+
+    def _fts_search(self, query, where_clause, params, limit):
+        try:
+            fts_sql = f"""
+                SELECT m.* FROM memories m
+                JOIN memories_fts f ON m.rowid = f.rowid
+                {where_clause}
+                AND m.rowid IN (
+                    SELECT rowid FROM memories_fts WHERE memories_fts MATCH ?
+                )
+                ORDER BY m.confidence DESC
+                LIMIT ?
+            """
+            params_with_query = params + [query, limit]
+            return self._conn.execute(fts_sql, params_with_query).fetchall()
+        except sqlite3.OperationalError:
+            return []
+
+    def _like_search(self, query, where_clause, params, limit):
+        like_clause = " AND (content LIKE ? OR original_message LIKE ?)"
+        like_params = [f"%{query}%", f"%{query}%"]
+        sql = f"""
+            SELECT * FROM memories
+            {where_clause}
+            {like_clause}
+            ORDER BY confidence DESC
+            LIMIT ?
+        """
+        all_params = params + like_params + [limit]
+        return self._conn.execute(sql, all_params).fetchall()
 
     def forget(self, storage_key: str) -> bool:
         cursor = self._conn.execute(

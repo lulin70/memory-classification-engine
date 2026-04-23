@@ -12,7 +12,7 @@ CarryMem gives AI Agents a persistent, portable memory layer. It classifies conv
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-0.3.0-blue" alt="Version">
-  <img src="https://img.shields.io/badge/tests-125%20passing-green" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-133%20passing-green" alt="Tests">
   <img src="https://img.shields.io/badge/MCP-3%2B3%2B3%2B2%2B1-blue" alt="MCP">
   <img src="https://img.shields.io/badge/Accuracy-90.6%25-green" alt="Accuracy">
 </p>
