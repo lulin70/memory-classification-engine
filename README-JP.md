@@ -97,7 +97,7 @@ pip install carrymem
 ### 分類 + 記憶（3行）
 
 ```python
-from carrymem import CarryMem
+from memory_classification_engine import CarryMem
 
 cm = CarryMem()  # ~/.carrymem/memories.dbに自動SQLiteストレージ
 result = cm.classify_and_remember("ダークモードが好きです")
@@ -126,8 +126,8 @@ profile = cm.get_memory_profile()
 ### Obsidianナレッジベース
 
 ```python
-from carrymem import CarryMem
-from carrymem.adapters import ObsidianAdapter
+from memory_classification_engine import CarryMem
+from memory_classification_engine.adapters import ObsidianAdapter
 
 cm = CarryMem(knowledge_adapter=ObsidianAdapter("/path/to/vault"))
 cm.index_knowledge()
@@ -159,7 +159,7 @@ prompt = cm.build_system_prompt(context="ダークモード", language="ja")
 
 ```python
 # entry_points経由でサードパーティアダプターをロード
-from carrymem.adapters import load_adapter, list_available_adapters
+from memory_classification_engine.adapters import load_adapter, list_available_adapters
 
 CustomAdapter = load_adapter("my_custom_adapter")
 adapters = list_available_adapters()

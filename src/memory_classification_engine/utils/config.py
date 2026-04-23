@@ -1,15 +1,14 @@
 import os
+import logging
 import yaml
 from typing import Dict, Any
 
+_logger = logging.getLogger('memory-classification-engine')
+
+
 class ConfigManager:
     def __init__(self, config_path: str = None):
-        """Initialize the configuration manager.
-        
-        Args:
-            config_path: Path to the configuration file. If None, use default path.
-        """
-        self.config_path = config_path or os.environ.get('MCE_CONFIG_PATH', './config/config.yaml')
+        self.config_path = config_path or os.environ.get('MCE_CONFIG_PATH', '')
         self.config = self.load_config()
     
     def get(self, key: str, default: Any = None) -> Any:
@@ -50,7 +49,7 @@ class ConfigManager:
                 config = yaml.safe_load(f)
             return config or {}
         except Exception as e:
-            print(f"Error loading config: {e}")
+            _logger.debug(f"Config file not found: {self.config_path}")
             return {}
     
     def reload(self):
@@ -78,7 +77,7 @@ class ConfigManager:
                     rules = yaml.safe_load(f)
             return rules or {}
         except Exception as e:
-            print(f"Error loading rules: {e}")
+            _logger.debug(f"Rules file not found: {rules_path}")
             return {}
 
     def set(self, key: str, value: Any):

@@ -94,13 +94,19 @@ Retrieval priority: **Memories > Knowledge Base > External LLM**
 pip install carrymem
 ```
 
+### Quick Verify
+
+```bash
+python -m memory_classification_engine demo
+```
+
 ### Classify + Remember (3 lines)
 
 ```python
-from carrymem import CarryMem
+from memory_classification_engine import CarryMem
 
 cm = CarryMem()  # Auto SQLite storage at ~/.carrymem/memories.db
-result = cm.classify_and_remember("I prefer dark mode in my editor")
+result = cm.classify_and_remember("I prefer dark mode")
 # → {"type": "user_preference", "confidence": 0.95, "stored": True}
 ```
 
@@ -235,7 +241,7 @@ cm2.import_memories(input_path="my_memories.json")
 |--------|-------|
 | Classification Accuracy | **90.6%** |
 | F1 Score | **97.9%** |
-| Integration Tests | **125/125 passing** |
+| Integration Tests | **133/133 passing** |
 | LLM Call Ratio | **<10%** |
 | P50 Latency (rule match) | ~45ms |
 

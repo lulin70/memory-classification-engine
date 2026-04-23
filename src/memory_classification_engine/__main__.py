@@ -1,67 +1,113 @@
-"""
-Entry point for running Memory Classification Engine as a module.
-
-Usage:
-    python -m memory_classification_engine
-    python -m memory_classification_engine.mcp  # Comment in Chinese removedr
-"""
-
 import sys
 import argparse
 
 
 def main():
-    """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Memory Classification Engine",
+        description="CarryMem — Your portable AI memory layer",
         prog="python -m memory_classification_engine"
     )
-    
+
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
-    
-    # Comment in Chinese removednd
-    mcp_parser = subparsers.add_parser(
-        "mcp",
-        help="Run MCP Server"
-    )
-    mcp_parser.add_argument(
-        "--config",
-        help="Path to configuration file"
-    )
-    mcp_parser.add_argument(
-        "--data-path",
-        help="Path to data directory"
-    )
-    
-    # Comment in Chinese removednd
-    version_parser = subparsers.add_parser(
-        "version",
-        help="Show version information"
-    )
-    
+
+    mcp_parser = subparsers.add_parser("mcp", help="Run MCP Server")
+    mcp_parser.add_argument("--config", help="Path to configuration file")
+    mcp_parser.add_argument("--data-path", help="Path to data directory")
+
+    version_parser = subparsers.add_parser("version", help="Show version")
+
+    demo_parser = subparsers.add_parser("demo", help="Run interactive demo")
+
     args = parser.parse_args()
-    
+
     if args.command == "mcp":
-        # Comment in Chinese removedr
         import asyncio
         import os
         from memory_classification_engine.integration.layer2_mcp.server import MCPServer
-        
+
         if args.config:
             os.environ["MCE_CONFIG_PATH"] = args.config
         if args.data_path:
             os.environ["MCE_DATA_PATH"] = args.data_path
-        
+
         server = MCPServer()
         asyncio.run(server.start())
-    
+
     elif args.command == "version":
         from memory_classification_engine import __version__
-        print(f"Memory Classification Engine v{__version__}")
-    
+        print(f"CarryMem v{__version__}")
+
+    elif args.command == "demo":
+        _run_demo()
+
     else:
         parser.print_help()
         sys.exit(1)
+
+
+def _run_demo():
+    from memory_classification_engine import CarryMem
+
+    print("=" * 60)
+    print("  CarryMem v0.3.0 — Interactive Demo")
+    print("=" * 60)
+    print()
+
+    cm = CarryMem()
+    print(f"Storage: SQLite at ~/.carrymem/memories.db")
+    print(f"Namespace: {cm.namespace}")
+    print()
+
+    test_messages = [
+        ("I prefer dark mode", "user_preference"),
+        ("No, use PostgreSQL not MongoDB", "correction"),
+        ("Let's go with the microservices approach", "decision"),
+        ("我偏好使用PostgreSQL", "user_preference"),
+        ("纠正一下，端口号应该是5432", "correction"),
+        ("ダークモードが好きです", "user_preference"),
+    ]
+
+    print("--- Classify + Store ---")
+    for msg, expected in test_messages:
+        result = cm.classify_and_remember(msg)
+        status = "OK" if result["stored"] else "SKIP"
+        print(f"  [{status}] {msg[:40]}")
+    print()
+
+    print("--- Recall (English) ---")
+    results = cm.recall_memories("dark mode")
+    print(f"  'dark mode' → {len(results)} memories")
+    for r in results:
+        print(f"    - [{r['type']}] {r['content'][:50]}")
+    print()
+
+    print("--- Recall (Chinese) ---")
+    results = cm.recall_memories("偏好")
+    print(f"  '偏好' → {len(results)} memories")
+    for r in results:
+        print(f"    - [{r['type']}] {r['content'][:50]}")
+    print()
+
+    print("--- Recall (Japanese) ---")
+    results = cm.recall_memories("好き")
+    print(f"  '好き' → {len(results)} memories")
+    for r in results:
+        print(f"    - [{r['type']}] {r['content'][:50]}")
+    print()
+
+    print("--- Memory Profile ---")
+    profile = cm.get_memory_profile()
+    print(f"  {profile['summary']}")
+    print()
+
+    print("--- System Prompt ---")
+    prompt = cm.build_system_prompt(context="dark mode", language="en")
+    print(f"  Generated {len(prompt)} chars prompt")
+    print()
+
+    print("=" * 60)
+    print("  Demo complete! CarryMem is working correctly.")
+    print("=" * 60)
 
 
 if __name__ == "__main__":

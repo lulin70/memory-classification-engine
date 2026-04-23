@@ -97,7 +97,7 @@ pip install carrymem
 ### 分类 + 记忆（3 行代码）
 
 ```python
-from carrymem import CarryMem
+from memory_classification_engine import CarryMem
 
 cm = CarryMem()  # 自动 SQLite 存储，位于 ~/.carrymem/memories.db
 result = cm.classify_and_remember("我喜欢深色主题")
@@ -126,8 +126,8 @@ profile = cm.get_memory_profile()
 ### Obsidian 知识库
 
 ```python
-from carrymem import CarryMem
-from carrymem.adapters import ObsidianAdapter
+from memory_classification_engine import CarryMem
+from memory_classification_engine.adapters import ObsidianAdapter
 
 cm = CarryMem(knowledge_adapter=ObsidianAdapter("/path/to/vault"))
 cm.index_knowledge()
@@ -159,7 +159,7 @@ prompt = cm.build_system_prompt(context="深色主题", language="zh")
 
 ```python
 # 通过 entry_points 加载第三方适配器
-from carrymem.adapters import load_adapter, list_available_adapters
+from memory_classification_engine.adapters import load_adapter, list_available_adapters
 
 CustomAdapter = load_adapter("my_custom_adapter")
 adapters = list_available_adapters()

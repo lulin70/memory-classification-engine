@@ -108,6 +108,10 @@ class CarryMem:
         return self._adapter
 
     @property
+    def storage(self) -> Optional[StorageAdapter]:
+        return self._adapter
+
+    @property
     def knowledge_adapter(self) -> Optional[StorageAdapter]:
         return self._knowledge_adapter
 
@@ -324,6 +328,13 @@ class CarryMem:
                 "by_type": self._count_by_type(matches),
             },
         }
+
+    def declare_preference(
+        self,
+        message: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return self.declare(message, context)
 
     def get_memory_profile(self) -> Dict[str, Any]:
         if not self._adapter:
