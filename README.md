@@ -8,9 +8,11 @@ CarryMem gives AI Agents a persistent, portable memory layer. It classifies conv
 
 **AI remembers you. Not the other way around.**
 
+**English** | [中文](README-CN.md) | [日本語](README-JP.md)
+
 <p align="center">
   <img src="https://img.shields.io/badge/version-0.3.0-blue" alt="Version">
-  <img src="https://img.shields.io/badge/tests-114%20passing-green" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-125%20passing-green" alt="Tests">
   <img src="https://img.shields.io/badge/MCP-3%2B3%2B3%2B2%2B1-blue" alt="MCP">
   <img src="https://img.shields.io/badge/Accuracy-90.6%25-green" alt="Accuracy">
 </p>
@@ -164,6 +166,22 @@ adapters = list_available_adapters()
 # → {"sqlite": "...", "obsidian": "...", "my_custom_adapter": "... (plugin)"}
 ```
 
+### Export & Import (Portability)
+
+```python
+# Export your memories — they belong to you
+result = cm.export_memories(output_path="my_memories.json")
+# → {"exported": True, "total_memories": 42, "format": "json"}
+
+# Export as human-readable Markdown
+result = cm.export_memories(output_path="my_memories.md", format="markdown")
+
+# Import into a new CarryMem instance (different tool, different device)
+cm2 = CarryMem(db_path="new_device.db")
+cm2.import_memories(input_path="my_memories.json")
+# → {"imported": 42, "skipped": 0, "errors": 0}
+```
+
 ---
 
 ## MCP Server: 3+3+3+2+1 Optional Mode
@@ -217,7 +235,7 @@ adapters = list_available_adapters()
 |--------|-------|
 | Classification Accuracy | **90.6%** |
 | F1 Score | **97.9%** |
-| Integration Tests | **32/32 passing** |
+| Integration Tests | **125/125 passing** |
 | LLM Call Ratio | **<10%** |
 | P50 Latency (rule match) | ~45ms |
 
@@ -261,7 +279,7 @@ carrymem/
 │   │   ├── confirmation.py      # Confirmation detection (EN/CN/JP)
 │   │   └── ...
 │   └── integration/layer2_mcp/  # MCP Server
-├── tests/                       # 32 tests passing
+├── tests/                       # 114 tests passing
 ├── benchmarks/                  # MCE-Bench 180-case dataset
 ├── docs/
 │   ├── consensus/               # Strategic decisions

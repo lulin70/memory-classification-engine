@@ -3,6 +3,8 @@
 **Current Version**: v0.3.0
 **Last Updated**: 2026-04-22
 
+**English** | [中文](ROADMAP-CN.md) | [日本語](ROADMAP-JP.md)
+
 ---
 
 ## Completed Milestones
@@ -63,29 +65,33 @@
 - Engine slim refactoring (2263 → 182 lines)
 - Removed enterprise features (tenants, access control, encryption, distributed)
 - Deleted legacy directories and files
-- Unified test suite (32/32 passing)
+- Unified test suite (125/125 passing)
 - README rewrite with comparison table
+
+### v0.3.0+ — Multilingual Enhancement & Portability
+- Full Chinese/Japanese classification rules (ZH 79.1%→91.0%, JA 76.1%→89.6%)
+- Fixed Japanese language detection (hiragana/katakana check before CJK)
+- Fixed CJK short message thresholds
+- `export_memories()` — JSON + Markdown export
+- `import_memories()` — JSON import with skip_existing merge strategy
+- PyPI packaging (setup.py + pyproject.toml + MANIFEST.in)
+- 125 tests passing (EN×7 + ZH×7 + JA×7 + noise×3 + integration + export/import + edge)
 
 ---
 
 ## Next Phase Priorities
 
-### Priority 1: Memory Portability (Export/Import)
-- Export memories to JSON/Markdown
-- Import from other memory tools (Mem0, etc.)
-- User data portability guarantee
-
-### Priority 2: Memory Merge & Conflict Resolution
+### Priority 1: Memory Merge & Conflict Resolution
 - Multi-agent memory consistency
 - Conflict detection and resolution strategies
 - Memory versioning
 
-### Priority 3: MCP Remote Mode
+### Priority 2: MCP Remote Mode
 - stdio → SSE/Streamable HTTP transport
 - Remote CarryMem server deployment
 - Multi-client support
 
-### Priority 4: Additional Adapters
+### Priority 3: Additional Adapters
 - Redis adapter (distributed storage)
 - PostgreSQL adapter (enterprise storage)
 - S3/R2 adapter (cloud storage)
