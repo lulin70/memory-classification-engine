@@ -71,6 +71,10 @@ run_bench_reload.py
 force_reload.py
 final_verify.py
 
+# === 临时审查/走读报告 ===
+CARRYMEM_PROJECT_REVIEW_*.md
+CODE_WALKTHROUGH_ISSUES_*.md
+
 # === Benchmark 结果 ===
 benchmarks/*.json
 mce_bench_*.json
