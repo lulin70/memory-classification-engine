@@ -22,6 +22,7 @@ env/
 # 忽略日志文件
 *.log
 logs/
+src/logs/
 
 # 忽略测试临时文件
 .pytest_cache/
@@ -35,6 +36,7 @@ Thumbs.db
 
 # 忽略数据目录
 data/
+src/data/
 mce-mcp/data/
 
 # 忽略 Python 编译文件

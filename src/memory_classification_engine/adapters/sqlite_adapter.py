@@ -6,6 +6,8 @@ Features:
 - Content deduplication via content_hash
 - Tier-based TTL expiry
 - Atomic batch operations via transactions
+- **v0.4.0**: Semantic recall with synonym expansion, spell correction,
+  cross-language mapping, and result fusion (zero external dependencies)
 """
 
 import hashlib
@@ -16,6 +18,13 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from .base import MemoryEntry, StorageAdapter, StoredMemory
+
+try:
+    from ..semantic.expander import SemanticExpander
+    from ..semantic.merger import ResultMerger
+    SEMANTIC_AVAILABLE = True
+except ImportError:
+    SEMANTIC_AVAILABLE = False
 
 _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -53,6 +62,13 @@ CREATE INDEX IF NOT EXISTS idx_memories_confidence ON memories(confidence);
 CREATE INDEX IF NOT EXISTS idx_memories_expires ON memories(expires_at);
 CREATE INDEX IF NOT EXISTS idx_memories_content_hash ON memories(content_hash);
 CREATE INDEX IF NOT EXISTS idx_memories_namespace ON memories(namespace);
+
+-- Composite indexes for common query patterns (v0.4.1 optimization)
+CREATE INDEX IF NOT EXISTS idx_memories_type_confidence ON memories(type, confidence DESC);
+CREATE INDEX IF NOT EXISTS idx_memories_namespace_tier ON memories(namespace, tier);
+CREATE INDEX IF NOT EXISTS idx_memories_namespace_type ON memories(namespace, type);
+CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_memories_namespace_created ON memories(namespace, created_at DESC);
 
 CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
     INSERT INTO memories_fts(rowid, content, original_message)
@@ -102,7 +118,13 @@ class SQLiteAdapter(StorageAdapter):
         adapter = SQLiteAdapter(namespace="project-alpha")  # namespace isolation
     """
 
-    def __init__(self, db_path: Optional[str] = None, namespace: str = "default"):
+    def __init__(
+        self,
+        db_path: Optional[str] = None,
+        namespace: str = "default",
+        enable_semantic_recall: bool = True,
+        semantic_config: Optional[Dict[str, Any]] = None,
+    ):
         self._namespace = namespace
         self._db_path = db_path or _default_db_path()
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
@@ -111,6 +133,28 @@ class SQLiteAdapter(StorageAdapter):
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._init_schema()
         self._migrate_namespace()
+
+        # v0.4.0: Initialize semantic recall components
+        self._enable_semantic = enable_semantic_recall and SEMANTIC_AVAILABLE
+        self._expander = None
+        self._merger = None
+
+        if self._enable_semantic:
+            config = semantic_config or {}
+            try:
+                self._expander = SemanticExpander(
+                    custom_synonym_files=config.get("custom_synonym_files"),
+                    enable_spell_correction=config.get("enable_spell_correction", True),
+                    max_expansions=config.get("max_expansions", 50),
+                    edit_distance_threshold=config.get("edit_distance_threshold", 2),
+                )
+                self._merger = ResultMerger(
+                    min_relevance=config.get("min_relevance", 0.3),
+                )
+            except Exception as e:
+                self._enable_semantic = False
+                from memory_classification_engine.utils.logger import logger
+                logger.warning(f"Semantic recall initialization failed: {e}")
 
     def _init_schema(self):
         self._conn.executescript(_SCHEMA_SQL)
@@ -152,7 +196,22 @@ class SQLiteAdapter(StorageAdapter):
             "ttl": True,
             "batch": True,
             "graph": False,
+            "semantic_recall": self._enable_semantic,  # v0.4.0
         }
+
+    @property
+    def semantic_enabled(self) -> bool:
+        """v0.4.0: Return whether semantic recall is enabled."""
+        return self._enable_semantic
+
+    @property
+    def expander(self):
+        """v0.4.0: Return the SemanticExpander instance (for custom synonym management)."""
+        return self._expander
+
+    def enable_semantic_recall(self, enabled: bool = True):
+        """v0.4.0: Enable or disable semantic recall at runtime."""
+        self._enable_semantic = enabled and SEMANTIC_AVAILABLE and (self._expander is not None)
 
     def remember(self, entry: MemoryEntry) -> StoredMemory:
         c_hash = _content_hash(entry.content, entry.type)
@@ -218,6 +277,12 @@ class SQLiteAdapter(StorageAdapter):
                 results.append(self.remember(entry))
         return results
 
+    _ALLOWED_FILTER_KEYS = {"type", "tier", "confidence_min", "created_after"}
+    _VALID_MEMORY_TYPES = {
+        "user_preference", "correction", "fact_declaration",
+        "decision", "relationship", "task_pattern", "sentiment_marker",
+    }
+
     def recall(
         self,
         query: str,
@@ -226,8 +291,38 @@ class SQLiteAdapter(StorageAdapter):
         namespaces: Optional[List[str]] = None,
     ) -> List[StoredMemory]:
         filters = filters or {}
-        conditions = ["namespace IN ({})".format(",".join("?" * len(ns))) if (ns := namespaces or [self._namespace]) else "namespace = ?"]
-        params = list(namespaces or [self._namespace])
+
+        for key in filters:
+            if key not in self._ALLOWED_FILTER_KEYS:
+                raise ValueError(
+                    f"Invalid filter key: '{key}'. "
+                    f"Allowed keys: {self._ALLOWED_FILTER_KEYS}"
+                )
+
+        if filters.get("type") and filters["type"] not in self._VALID_MEMORY_TYPES:
+            raise ValueError(
+                f"Invalid memory type: '{filters['type']}'. "
+                f"Valid types: {self._VALID_MEMORY_TYPES}"
+            )
+
+        if limit < 0 or limit > 100000:
+            raise ValueError(f"Limit must be between 0 and 100000, got {limit}")
+
+        if namespaces:
+            for ns in namespaces:
+                if not ns or not isinstance(ns, str) or len(ns) > 128:
+                    raise ValueError(
+                        f"Invalid namespace: '{ns}'. "
+                        "Must be non-empty string, max 128 chars."
+                    )
+
+        if query and len(query) > 10000:
+            raise ValueError(f"Query too long: {len(query)} chars (max 10000)")
+
+        ns = namespaces or [self._namespace]
+        placeholders = ",".join(["?"] * len(ns))
+        conditions = [f"namespace IN ({placeholders})"]
+        params = list(ns)
 
         if filters.get("type"):
             conditions.append("type = ?")
@@ -248,10 +343,50 @@ class SQLiteAdapter(StorageAdapter):
         where_clause = "WHERE " + " AND ".join(conditions)
 
         if query and query.strip():
+            # Phase 1: Original FTS5 / LIKE search
             rows = self._fts_search(query, where_clause, params, limit)
 
             if not rows and self._has_cjk(query):
                 rows = self._like_search(query, where_clause, params, limit)
+
+            # Phase 2 (v0.4.0): Semantic expansion if results insufficient
+            if self._enable_semantic and len(rows) < limit and self._expander and self._merger:
+                original_results = [self._row_to_stored(r) for r in rows if r]
+                expanded_rows = self._semantic_recall(query, where_clause, params, limit)
+                expanded_results = [self._row_to_stored(r) for r in expanded_rows if r]
+
+                # Only use semantic results if we got new matches
+                if expanded_results:
+                    merged = self._merger.merge(
+                        original_results=original_results,
+                        expanded_results=expanded_results,
+                        query=query,
+                        limit=limit,
+                        source="synonym",
+                    )
+                    # Convert merged dicts back to StoredMemory objects
+                    final_results = []
+                    for item in merged:
+                        if isinstance(item, StoredMemory):
+                            final_results.append(item)
+                        elif isinstance(item, dict):
+                            stored = self._dict_to_stored(item)
+                            if stored:
+                                final_results.append(stored)
+
+                    # Update access counts and return
+                    seen_keys = set()
+                    results = []
+                    for stored in final_results:
+                        if stored.storage_key not in seen_keys:
+                            seen_keys.add(stored.storage_key)
+                            self._conn.execute(
+                                "UPDATE memories SET access_count = access_count + 1 WHERE storage_key = ?",
+                                (stored.storage_key,),
+                            )
+                            results.append(stored)
+                    self._conn.commit()
+                    return results
         else:
             sql = f"""
                 SELECT * FROM memories
@@ -276,6 +411,49 @@ class SQLiteAdapter(StorageAdapter):
         self._conn.commit()
 
         return results
+
+    def _semantic_recall(self, query: str, where_clause: str, params: List, limit: int):
+        """v0.4.0: Perform semantic expansion search.
+
+        Expands query using synonym graph, spell correction, cross-language mapping,
+        then re-searches FTS5 with expanded terms.
+        """
+        if not self._expander:
+            return []
+
+        try:
+            expansions = self._expander.expand(query)
+
+            all_expanded_rows = []
+            seen_row_ids = set()
+
+            for exp_query in expansions[1:]:  # Skip original query (already searched)
+                if not exp_query or not exp_query.strip():
+                    continue
+
+                exp_rows = self._fts_search(exp_query, where_clause, params, limit)
+
+                for row in exp_rows:
+                    row_id = row["id"] if hasattr(row, "__getitem__") else None
+                    if row_id and row_id not in seen_row_ids:
+                        seen_row_ids.add(row_id)
+                        all_expanded_rows.append(row)
+
+                # Also try LIKE for CJK expanded queries
+                if self._has_cjk(exp_query) and len(all_expanded_rows) < limit:
+                    like_rows = self._like_search(exp_query, where_clause, params, limit)
+                    for row in like_rows:
+                        row_id = row["id"] if hasattr(row, "__getitem__") else None
+                        if row_id and row_id not in seen_row_ids:
+                            seen_row_ids.add(row_id)
+                            all_expanded_rows.append(row)
+
+            return all_expanded_rows[:limit]
+
+        except Exception as e:
+            from memory_classification_engine.utils.logger import logger
+            logger.warning(f"Semantic recall search failed: {e}")
+            return []
 
     def _has_cjk(self, text: str) -> bool:
         return any(
@@ -492,6 +670,69 @@ class SQLiteAdapter(StorageAdapter):
             expires_at=expires_at,
             access_count=row["access_count"] or 0,
         )
+
+    def _dict_to_stored(self, d: Dict) -> Optional[StoredMemory]:
+        """v0.4.0: Convert a dict back to StoredMemory (for merged results)."""
+        if not d or not isinstance(d, dict):
+            return None
+
+        try:
+            metadata = {}
+            if d.get("metadata"):
+                if isinstance(d["metadata"], str):
+                    metadata = json.loads(d["metadata"])
+                elif isinstance(d["metadata"], dict):
+                    metadata = d["metadata"]
+
+            recall_hint = None
+            if d.get("recall_hint"):
+                if isinstance(d["recall_hint"], str):
+                    recall_hint = json.loads(d["recall_hint"])
+                else:
+                    recall_hint = d["recall_hint"]
+
+            expires_at = None
+            if d.get("expires_at"):
+                if isinstance(d["expires_at"], str):
+                    expires_at = datetime.fromisoformat(d["expires_at"])
+                else:
+                    expires_at = d["expires_at"]
+
+            created_at = None
+            if d.get("created_at"):
+                if isinstance(d["created_at"], str):
+                    created_at = datetime.fromisoformat(d["created_at"])
+                else:
+                    created_at = d["created_at"]
+
+            updated_at = None
+            if d.get("updated_at"):
+                if isinstance(d["updated_at"], str):
+                    updated_at = datetime.fromisoformat(d["updated_at"])
+                else:
+                    updated_at = d["updated_at"]
+
+            return StoredMemory(
+                id=d.get("id"),
+                type=d.get("type", "unknown"),
+                content=d.get("content", ""),
+                confidence=d.get("confidence", 0.0),
+                tier=d.get("tier", 2),
+                source_layer=d.get("source_layer", "unknown"),
+                reasoning=d.get("reasoning", ""),
+                suggested_action=d.get("suggested_action", "store"),
+                recall_hint=recall_hint,
+                metadata=metadata,
+                storage_key=d.get("storage_key"),
+                created_at=created_at,
+                updated_at=updated_at,
+                expires_at=expires_at,
+                access_count=d.get("access_count", 0),
+            )
+        except Exception as e:
+            from memory_classification_engine.utils.logger import logger
+            logger.debug(f"Failed to convert dict to StoredMemory: {e}")
+            return None
 
     def close(self):
         if self._conn:

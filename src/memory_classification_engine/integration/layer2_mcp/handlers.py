@@ -14,6 +14,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List
 
+from memory_classification_engine.__version__ import __version__ as _version
 from .tools import CLASSIFICATION_SCHEMA, TOOL_NAMES, CORE_TOOL_NAMES, OPTIONAL_TOOL_NAMES, KNOWLEDGE_TOOL_NAMES, PROFILE_TOOL_NAMES, PROMPT_TOOL_NAMES
 
 
@@ -189,7 +190,7 @@ def handle_mce_status(engine, arguments: Dict[str, Any]) -> Dict[str, Any]:
     status = {
         "status": "active",
         "mode": "3+3_optional",
-        "version": "0.6.0",
+        "version": _version,
         "schema_version": "1.0.0",
         "capabilities": {
             "memory_types": 7,

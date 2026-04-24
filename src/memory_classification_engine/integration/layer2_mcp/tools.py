@@ -11,6 +11,8 @@ MCP Tools definitions for CarryMem.
 
 from typing import Any, Dict, List
 
+from memory_classification_engine.__version__ import __version__ as _version
+
 CORE_TOOLS: List[Dict[str, Any]] = [
     {
         "name": "classify_message",
@@ -308,7 +310,7 @@ PROMPT_TOOL_NAMES = {tool["name"] for tool in PROMPT_TOOLS}
 
 CLASSIFICATION_SCHEMA = {
     "schema_version": "1.0.0",
-    "engine_version": "0.3.0",
+    "engine_version": _version,
     "mode": "classification_only",
     "memory_types": [
         {

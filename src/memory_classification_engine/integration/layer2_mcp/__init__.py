@@ -17,5 +17,5 @@ from .server import MCPServer
 from .tools import TOOLS
 from .handlers import Handlers
 
-__version__ = "0.2.0"
+from memory_classification_engine.__version__ import __version__
 __all__ = ["MCPServer", "TOOLS", "Handlers"]

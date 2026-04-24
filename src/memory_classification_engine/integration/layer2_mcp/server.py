@@ -12,6 +12,7 @@ import os
 import sys
 from typing import Any, Dict, List, Optional
 
+from memory_classification_engine.__version__ import __version__ as _version
 from .handlers import Handlers
 from .tools import TOOLS
 
@@ -158,7 +159,7 @@ class MCPServer:
                 "protocolVersion": "2024-11-05",
                 "serverInfo": {
                     "name": "memory-classification-engine-mcp",
-                    "version": "0.2.0"
+                    "version": _version
                 },
                 "capabilities": {
                     "tools": {

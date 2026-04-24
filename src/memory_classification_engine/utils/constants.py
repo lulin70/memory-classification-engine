@@ -4,6 +4,8 @@ This module contains all default configuration values used across the system.
 All hardcoded values should be defined here and imported where needed.
 """
 
+from memory_classification_engine.__version__ import __version__ as _pkg_version
+
 # Comment in Chinese removedconds)
 DEFAULT_CACHE_TTL = 3600  # Comment in Chinese removedr
 DEFAULT_FILE_CACHE_TTL = 86400  # Comment in Chinese removedrs
@@ -85,4 +87,4 @@ DEFAULT_TOPIC_CONTINUITY_THRESHOLD = 0.6
 DEFAULT_CONVERSATION_HISTORY_LIMIT = 10
 
 # Comment in Chinese removedrsion
-ENGINE_VERSION = "0.2.0"
+ENGINE_VERSION = _pkg_version

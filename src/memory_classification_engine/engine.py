@@ -8,6 +8,7 @@ have been removed. CarryMem handles storage via its own adapter system.
 import time
 from typing import Dict, List, Optional, Any
 from memory_classification_engine.utils.config import ConfigManager
+from memory_classification_engine.__version__ import __version__ as _version
 from memory_classification_engine.utils.helpers import generate_memory_id, get_current_time
 from memory_classification_engine.utils.logger import logger
 from memory_classification_engine.utils.language import language_manager
@@ -176,6 +177,6 @@ class MemoryClassificationEngine:
             },
             "engine_info": {
                 "mode": "classification_only",
-                "version": "0.3.0",
+                "version": _version,
             },
         }

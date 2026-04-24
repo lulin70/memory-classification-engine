@@ -31,6 +31,8 @@ from memory_classification_engine.adapters.base import MemoryEntry, StorageAdapt
 from memory_classification_engine.adapters.sqlite_adapter import SQLiteAdapter
 from memory_classification_engine.adapters.obsidian_adapter import ObsidianAdapter
 from memory_classification_engine.adapters.loader import load_adapter
+from memory_classification_engine.utils.logger import logger
+from memory_classification_engine.__version__ import __version__ as _version
 
 
 class StorageNotConfiguredError(Exception):
@@ -157,14 +159,16 @@ class CarryMem:
                     memory_results = [r.to_dict() for r in stored]
                 else:
                     memory_results = self.recall_memories(query=query, filters=filters, limit=limit)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to recall memories for prompt: {e}")
+                memory_results = []
 
         if self._knowledge_adapter:
             try:
                 knowledge_results = self.recall_from_knowledge(query=query, filters=filters, limit=limit)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to recall from knowledge base: {e}")
+                knowledge_results = []
 
         return {
             "memories": memory_results,
@@ -218,6 +222,12 @@ class CarryMem:
     ) -> Dict[str, Any]:
         if not self._adapter:
             raise StorageNotConfiguredError()
+
+        if not message or not message.strip():
+            raise ValueError("Message cannot be empty")
+
+        if len(message) > 50000:
+            raise ValueError(f"Message too long: {len(message)} chars (max 50000)")
 
         classify_result = self.classify_message(message, context=context)
 
@@ -303,7 +313,7 @@ class CarryMem:
                     confidence=1.0,
                     tier=m.get("tier", 2),
                     source_layer="declaration",
-                    reasoning=m.get("reasoning", "") + " (主动声明)",
+                    reasoning=(m.get("reasoning") or "") + " (主动声明)",
                     suggested_action="store",
                     recall_hint=m.get("recall_hint"),
                     metadata={**m.get("metadata", {}), "source": "declaration"},
@@ -379,7 +389,7 @@ class CarryMem:
             "export_format": "carrymem_portable",
             "exported_at": datetime.utcnow().isoformat() + "Z",
             "source": {
-                "version": "0.3.0",
+                "version": _version,
                 "namespace": ns,
                 "total_memories": len(all_memories),
             },
@@ -482,7 +492,10 @@ class CarryMem:
                         mem_dict.get("content", "")[:50], limit=5
                     )
                     if any(
-                        hasattr(e, 'content_hash') and e.content_hash == content_hash
+                        (getattr(e, 'content_hash', None) == content_hash
+                         or (isinstance(e, dict) and e.get("content_hash") == content_hash)
+                         or (hasattr(e, 'metadata') and isinstance(e.metadata, dict)
+                             and e.metadata.get("content_hash") == content_hash))
                         for e in existing
                     ):
                         skipped += 1
@@ -506,7 +519,8 @@ class CarryMem:
                 )
                 self._adapter.remember(entry)
                 imported += 1
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Failed to import memory entry: {e}")
                 errors += 1
 
         return {
@@ -555,8 +569,8 @@ class CarryMem:
                         src_tag = f" [{source}]" if source and source != "unknown" else ""
                         lines.append(f"- [{label}{src_tag}] {content} (confidence: {conf:.0%})")
                     memories_section = "\n".join(lines)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to format memories for prompt: {e}")
 
         if self._knowledge_adapter and context:
             try:
@@ -570,8 +584,8 @@ class CarryMem:
                         tag_str = f" [{', '.join(tags[:3])}]" if tags else ""
                         lines.append(f"- {title}{tag_str}: {content}")
                     knowledge_section = "\n".join(lines)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to format knowledge for prompt: {e}")
 
         if language == "zh":
             return self._build_prompt_zh(memories_section, knowledge_section, context)

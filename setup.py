@@ -1,8 +1,15 @@
 from setuptools import setup, find_packages
 
+def get_version():
+    try:
+        from memory_classification_engine.__version__ import __version__
+        return __version__
+    except ImportError:
+        return "0.4.2"
+
 setup(
     name="carrymem",
-    version="0.3.0",
+    version=get_version(),
     description="Your portable AI memory layer. Classify, store, and retrieve what matters across models, tools, and devices.",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
@@ -13,19 +20,22 @@ setup(
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     package_data={
-        "memory_classification_engine": ["py.typed"],
+        "memory_classification_engine": [
+            "py.typed",
+            "semantic/data/*.yaml",
+        ],
     },
     install_requires=[
-        "PyYAML",
-        "pycld2",
-        "langdetect",
+        "PyYAML>=5.0",
+        "pycld2>=0.41",
+        "langdetect>=1.0.9",
     ],
     extras_require={
         "dev": [
-            "pytest",
-            "pytest-asyncio",
-            "build",
-            "twine",
+            "pytest>=7.0",
+            "pytest-cov>=4.0",
+            "build>=0.10",
+            "twine>=4.0",
         ],
     },
     entry_points={

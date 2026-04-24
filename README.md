@@ -8,11 +8,12 @@ CarryMem gives AI Agents a persistent, portable memory layer. It classifies conv
 
 **AI remembers you. Not the other way around.**
 
-**English** | [中文](README-CN.md) | [日本語](README-JP.md)
+**English** | [中文](docs/i18n/README-CN.md) | [日本語](docs/i18n/README-JP.md)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.3.0-blue" alt="Version">
-  <img src="https://img.shields.io/badge/tests-133%20passing-green" alt="Tests">
+  <img src="https://img.shields.io/badge/version-0.4.1-blue" alt="Version">
+  <img src="https://img.shields.io/badge/tests-206%20passing-green" alt="Tests">
+  <img src="https://img.shields.io/badge/semantic%20recall-%E2%9C%85-brightgreen" alt="Semantic Recall">
   <img src="https://img.shields.io/badge/MCP-3%2B3%2B3%2B2%2B1-blue" alt="MCP">
   <img src="https://img.shields.io/badge/Accuracy-90.6%25-green" alt="Accuracy">
 </p>
@@ -109,6 +110,27 @@ cm = CarryMem()  # Auto SQLite storage at ~/.carrymem/memories.db
 result = cm.classify_and_remember("I prefer dark mode")
 # → {"type": "user_preference", "confidence": 0.95, "stored": True}
 ```
+
+### 🆕 Semantic Recall (v0.4.0)
+
+```python
+# Store in Chinese, recall in English — works across languages!
+cm.classify_and_remember("我偏好使用PostgreSQL")
+
+# All of these find the memory:
+memories = cm.recall_memories("PostgreSQL")     # ✅ Exact match
+memories = cm.recall_memories("数据库")          # ✅ Synonym expansion
+memories = cm.recall_memories("Postgres")        # ✅ Spell correction
+memories = cm.recall_memories("データベース")    # ✅ Cross-language (JP)
+# → All return the stored PostgreSQL preference!
+```
+
+**Features:**
+- 🔄 **Synonym Expansion**: "数据库" → PostgreSQL, MySQL, Redis...
+- ✨ **Spell Correction**: "Postgres" → "PostgreSQL"
+- 🌐 **Cross-Language**: CN ↔ EN ↔ JP mapping
+- ⚡ **Zero Dependencies**: No PyTorch, no external models
+- 🔧 **Configurable**: Enable/disable at runtime
 
 ### Declare Preferences
 
@@ -304,6 +326,17 @@ carrymem/
 **Agent product teams** who want persistent memory without building classification logic from scratch.
 
 **Power users** who want their AI tools to remember them, not the other way around.
+
+---
+
+---
+
+## Documentation
+
+- 🗺️ [Roadmap](docs/guides/ROADMAP.md) | [中文](docs/guides/ROADMAP-CN.md) | [日本語](docs/guides/ROADMAP-JP.md)
+- 🤝 [Contributing Guide](CONTRIBUTING.md)
+- 📊 [Optimization Reports](docs/optimization/)
+- 🔄 [Next Steps](docs/optimization/NEXT_STEPS.md)
 
 ---
 

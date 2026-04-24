@@ -1,4 +1,4 @@
 include README.md
 include LICENSE
-include ROADMAP.md
 recursive-include src *.py
+recursive-include src *.yaml

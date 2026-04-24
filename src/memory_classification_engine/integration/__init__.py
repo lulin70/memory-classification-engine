@@ -5,4 +5,4 @@ This module provides integrations with various frameworks and protocols,
 including MCP Server, OpenClaw, and framework adapters.
 """
 
-__version__ = "0.2.0"
+from memory_classification_engine.__version__ import __version__
