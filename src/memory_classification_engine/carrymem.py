@@ -24,7 +24,7 @@ Usage:
 from typing import Any, Dict, List, Optional
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from memory_classification_engine.engine import MemoryClassificationEngine
 from memory_classification_engine.adapters.base import MemoryEntry, StorageAdapter, StoredMemory
@@ -186,7 +186,7 @@ class CarryMem:
         context: Optional[Dict[str, Any]] = None,
         language: Optional[str] = None,
     ) -> Dict[str, Any]:
-        result = self._engine.process_message(message, context=context)
+        result = self._engine.process_message(message, context=context, language=language)
 
         matches = result.get("matches", [])
         entries = []
@@ -229,7 +229,7 @@ class CarryMem:
         if len(message) > 50000:
             raise ValueError(f"Message too long: {len(message)} chars (max 50000)")
 
-        classify_result = self.classify_message(message, context=context)
+        classify_result = self.classify_message(message, context=context, language=language)
 
         if not classify_result["should_remember"]:
             return {
@@ -379,15 +379,18 @@ class CarryMem:
 
         ns = namespace or self._namespace
         stats = self._adapter.get_stats()
-        all_memories = self._adapter.recall("", limit=10000)
+        total_count = stats.get("total_count", 0) if isinstance(stats, dict) else 0
+        export_limit = max(total_count, 1)
+
+        all_memories = self._adapter.recall("", limit=export_limit)
 
         if ns != "default" and isinstance(self._adapter, SQLiteAdapter):
-            all_memories = self._adapter.recall("", limit=10000, namespaces=[ns])
+            all_memories = self._adapter.recall("", limit=export_limit, namespaces=[ns])
 
         export_data = {
             "schema_version": "1.0.0",
             "export_format": "carrymem_portable",
-            "exported_at": datetime.utcnow().isoformat() + "Z",
+            "exported_at": datetime.now(timezone.utc).isoformat(),
             "source": {
                 "version": _version,
                 "namespace": ns,
@@ -514,7 +517,7 @@ class CarryMem:
                     metadata={
                         **mem_dict.get("metadata", {}),
                         "imported_from": import_data.get("source", {}).get("namespace", "unknown"),
-                        "imported_at": datetime.utcnow().isoformat() + "Z",
+                        "imported_at": datetime.now(timezone.utc).isoformat(),
                     },
                 )
                 self._adapter.remember(entry)

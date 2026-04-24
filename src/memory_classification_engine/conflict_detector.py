@@ -9,7 +9,7 @@ Detects and resolves conflicts between stored memories, such as:
 v0.4.1: Initial implementation
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from enum import Enum
 
@@ -48,7 +48,7 @@ class MemoryConflict:
         self.memories = memories
         self.reason = reason
         self.suggested_resolution = suggested_resolution
-        self.detected_at = datetime.utcnow()
+        self.detected_at = datetime.now(timezone.utc)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert conflict to dictionary representation."""

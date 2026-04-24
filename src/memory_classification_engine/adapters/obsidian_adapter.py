@@ -16,11 +16,15 @@ import json
 import os
 import re
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 from .base import StorageAdapter
+
+
+def _escape_like(value: str) -> str:
+    return value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
 
 _OBSIDIAN_SCHEMA_SQL = """
@@ -219,7 +223,7 @@ class ObsidianAdapter(StorageAdapter):
                         title, body, json.dumps(tags), json.dumps(wiki_links),
                         json.dumps(frontmatter),
                         datetime.fromtimestamp(md_file.stat().st_mtime).isoformat(),
-                        c_hash, datetime.utcnow().isoformat(),
+                        c_hash, datetime.now(timezone.utc).isoformat(),
                         str(md_file.relative_to(self._vault_path)),
                     ),
                 )
@@ -235,7 +239,7 @@ class ObsidianAdapter(StorageAdapter):
                         body, json.dumps(tags), json.dumps(wiki_links),
                         json.dumps(frontmatter),
                         datetime.fromtimestamp(md_file.stat().st_mtime).isoformat(),
-                        c_hash, datetime.utcnow().isoformat(),
+                        c_hash, datetime.now(timezone.utc).isoformat(),
                     ),
                 )
                 new_count += 1
@@ -281,8 +285,8 @@ class ObsidianAdapter(StorageAdapter):
         if filters.get("tags"):
             tag_list = filters["tags"] if isinstance(filters["tags"], list) else [filters["tags"]]
             for tag in tag_list:
-                conditions.append("tags LIKE ?")
-                params.append(f'%"{tag}"%')
+                conditions.append("tags LIKE ? ESCAPE '\\'")
+                params.append(f'%"{_escape_like(tag)}"%')
 
         where_clause = ""
         if conditions:
@@ -310,12 +314,12 @@ class ObsidianAdapter(StorageAdapter):
         if filters.get("tags"):
             tag_list = filters["tags"] if isinstance(filters["tags"], list) else [filters["tags"]]
             for tag in tag_list:
-                conditions.append("tags LIKE ?")
-                params.append(f'%"{tag}"%')
+                conditions.append("tags LIKE ? ESCAPE '\\'")
+                params.append(f'%"{_escape_like(tag)}"%')
 
         if filters.get("title"):
-            conditions.append("title LIKE ?")
-            params.append(f'%{filters["title"]}%')
+            conditions.append("title LIKE ? ESCAPE '\\'")
+            params.append(f'%{_escape_like(filters["title"])}%')
 
         where_clause = ""
         if conditions:
@@ -374,8 +378,8 @@ class ObsidianAdapter(StorageAdapter):
 
     def get_linked_notes(self, note_title: str) -> List[Dict[str, Any]]:
         rows = self._conn.execute(
-            "SELECT * FROM notes WHERE wiki_links LIKE ?",
-            (f'%"{note_title}"%',),
+            "SELECT * FROM notes WHERE wiki_links LIKE ? ESCAPE '\\'",
+            (f'%"{_escape_like(note_title)}"%',),
         ).fetchall()
         return [self._row_to_dict(row) for row in rows]
 

@@ -7,7 +7,7 @@ and source reliability.
 v0.4.1: Initial implementation
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from .adapters.base import StoredMemory
 
@@ -186,7 +186,9 @@ class MemoryQualityScorer:
         if not memory.created_at:
             return 0.5  # Default for unknown age
         
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
+        if memory.created_at and memory.created_at.tzinfo is None:
+            now = now.replace(tzinfo=None)
         age = now - memory.created_at
         age_days = age.total_seconds() / 86400
         
@@ -389,7 +391,11 @@ class QualityAnalyzer:
                     reasons.append(f"Rarely accessed ({memory.access_count} times)")
                 
                 if breakdown['freshness'] < 0.3:
-                    age_days = (datetime.utcnow() - memory.created_at).days if memory.created_at else 0
+                    now = datetime.now(timezone.utc)
+                    created = memory.created_at
+                    if created and created.tzinfo is None:
+                        now = now.replace(tzinfo=None)
+                    age_days = (now - created).days if created else 0
                     reasons.append(f"Old ({age_days} days)")
                 
                 if breakdown['source_reliability'] < 0.5:

@@ -11,7 +11,7 @@ MCP Tool handlers for CarryMem.
 
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from memory_classification_engine.__version__ import __version__ as _version
@@ -27,7 +27,7 @@ def _format_memory_entry(match: Dict[str, Any], original_message: str) -> Dict[s
     tier = match.get("tier", 2)
 
     return {
-        "id": f"mce_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}",
+        "id": f"mce_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}",
         "type": mem_type,
         "content": match.get("content") or original_message[:200],
         "confidence": round(confidence, 4),
@@ -37,7 +37,7 @@ def _format_memory_entry(match: Dict[str, Any], original_message: str) -> Dict[s
         "suggested_action": "store" if confidence > 0.5 else ("defer" if confidence > 0.3 else "ignore"),
         "metadata": {
             "original_message": original_message,
-            "timestamp_utc": datetime.utcnow().isoformat() + "Z"
+            "timestamp_utc": datetime.now(timezone.utc).isoformat()
         }
     }
 

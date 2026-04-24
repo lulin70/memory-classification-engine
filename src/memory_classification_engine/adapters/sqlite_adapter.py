@@ -14,10 +14,15 @@ import hashlib
 import json
 import os
 import sqlite3
-from datetime import datetime, timedelta
+import threading
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from .base import MemoryEntry, StorageAdapter, StoredMemory
+
+
+def _escape_like(value: str) -> str:
+    return value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
 try:
     from ..semantic.expander import SemanticExpander
@@ -127,6 +132,7 @@ class SQLiteAdapter(StorageAdapter):
     ):
         self._namespace = namespace
         self._db_path = db_path or _default_db_path()
+        self._lock = threading.Lock()
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
@@ -213,7 +219,11 @@ class SQLiteAdapter(StorageAdapter):
         """v0.4.0: Enable or disable semantic recall at runtime."""
         self._enable_semantic = enabled and SEMANTIC_AVAILABLE and (self._expander is not None)
 
-    def remember(self, entry: MemoryEntry) -> StoredMemory:
+    def remember(self, entry: MemoryEntry, _skip_commit: bool = False) -> StoredMemory:
+        with self._lock:
+            return self._remember_impl(entry, _skip_commit)
+
+    def _remember_impl(self, entry: MemoryEntry, _skip_commit: bool = False) -> StoredMemory:
         c_hash = _content_hash(entry.content, entry.type)
 
         existing = self._conn.execute(
@@ -229,8 +239,8 @@ class SQLiteAdapter(StorageAdapter):
             )
             return stored
 
-        storage_key = f"cm_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{c_hash[:8]}"
-        now = datetime.utcnow()
+        storage_key = f"cm_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}_{c_hash[:8]}"
+        now = datetime.now(timezone.utc)
 
         ttl = _TIER_TTL.get(entry.tier)
         expires_at = (now + ttl).isoformat() if ttl else None
@@ -266,16 +276,26 @@ class SQLiteAdapter(StorageAdapter):
                 c_hash,
             ),
         )
-        self._conn.commit()
+        if not _skip_commit:
+            self._conn.commit()
 
         return StoredMemory.from_memory_entry(entry, storage_key=storage_key, created_at=now)
 
     def remember_batch(self, entries: List[MemoryEntry]) -> List[StoredMemory]:
-        results = []
-        with self._conn:
-            for entry in entries:
-                results.append(self.remember(entry))
-        return results
+        with self._lock:
+            results = []
+            try:
+                self._conn.execute("BEGIN")
+                for entry in entries:
+                    result = self._remember_impl(entry, _skip_commit=True)
+                    results.append(result)
+                self._conn.commit()
+            except Exception as e:
+                self._conn.rollback()
+                from memory_classification_engine.utils.logger import logger
+                logger.warning(f"Batch remember failed, rolled back: {e}")
+                raise
+            return results
 
     _ALLOWED_FILTER_KEYS = {"type", "tier", "confidence_min", "created_after"}
     _VALID_MEMORY_TYPES = {
@@ -290,6 +310,16 @@ class SQLiteAdapter(StorageAdapter):
         limit: int = 20,
         namespaces: Optional[List[str]] = None,
     ) -> List[StoredMemory]:
+        with self._lock:
+            return self._recall_impl(query, filters, limit, namespaces)
+
+    def _recall_impl(
+        self,
+        query: str,
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 20,
+        namespaces: Optional[List[str]] = None,
+    ):
         filters = filters or {}
 
         for key in filters:
@@ -481,8 +511,9 @@ class SQLiteAdapter(StorageAdapter):
             return []
 
     def _like_search(self, query, where_clause, params, limit):
-        like_clause = " AND (content LIKE ? OR original_message LIKE ?)"
-        like_params = [f"%{query}%", f"%{query}%"]
+        escaped = _escape_like(query)
+        like_clause = " AND (content LIKE ? ESCAPE '\\' OR original_message LIKE ? ESCAPE '\\')"
+        like_params = [f"%{escaped}%", f"%{escaped}%"]
         sql = f"""
             SELECT * FROM memories
             {where_clause}
@@ -494,21 +525,23 @@ class SQLiteAdapter(StorageAdapter):
         return self._conn.execute(sql, all_params).fetchall()
 
     def forget(self, storage_key: str) -> bool:
-        cursor = self._conn.execute(
-            "DELETE FROM memories WHERE storage_key = ? AND namespace = ?",
-            (storage_key, self._namespace),
-        )
-        self._conn.commit()
-        return cursor.rowcount > 0
+        with self._lock:
+            cursor = self._conn.execute(
+                "DELETE FROM memories WHERE storage_key = ? AND namespace = ?",
+                (storage_key, self._namespace),
+            )
+            self._conn.commit()
+            return cursor.rowcount > 0
 
     def forget_expired(self) -> int:
-        now = datetime.utcnow().isoformat()
-        cursor = self._conn.execute(
-            "DELETE FROM memories WHERE namespace = ? AND expires_at IS NOT NULL AND expires_at < ?",
-            (self._namespace, now),
-        )
-        self._conn.commit()
-        return cursor.rowcount
+        with self._lock:
+            now = datetime.now(timezone.utc).isoformat()
+            cursor = self._conn.execute(
+                "DELETE FROM memories WHERE namespace = ? AND expires_at IS NOT NULL AND expires_at < ?",
+                (self._namespace, now),
+            )
+            self._conn.commit()
+            return cursor.rowcount
 
     def get_stats(self) -> Dict[str, Any]:
         total = self._conn.execute(

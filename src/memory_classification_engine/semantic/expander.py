@@ -190,7 +190,8 @@ class SemanticExpander:
         """Tokenize text with CJK awareness.
 
         - English: split by whitespace and punctuation
-        - Chinese/Japanese: extract individual words/phrases based on common patterns
+        - Chinese/Japanese: extract individual words/phrases, then generate
+          bigram/trigram sub-tokens for long CJK sequences to improve overlap matching
         """
         tokens = []
         current_token = ""
@@ -224,7 +225,26 @@ class SemanticExpander:
         if current_token:
             tokens.append(current_token.strip())
 
-        return [t for t in tokens if t and len(t) >= 1]
+        expanded_tokens = []
+        for t in tokens:
+            if not t or len(t) < 1:
+                continue
+            expanded_tokens.append(t)
+            if self._is_cjk_token(t) and len(t) > 2:
+                for n in (2, 3):
+                    for i in range(len(t) - n + 1):
+                        sub = t[i:i + n]
+                        if sub not in expanded_tokens:
+                            expanded_tokens.append(sub)
+
+        return expanded_tokens
+
+    @staticmethod
+    def _is_cjk_token(token: str) -> bool:
+        return any(
+            "\u4e00" <= c <= "\u9fff" or "\u3040" <= c <= "\u309f" or "\u30a0" <= c <= "\u30ff"
+            for c in token
+        )
 
     def _spell_correct(self, word: str) -> Optional[str]:
         """Correct spelling using edit distance against vocabulary.

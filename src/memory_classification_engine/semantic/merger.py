@@ -51,26 +51,26 @@ class ResultMerger:
 
     def merge(
         self,
-        original_results: List[Dict[str, Any]],
-        expanded_results: List[Dict[str, Any]],
+        original_results: List[Any],
+        expanded_results: List[Any],
         query: str,
         limit: int = 20,
         source: str = "synonym",
-    ) -> List[Dict[str, Any]]:
+    ) -> List[Any]:
         """Merge original and expanded results with deduplication and ranking.
 
         Args:
-            original_results: Results from initial FTS5/LIKE search
-            expanded_results: Results from semantic expansion re-search
+            original_results: Results from initial FTS5/LIKE search (StoredMemory or dict)
+            expanded_results: Results from semantic expansion re-search (StoredMemory or dict)
             query: The original user query (for relevance calculation)
             limit: Maximum number of results to return
             source: Source type of expanded results ("synonym", "spell_corrected", etc.)
 
         Returns:
-            Merged, deduplicated, ranked list of results
+            Merged, deduplicated, ranked list of results (StoredMemory or dict)
         """
         seen_ids: set = set()
-        merged: List[Dict[str, Any]] = []
+        merged: List[Any] = []
 
         # Phase 1: Add original results (highest priority)
         for result in original_results:

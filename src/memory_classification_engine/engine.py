@@ -39,6 +39,7 @@ class MemoryClassificationEngine:
         message: str,
         context: Optional[Dict[str, Any]] = None,
         execution_context: Optional[Dict[str, Any]] = None,
+        language: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Process a message and classify memory.
 
@@ -46,6 +47,7 @@ class MemoryClassificationEngine:
             message: The message to process.
             context: Optional context for the message.
             execution_context: Optional execution context containing feedback signals.
+            language: Optional language hint to override auto-detection ("en", "zh", "ja").
 
         Returns:
             A dictionary containing the classification results.
@@ -59,16 +61,20 @@ class MemoryClassificationEngine:
                 'matches': [],
                 'working_memory_size': len(self.working_memory),
                 'processing_time': duration,
-                'language': 'unknown',
-                'language_confidence': 0.0,
+                'language': language or 'unknown',
+                'language_confidence': 1.0 if language else 0.0,
             }
 
         self._add_to_working_memory(message)
 
-        language, lang_confidence = language_manager.detect_language(message)
+        if language:
+            detected_lang = language
+            lang_confidence = 1.0
+        else:
+            detected_lang, lang_confidence = language_manager.detect_language(message)
 
         matches = self.classification_pipeline.classify_with_defaults(
-            message, language, context, execution_context
+            message, detected_lang, context, execution_context
         )
 
         unique_matches = self._deduplicate(matches)
@@ -77,7 +83,7 @@ class MemoryClassificationEngine:
         for match in unique_matches:
             memory_id = generate_memory_id()
             match['id'] = memory_id
-            match['language'] = language
+            match['language'] = detected_lang
             match['language_confidence'] = lang_confidence
             if 'memory_type' in match:
                 match['type'] = match['memory_type']
@@ -92,7 +98,7 @@ class MemoryClassificationEngine:
             'matches': stored_memories,
             'working_memory_size': len(self.working_memory),
             'processing_time': duration,
-            'language': language,
+            'language': detected_lang,
             'language_confidence': lang_confidence,
         }
 

@@ -22,7 +22,7 @@ Community adapters are welcome!
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
 
@@ -145,8 +145,8 @@ class StoredMemory(MemoryEntry):
             recall_hint=entry.recall_hint,
             metadata=entry.metadata,
             storage_key=storage_key,
-            created_at=created_at or datetime.utcnow(),
-            updated_at=created_at or datetime.utcnow(),
+            created_at=created_at or datetime.now(timezone.utc),
+            updated_at=created_at or datetime.now(timezone.utc),
         )
 
 
