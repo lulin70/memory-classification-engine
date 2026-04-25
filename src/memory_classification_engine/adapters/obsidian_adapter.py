@@ -16,6 +16,7 @@ import json
 import os
 import re
 import sqlite3
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
@@ -146,6 +147,7 @@ class ObsidianAdapter(StorageAdapter):
             db_path = str(carrymem_dir / f"obsidian_{vault_hash}.db")
 
         self._db_path = db_path
+        self._lock = threading.Lock()
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
@@ -176,6 +178,10 @@ class ObsidianAdapter(StorageAdapter):
         return str(self._vault_path)
 
     def index_vault(self) -> Dict[str, int]:
+        with self._lock:
+            return self._index_vault_impl()
+
+    def _index_vault_impl(self) -> Dict[str, int]:
         md_files = list(self._vault_path.rglob("*.md"))
         new_count = 0
         updated_count = 0
@@ -269,14 +275,15 @@ class ObsidianAdapter(StorageAdapter):
         filters: Optional[Dict[str, Any]] = None,
         limit: int = 20,
     ) -> list:
-        filters = filters or {}
+        with self._lock:
+            filters = filters or {}
 
-        if query and query.strip():
-            results = self._fts_search(query, filters, limit)
-        else:
-            results = self._filtered_search(filters, limit)
+            if query and query.strip():
+                results = self._fts_search(query, filters, limit)
+            else:
+                results = self._filtered_search(filters, limit)
 
-        return results
+            return results
 
     def _fts_search(self, query: str, filters: Dict[str, Any], limit: int) -> list:
         conditions = []
@@ -337,28 +344,28 @@ class ObsidianAdapter(StorageAdapter):
         )
 
     def get_stats(self) -> Dict[str, Any]:
-        total = self._conn.execute("SELECT COUNT(*) FROM notes").fetchone()[0]
-        tag_rows = self._conn.execute(
-            "SELECT tags FROM notes WHERE tags IS NOT NULL AND tags != '[]'"
-        ).fetchall()
+        with self._lock:
+            total = self._conn.execute("SELECT COUNT(*) FROM notes").fetchone()[0]
+            tag_rows = self._conn.execute(
+                "SELECT tags FROM notes WHERE tags IS NOT NULL AND tags != '[]'"
+            ).fetchall()
 
-        all_tags: Dict[str, int] = {}
-        for row in tag_rows:
-            try:
-                tags = json.loads(row["tags"])
-                for tag in tags:
-                    all_tags[tag] = all_tags.get(tag, 0) + 1
-            except (json.JSONDecodeError, TypeError):
-                pass
+            all_tags: Dict[str, int] = {}
+            for row in tag_rows:
+                try:
+                    tags = json.loads(row["tags"])
+                    for tag in tags:
+                        all_tags[tag] = all_tags.get(tag, 0) + 1
+                except (json.JSONDecodeError, TypeError):
+                    pass
 
-        return {
-            "adapter": self.name,
-            "vault_path": str(self._vault_path),
-            "total_notes": total,
-            "unique_tags": len(all_tags),
-            "top_tags": dict(sorted(all_tags.items(), key=lambda x: -x[1])[:10]),
-            "capabilities": self.capabilities,
-        }
+            return {
+                "adapter": self.name,
+                "total_notes": total,
+                "unique_tags": len(all_tags),
+                "top_tags": dict(sorted(all_tags.items(), key=lambda x: -x[1])[:10]),
+                "capabilities": self.capabilities,
+            }
 
     def get_tags(self) -> Dict[str, int]:
         tag_rows = self._conn.execute(

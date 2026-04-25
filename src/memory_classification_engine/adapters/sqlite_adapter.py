@@ -8,6 +8,7 @@ Features:
 - Atomic batch operations via transactions
 - **v0.4.0**: Semantic recall with synonym expansion, spell correction,
   cross-language mapping, and result fusion (zero external dependencies)
+- **v0.4.2**: Thread-safe with ThreadLocal connections and proper resource management
 """
 
 import hashlib
@@ -19,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from .base import MemoryEntry, StorageAdapter, StoredMemory
+from ..exceptions import DatabaseError, ConnectionError, QueryError
 
 
 def _escape_like(value: str) -> str:
@@ -133,10 +135,13 @@ class SQLiteAdapter(StorageAdapter):
         self._namespace = namespace
         self._db_path = db_path or _default_db_path()
         self._lock = threading.Lock()
-        self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA foreign_keys=ON")
+        
+        # v0.4.2: Use ThreadLocal for thread-safe connections
+        self._local = threading.local()
+        self._closed = False
+        
+        # Initialize schema with main connection
+        conn = self._get_connection()
         self._init_schema()
         self._migrate_namespace()
 
@@ -162,28 +167,85 @@ class SQLiteAdapter(StorageAdapter):
                 from memory_classification_engine.utils.logger import logger
                 logger.warning(f"Semantic recall initialization failed: {e}")
 
+    def _get_connection(self) -> sqlite3.Connection:
+        """Get thread-local database connection.
+        
+        v0.4.2: Each thread gets its own connection for thread safety.
+        """
+        if self._closed:
+            raise ConnectionError("Adapter has been closed")
+        
+        if not hasattr(self._local, 'conn') or self._local.conn is None:
+            try:
+                self._local.conn = sqlite3.connect(self._db_path)
+                self._local.conn.row_factory = sqlite3.Row
+                self._local.conn.execute("PRAGMA journal_mode=WAL")
+                self._local.conn.execute("PRAGMA foreign_keys=ON")
+            except sqlite3.Error as e:
+                raise ConnectionError(f"Failed to connect to database: {e}") from e
+        
+        return self._local.conn
+
     def _init_schema(self):
-        self._conn.executescript(_SCHEMA_SQL)
-        self._conn.commit()
-        self._migrate_fts_tokenizer()
+        conn = self._get_connection()
+        try:
+            conn.executescript(_SCHEMA_SQL)
+            conn.commit()
+            self._migrate_fts_tokenizer()
+        except sqlite3.Error as e:
+            raise DatabaseError(f"Failed to initialize schema: {e}") from e
 
     def _migrate_namespace(self):
+        conn = self._get_connection()
         try:
-            self._conn.execute("SELECT namespace FROM memories LIMIT 1")
+            conn.execute("SELECT namespace FROM memories LIMIT 1")
         except sqlite3.OperationalError:
-            self._conn.executescript(_MIGRATION_SQL)
-            self._conn.executescript(_CREATE_INDEX_SQL)
-            self._conn.commit()
+            try:
+                conn.executescript(_MIGRATION_SQL)
+                conn.executescript(_CREATE_INDEX_SQL)
+                conn.commit()
+            except sqlite3.Error as e:
+                raise DatabaseError(f"Failed to migrate namespace: {e}") from e
 
     def _migrate_fts_tokenizer(self):
+        conn = self._get_connection()
         try:
-            row = self._conn.execute(
+            row = conn.execute(
                 "SELECT sql FROM sqlite_master WHERE type='table' AND name='memories_fts'"
             ).fetchone()
             if row and 'unicode61' in (row[0] or ''):
-                self._conn.execute("INSERT INTO memories_fts(memories_fts) VALUES('rebuild')")
-                self._conn.commit()
+                conn.execute("INSERT INTO memories_fts(memories_fts) VALUES('rebuild')")
+                conn.commit()
         except sqlite3.OperationalError:
+            pass
+
+    def close(self):
+        """Close all database connections.
+        
+        v0.4.2: Properly close thread-local connections.
+        """
+        self._closed = True
+        if hasattr(self._local, 'conn') and self._local.conn:
+            try:
+                self._local.conn.close()
+                self._local.conn = None
+            except sqlite3.Error:
+                pass
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        self.close()
+        return False
+
+    def __del__(self):
+        """Destructor to ensure connections are closed."""
+        try:
+            self.close()
+        except:
             pass
 
     @property
@@ -224,15 +286,16 @@ class SQLiteAdapter(StorageAdapter):
             return self._remember_impl(entry, _skip_commit)
 
     def _remember_impl(self, entry: MemoryEntry, _skip_commit: bool = False) -> StoredMemory:
+        conn = self._get_connection()
         c_hash = _content_hash(entry.content, entry.type)
 
-        existing = self._conn.execute(
+        existing = conn.execute(
             "SELECT storage_key FROM memories WHERE content_hash = ? AND namespace = ?",
             (c_hash, self._namespace),
         ).fetchone()
         if existing:
             stored = self._row_to_stored(
-                self._conn.execute(
+                conn.execute(
                     "SELECT * FROM memories WHERE content_hash = ? AND namespace = ?",
                     (c_hash, self._namespace),
                 ).fetchone()
@@ -249,7 +312,7 @@ class SQLiteAdapter(StorageAdapter):
         recall_hint_json = json.dumps(entry.recall_hint) if entry.recall_hint else None
         original_message = entry.metadata.get("original_message", "") if entry.metadata else ""
 
-        self._conn.execute(
+        conn.execute(
             """INSERT INTO memories
                (id, type, content, original_message, confidence, tier,
                 source_layer, reasoning, suggested_action, recall_hint,
@@ -277,21 +340,22 @@ class SQLiteAdapter(StorageAdapter):
             ),
         )
         if not _skip_commit:
-            self._conn.commit()
+            conn.commit()
 
         return StoredMemory.from_memory_entry(entry, storage_key=storage_key, created_at=now)
 
     def remember_batch(self, entries: List[MemoryEntry]) -> List[StoredMemory]:
         with self._lock:
+            conn = self._get_connection()
             results = []
             try:
-                self._conn.execute("BEGIN")
+                conn.execute("BEGIN")
                 for entry in entries:
                     result = self._remember_impl(entry, _skip_commit=True)
                     results.append(result)
-                self._conn.commit()
+                conn.commit()
             except Exception as e:
-                self._conn.rollback()
+                conn.rollback()
                 from memory_classification_engine.utils.logger import logger
                 logger.warning(f"Batch remember failed, rolled back: {e}")
                 raise
@@ -405,19 +469,21 @@ class SQLiteAdapter(StorageAdapter):
                                 final_results.append(stored)
 
                     # Update access counts and return
+                    conn = self._get_connection()
                     seen_keys = set()
                     results = []
                     for stored in final_results:
                         if stored.storage_key not in seen_keys:
                             seen_keys.add(stored.storage_key)
-                            self._conn.execute(
+                            conn.execute(
                                 "UPDATE memories SET access_count = access_count + 1 WHERE storage_key = ?",
                                 (stored.storage_key,),
                             )
                             results.append(stored)
-                    self._conn.commit()
+                    conn.commit()
                     return results
         else:
+            conn = self._get_connection()
             sql = f"""
                 SELECT * FROM memories
                 {where_clause}
@@ -425,20 +491,21 @@ class SQLiteAdapter(StorageAdapter):
                 LIMIT ?
             """
             params.append(limit)
-            rows = self._conn.execute(sql, params).fetchall()
+            rows = conn.execute(sql, params).fetchall()
 
+        conn = self._get_connection()
         results = []
         seen_keys = set()
         for row in rows:
             stored = self._row_to_stored(row)
             if stored and stored.storage_key not in seen_keys:
                 seen_keys.add(stored.storage_key)
-                self._conn.execute(
+                conn.execute(
                     "UPDATE memories SET access_count = access_count + 1 WHERE storage_key = ?",
                     (stored.storage_key,),
                 )
                 results.append(stored)
-        self._conn.commit()
+        conn.commit()
 
         return results
 
@@ -495,6 +562,7 @@ class SQLiteAdapter(StorageAdapter):
 
     def _fts_search(self, query, where_clause, params, limit):
         try:
+            conn = self._get_connection()
             fts_sql = f"""
                 SELECT m.* FROM memories m
                 JOIN memories_fts f ON m.rowid = f.rowid
@@ -506,11 +574,12 @@ class SQLiteAdapter(StorageAdapter):
                 LIMIT ?
             """
             params_with_query = params + [query, limit]
-            return self._conn.execute(fts_sql, params_with_query).fetchall()
+            return conn.execute(fts_sql, params_with_query).fetchall()
         except sqlite3.OperationalError:
             return []
 
     def _like_search(self, query, where_clause, params, limit):
+        conn = self._get_connection()
         escaped = _escape_like(query)
         like_clause = " AND (content LIKE ? ESCAPE '\\' OR original_message LIKE ? ESCAPE '\\')"
         like_params = [f"%{escaped}%", f"%{escaped}%"]
@@ -522,33 +591,36 @@ class SQLiteAdapter(StorageAdapter):
             LIMIT ?
         """
         all_params = params + like_params + [limit]
-        return self._conn.execute(sql, all_params).fetchall()
+        return conn.execute(sql, all_params).fetchall()
 
     def forget(self, storage_key: str) -> bool:
         with self._lock:
-            cursor = self._conn.execute(
+            conn = self._get_connection()
+            cursor = conn.execute(
                 "DELETE FROM memories WHERE storage_key = ? AND namespace = ?",
                 (storage_key, self._namespace),
             )
-            self._conn.commit()
+            conn.commit()
             return cursor.rowcount > 0
 
     def forget_expired(self) -> int:
         with self._lock:
+            conn = self._get_connection()
             now = datetime.now(timezone.utc).isoformat()
-            cursor = self._conn.execute(
+            cursor = conn.execute(
                 "DELETE FROM memories WHERE namespace = ? AND expires_at IS NOT NULL AND expires_at < ?",
                 (self._namespace, now),
             )
-            self._conn.commit()
+            conn.commit()
             return cursor.rowcount
 
     def get_stats(self) -> Dict[str, Any]:
-        total = self._conn.execute(
+        conn = self._get_connection()
+        total = conn.execute(
             "SELECT COUNT(*) FROM memories WHERE namespace = ?",
             (self._namespace,),
         ).fetchone()[0]
-        by_type_rows = self._conn.execute(
+        by_type_rows = conn.execute(
             "SELECT type, COUNT(*) as cnt FROM memories WHERE namespace = ? GROUP BY type",
             (self._namespace,),
         ).fetchall()
@@ -564,7 +636,8 @@ class SQLiteAdapter(StorageAdapter):
         }
 
     def get_profile(self) -> Dict[str, Any]:
-        total = self._conn.execute(
+        conn = self._get_connection()
+        total = conn.execute(
             "SELECT COUNT(*) FROM memories WHERE namespace = ?",
             (self._namespace,),
         ).fetchone()[0]
@@ -579,19 +652,19 @@ class SQLiteAdapter(StorageAdapter):
                 "last_updated": None,
             }
 
-        by_type_rows = self._conn.execute(
+        by_type_rows = conn.execute(
             "SELECT type, COUNT(*) as cnt FROM memories WHERE namespace = ? GROUP BY type",
             (self._namespace,),
         ).fetchall()
         by_type = {row["type"]: row["cnt"] for row in by_type_rows}
 
-        by_tier_rows = self._conn.execute(
+        by_tier_rows = conn.execute(
             "SELECT tier, COUNT(*) as cnt FROM memories WHERE namespace = ? GROUP BY tier",
             (self._namespace,),
         ).fetchall()
         by_tier = {str(row["tier"]): row["cnt"] for row in by_tier_rows}
 
-        avg_conf = self._conn.execute(
+        avg_conf = conn.execute(
             "SELECT AVG(confidence) FROM memories WHERE namespace = ?",
             (self._namespace,),
         ).fetchone()[0] or 0.0
@@ -604,7 +677,7 @@ class SQLiteAdapter(StorageAdapter):
         ]
         highlights: Dict[str, List[str]] = {}
         for mem_type in highlight_types:
-            rows = self._conn.execute(
+            rows = conn.execute(
                 "SELECT content FROM memories WHERE namespace = ? AND type = ? ORDER BY confidence DESC LIMIT 5",
                 (self._namespace, mem_type),
             ).fetchall()
@@ -612,7 +685,7 @@ class SQLiteAdapter(StorageAdapter):
             if items:
                 highlights[mem_type] = items
 
-        last_updated_row = self._conn.execute(
+        last_updated_row = conn.execute(
             "SELECT MAX(updated_at) FROM memories WHERE namespace = ?",
             (self._namespace,),
         ).fetchone()
@@ -767,9 +840,3 @@ class SQLiteAdapter(StorageAdapter):
             logger.debug(f"Failed to convert dict to StoredMemory: {e}")
             return None
 
-    def close(self):
-        if self._conn:
-            self._conn.close()
-
-    def __del__(self):
-        self.close()

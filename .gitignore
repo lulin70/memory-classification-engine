@@ -59,7 +59,7 @@ config/encryption_keys.json
 
 # === 开发调试文件 (Phase A/B 临时) ===
 debug_*.py
-test_*.py
+/test_*.py
 verify_*.py
 monkey_patch.py
 simplest_test.py

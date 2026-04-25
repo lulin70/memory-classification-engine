@@ -25,6 +25,22 @@ except ImportError:
     SemanticExpander = None
     ResultMerger = None
 
+# v0.5.0 security module
+try:
+    from memory_classification_engine.security import (
+        InputValidator,
+        ValidationError,
+        validate_content,
+        validate_query,
+        validate_namespace,
+    )
+except ImportError:
+    InputValidator = None
+    ValidationError = None
+    validate_content = None
+    validate_query = None
+    validate_namespace = None
+
 from memory_classification_engine.__version__ import __version__
 
 __all__ = [
@@ -40,4 +56,10 @@ __all__ = [
     # v0.4.0 semantic recall (optional)
     "SemanticExpander",
     "ResultMerger",
+    # v0.5.0 security (optional)
+    "InputValidator",
+    "ValidationError",
+    "validate_content",
+    "validate_query",
+    "validate_namespace",
 ]

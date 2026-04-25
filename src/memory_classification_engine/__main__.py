@@ -49,7 +49,8 @@ def _run_demo():
     from memory_classification_engine import CarryMem
 
     print("=" * 60)
-    print("  CarryMem v0.3.0 — Interactive Demo")
+    from memory_classification_engine import __version__
+    print(f"  CarryMem v{__version__} — Interactive Demo")
     print("=" * 60)
     print()
 

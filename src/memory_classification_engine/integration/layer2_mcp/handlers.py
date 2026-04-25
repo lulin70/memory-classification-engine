@@ -17,6 +17,28 @@ from typing import Any, Dict, List
 from memory_classification_engine.__version__ import __version__ as _version
 from .tools import CLASSIFICATION_SCHEMA, TOOL_NAMES, CORE_TOOL_NAMES, OPTIONAL_TOOL_NAMES, KNOWLEDGE_TOOL_NAMES, PROFILE_TOOL_NAMES, PROMPT_TOOL_NAMES
 
+_SAFE_ERROR_TYPES = {
+    "StorageNotConfiguredError": "storage_not_configured",
+    "KnowledgeNotConfiguredError": "knowledge_not_configured",
+    "ValueError": "invalid_input",
+    "ValidationError": "invalid_input",
+}
+
+_MAX_LIMIT = 1000
+_MAX_MEMORIES = 50
+_MAX_KNOWLEDGE = 20
+
+
+def _safe_error(e: Exception) -> str:
+    type_name = type(e).__name__
+    if type_name in _SAFE_ERROR_TYPES:
+        return _SAFE_ERROR_TYPES[type_name]
+    return "internal_error"
+
+
+def _clamp(value: int, min_val: int, max_val: int) -> int:
+    return max(min_val, min(value, max_val))
+
 
 def _format_memory_entry(match: Dict[str, Any], original_message: str) -> Dict[str, Any]:
     """Convert a raw engine match dict to standardized MemoryEntry v1.0."""
@@ -64,14 +86,6 @@ def _build_summary(entries: List[Dict[str, Any]], llm_calls: int = 0) -> Dict[st
 
 
 def handle_classify_message(engine, arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Classify a single message and return MemoryEntry v1.0.
-
-    This is the core MCE tool. It analyzes whether a message contains
-    memorable information and returns structured classification results.
-    The output is designed to be directly consumable by any downstream
-    storage system.
-    """
     message = arguments.get("message", "")
     context = arguments.get("context")
 
@@ -109,18 +123,11 @@ def handle_classify_message(engine, arguments: Dict[str, Any]) -> Dict[str, Any]
             "entries": [],
             "summary": {"total_entries": 0},
             "engine_info": {"mode": "classification_only"},
-            "error": str(e)
+            "error": _safe_error(e)
         }
 
 
 def handle_get_classification_schema(engine, arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Return MCE's complete classification schema definition.
-
-    This includes all 7 memory types with examples and downstream mappings,
-    4 storage tiers, confidence thresholds, and output format specification.
-    Downstream systems use this to auto-map MCE output to their own data model.
-    """
     fmt = arguments.get("format", "json")
 
     if fmt == "markdown":
@@ -151,12 +158,6 @@ def handle_get_classification_schema(engine, arguments: Dict[str, Any]) -> Dict[
 
 
 def handle_batch_classify(engine, arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Batch classify multiple messages, each returning independent MemoryEntry.
-
-    Suitable for conversation history replay, log analysis, etc.
-    Each message is classified independently; results are returned as an array.
-    """
     messages_data = arguments.get("messages", [])
 
     if not messages_data:
@@ -219,31 +220,19 @@ def handle_classify_and_remember(carrymem, arguments: Dict[str, Any]) -> Dict[st
         result = carrymem.classify_and_remember(message, context=ctx)
         return result
     except Exception as e:
-        if "StorageNotConfiguredError" in type(e).__name__:
-            return {
-                "error": "storage_not_configured",
-                "message": "Storage adapter not configured. Use CarryMem(storage='sqlite') to enable storage features.",
-                "available_tools": list(CORE_TOOL_NAMES)
-            }
-        return {"error": str(e)}
+        return {"error": _safe_error(e)}
 
 
 def handle_recall_memories(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
     query = arguments.get("query")
     filters = arguments.get("filters")
-    limit = arguments.get("limit", 20)
+    limit = _clamp(int(arguments.get("limit", 20)), 1, _MAX_LIMIT)
 
     try:
         results = carrymem.recall_memories(query=query, filters=filters, limit=limit)
         return {"memories": results, "total": len(results)}
     except Exception as e:
-        if "StorageNotConfiguredError" in type(e).__name__:
-            return {
-                "error": "storage_not_configured",
-                "message": "Storage adapter not configured. Use CarryMem(storage='sqlite') to enable storage features.",
-                "available_tools": list(CORE_TOOL_NAMES)
-            }
-        return {"error": str(e)}
+        return {"error": _safe_error(e)}
 
 
 def handle_forget_memory(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -256,13 +245,7 @@ def handle_forget_memory(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
         deleted = carrymem.forget_memory(memory_id)
         return {"deleted": deleted, "memory_id": memory_id}
     except Exception as e:
-        if "StorageNotConfiguredError" in type(e).__name__:
-            return {
-                "error": "storage_not_configured",
-                "message": "Storage adapter not configured. Use CarryMem(storage='sqlite') to enable storage features.",
-                "available_tools": list(CORE_TOOL_NAMES)
-            }
-        return {"error": str(e)}
+        return {"error": _safe_error(e)}
 
 
 def handle_index_knowledge(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -270,19 +253,13 @@ def handle_index_knowledge(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any
         result = carrymem.index_knowledge()
         return {"indexed": True, "stats": result}
     except Exception as e:
-        if "KnowledgeNotConfiguredError" in type(e).__name__:
-            return {
-                "error": "knowledge_not_configured",
-                "message": "Knowledge adapter not configured. Use CarryMem(knowledge_adapter=ObsidianAdapter('/path/to/vault')) to enable knowledge features.",
-                "available_tools": list(CORE_TOOL_NAMES) + list(OPTIONAL_TOOL_NAMES)
-            }
-        return {"error": str(e)}
+        return {"error": _safe_error(e)}
 
 
 def handle_recall_from_knowledge(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
     query = arguments.get("query", "")
     filters = arguments.get("filters")
-    limit = arguments.get("limit", 20)
+    limit = _clamp(int(arguments.get("limit", 20)), 1, _MAX_LIMIT)
 
     if not query.strip():
         return {"error": "Missing required field: query"}
@@ -291,19 +268,13 @@ def handle_recall_from_knowledge(carrymem, arguments: Dict[str, Any]) -> Dict[st
         results = carrymem.recall_from_knowledge(query=query, filters=filters, limit=limit)
         return {"notes": results, "total": len(results), "source": "knowledge"}
     except Exception as e:
-        if "KnowledgeNotConfiguredError" in type(e).__name__:
-            return {
-                "error": "knowledge_not_configured",
-                "message": "Knowledge adapter not configured. Use CarryMem(knowledge_adapter=ObsidianAdapter('/path/to/vault')) to enable knowledge features.",
-                "available_tools": list(CORE_TOOL_NAMES) + list(OPTIONAL_TOOL_NAMES)
-            }
-        return {"error": str(e)}
+        return {"error": _safe_error(e)}
 
 
 def handle_recall_all(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
     query = arguments.get("query", "")
     filters = arguments.get("filters")
-    limit = arguments.get("limit", 20)
+    limit = _clamp(int(arguments.get("limit", 20)), 1, _MAX_LIMIT)
 
     if not query.strip():
         return {"error": "Missing required field: query"}
@@ -312,7 +283,7 @@ def handle_recall_all(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
         result = carrymem.recall_all(query=query, filters=filters, limit=limit)
         return result
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": _safe_error(e)}
 
 
 def handle_declare_preference(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -325,13 +296,7 @@ def handle_declare_preference(carrymem, arguments: Dict[str, Any]) -> Dict[str, 
         result = carrymem.declare(message)
         return result
     except Exception as e:
-        if "StorageNotConfiguredError" in type(e).__name__:
-            return {
-                "error": "storage_not_configured",
-                "message": "Storage adapter not configured. Use CarryMem(storage='sqlite') to enable storage features.",
-                "available_tools": list(CORE_TOOL_NAMES) + list(KNOWLEDGE_TOOL_NAMES)
-            }
-        return {"error": str(e)}
+        return {"error": _safe_error(e)}
 
 
 def handle_get_memory_profile(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -339,14 +304,16 @@ def handle_get_memory_profile(carrymem, arguments: Dict[str, Any]) -> Dict[str, 
         profile = carrymem.get_memory_profile()
         return profile
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": _safe_error(e)}
 
 
 def handle_get_system_prompt(carrymem, arguments: Dict[str, Any]) -> Dict[str, Any]:
     context = arguments.get("context")
-    max_memories = arguments.get("max_memories", 10)
-    max_knowledge = arguments.get("max_knowledge", 5)
+    max_memories = _clamp(int(arguments.get("max_memories", 10)), 1, _MAX_MEMORIES)
+    max_knowledge = _clamp(int(arguments.get("max_knowledge", 5)), 1, _MAX_KNOWLEDGE)
     language = arguments.get("language", "en")
+    if language not in ("en", "zh", "ja"):
+        language = "en"
 
     try:
         prompt = carrymem.build_system_prompt(
@@ -357,7 +324,7 @@ def handle_get_system_prompt(carrymem, arguments: Dict[str, Any]) -> Dict[str, A
         )
         return {"system_prompt": prompt, "language": language}
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": _safe_error(e)}
 
 
 handler_map = {
@@ -378,14 +345,7 @@ handler_map = {
 
 
 class Handlers:
-    """CarryMem MCP Handlers — 3+3+3+2+1 optional mode.
-
-    Core tools use engine directly.
-    Storage tools use CarryMem instance (with storage adapter).
-    Knowledge tools use CarryMem instance (with knowledge adapter).
-    Profile tools use CarryMem instance (with storage adapter).
-    Prompt tools use CarryMem instance (with storage adapter).
-    """
+    """CarryMem MCP Handlers — 3+3+3+2+1 optional mode."""
 
     def __init__(
         self,
@@ -412,7 +372,7 @@ class Handlers:
     async def handle_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
         if tool_name not in handler_map:
             return {
-                "error": f"Unknown tool: {tool_name}. Available: {list(handler_map.keys())}",
+                "error": f"Unknown tool: {tool_name}",
                 "available_tools": list(handler_map.keys())
             }
 
@@ -424,7 +384,8 @@ class Handlers:
                 result = handler_func(self._engine, arguments or {})
             return {"success": True, "data": result}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": _safe_error(e)}
 
     def cleanup(self):
-        pass
+        if self._carrymem:
+            self._carrymem.close()

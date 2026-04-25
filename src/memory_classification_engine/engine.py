@@ -3,9 +3,12 @@
 Slim refactored version: only the classification pipeline that CarryMem needs.
 Enterprise features (tenants, access control, encryption, distributed, etc.)
 have been removed. CarryMem handles storage via its own adapter system.
+
+v0.4.2: Fixed memory leak by using deque with maxlen for message_history.
 """
 
 import time
+from collections import deque
 from typing import Dict, List, Optional, Any
 from memory_classification_engine.utils.config import ConfigManager
 from memory_classification_engine.__version__ import __version__ as _version
@@ -32,7 +35,11 @@ class MemoryClassificationEngine:
         self.max_work_memory_size = self.config.get(
             'storage.max_work_memory_size', 100
         )
-        self.message_history = []
+        # v0.4.2: Use deque with maxlen to prevent unbounded growth
+        self.max_message_history_size = self.config.get(
+            'storage.max_message_history_size', 1000
+        )
+        self.message_history = deque(maxlen=self.max_message_history_size)
 
     def process_message(
         self,

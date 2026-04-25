@@ -2,7 +2,7 @@
 
 Usage:
     # Mode 1: Classify + Store (default SQLite)
-    from carrymem import CarryMem
+    from memory_classification_engine import CarryMem
     cm = CarryMem()
     result = cm.classify_and_remember("I prefer dark mode")
 
@@ -30,8 +30,22 @@ from memory_classification_engine.engine import MemoryClassificationEngine
 from memory_classification_engine.adapters.base import MemoryEntry, StorageAdapter, StoredMemory
 from memory_classification_engine.adapters.sqlite_adapter import SQLiteAdapter
 from memory_classification_engine.adapters.obsidian_adapter import ObsidianAdapter
+
+
+def _validate_file_path(path: str) -> str:
+    resolved = os.path.realpath(os.path.expanduser(path))
+    if ".." in path:
+        raise ValueError(f"Path traversal not allowed: {path}")
+    return resolved
+
+
 from memory_classification_engine.adapters.loader import load_adapter
 from memory_classification_engine.utils.logger import logger
+from memory_classification_engine.utils.validators import (
+    validate_message, validate_context, validate_language,
+    validate_namespace, validate_limit, validate_filters,
+    validate_storage_key, validate_query,
+)
 from memory_classification_engine.__version__ import __version__ as _version
 
 
@@ -96,6 +110,19 @@ class CarryMem:
             )
 
         self._knowledge_adapter = knowledge_adapter
+
+    def close(self):
+        if self._adapter and hasattr(self._adapter, 'close'):
+            self._adapter.close()
+        if self._knowledge_adapter and hasattr(self._knowledge_adapter, 'close'):
+            self._knowledge_adapter.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
 
     @property
     def namespace(self) -> str:
@@ -186,6 +213,9 @@ class CarryMem:
         context: Optional[Dict[str, Any]] = None,
         language: Optional[str] = None,
     ) -> Dict[str, Any]:
+        validate_message(message)
+        validate_context(context)
+        validate_language(language)
         result = self._engine.process_message(message, context=context, language=language)
 
         matches = result.get("matches", [])
@@ -264,6 +294,8 @@ class CarryMem:
         if not self._adapter:
             raise StorageNotConfiguredError()
 
+        validate_query(query)
+        validate_limit(limit)
         results = self._adapter.recall(query or "", filters=filters, limit=limit)
         return [r.to_dict() for r in results]
 
@@ -271,6 +303,7 @@ class CarryMem:
         if not self._adapter:
             raise StorageNotConfiguredError()
 
+        validate_storage_key(memory_id)
         return self._adapter.forget(memory_id)
 
     def get_stats(self) -> Dict[str, Any]:
@@ -377,6 +410,9 @@ class CarryMem:
         if not self._adapter:
             raise StorageNotConfiguredError()
 
+        if output_path:
+            output_path = _validate_file_path(output_path)
+
         ns = namespace or self._namespace
         stats = self._adapter.get_stats()
         total_count = stats.get("total_count", 0) if isinstance(stats, dict) else 0
@@ -471,6 +507,9 @@ class CarryMem:
         """
         if not self._adapter:
             raise StorageNotConfiguredError()
+
+        if input_path:
+            input_path = _validate_file_path(input_path)
 
         if input_path:
             with open(input_path, "r", encoding="utf-8") as f:

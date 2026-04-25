@@ -24,14 +24,9 @@ def test_system_dependencies():
     
     # 测试必要的 Python 包
     required_packages = [
-        "sentence_transformers",
-        "neo4j",
+        "yaml",
         "langdetect",
-        "Flask",
-        "aiohttp",
-        "requests",
-        "scikit-learn",
-        "faiss-cpu"
+        "pycld2"
     ]
     
     for package in required_packages:
@@ -80,17 +75,6 @@ def test_database_connections():
         print("✅ SQLite 连接正常")
     except Exception as e:
         print(f"❌ SQLite 连接失败: {e}")
-    
-    # 测试 Neo4j 连接
-    try:
-        from neo4j import GraphDatabase
-        # 尝试连接到默认的 Neo4j 实例
-        driver = GraphDatabase.driver("bolt://localhost:7687", auth=(
-            "neo4j", "password"))
-        driver.close()
-        print("✅ Neo4j 连接正常")
-    except Exception as e:
-        print(f"❌ Neo4j 连接失败: {e}")
     
     print("-" * 60)
 

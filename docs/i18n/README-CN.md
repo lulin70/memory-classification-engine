@@ -1,93 +1,43 @@
 # CarryMem
 
-**你的随身 AI 记忆层。**
-
-> 不要记住一切。只记住重要的。
-
-CarryMem 为 AI Agent 提供持久、可携带的记忆层。它实时分类对话，存储值得记住的内容，让用户可以把记忆带到任何地方——跨模型、跨工具、跨设备。
-
 **AI 记住你。而不是反过来。**
 
+> 你的随身 AI 记忆层 — 跨模型、跨工具、跨设备
+
+CarryMem 是一个可携带的 AI 记忆系统，让 AI 助手记住你的偏好、纠正和决策。换工具不丢记忆，换设备随身携带。
+
+[English](../../README.md) | **中文** | [日本語](README-JP.md)
+
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.4.2-blue" alt="Version">
-  <img src="https://img.shields.io/badge/tests-206%20passing-green" alt="Tests">
-  <img src="https://img.shields.io/badge/%E8%AF%AD%E4%B9%89%E5%8F%AC%E5%9B%9E-%E2%9C%85-brightgreen" alt="Semantic Recall">
-  <img src="https://img.shields.io/badge/MCP-3%2B3%2B3%2B2%2B1-blue" alt="MCP">
-  <img src="https://img.shields.io/badge/Accuracy-90.6%25-green" alt="Accuracy">
+  <img src="https://img.shields.io/badge/version-0.4.3-blue" alt="Version">
+  <img src="https://img.shields.io/badge/tests-224%20passing-green" alt="Tests">
+  <img src="https://img.shields.io/badge/accuracy-90.6%25-green" alt="Accuracy">
+  <img src="https://img.shields.io/badge/zero--cost-60%25%2B-brightgreen" alt="Zero Cost">
 </p>
 
-[English](README.md) | **中文** | [日本語](README-JP.md)
+---
+
+## 🎯 为什么需要 CarryMem？
+
+### 问题：AI 总是忘记你
+
+每次新对话，AI 都像第一次认识你：
+- ❌ 你的偏好？忘了
+- ❌ 你的纠正？忘了
+- ❌ 你的决策？忘了
+
+换工具（Cursor → Windsurf），换模型（Claude → GPT），每次都从零开始。
+
+### 解决方案：CarryMem
+
+✅ **AI 自动记住你** — 偏好、纠正、决策自动分类存储
+✅ **记忆可携带** — 导出/导入，换工具不丢数据
+✅ **60%+ 零成本** — 智能分类，不浪费 Token
+✅ **5 分钟上手** — 零配置，开箱即用
 
 ---
 
-## 问题
-
-每次你和 AI Agent 开始新对话，它都会忘记你。
-
-你的偏好、你的纠正、你的决策——全部消失。你不断重复自己。Agent 推荐你已经否决的东西。从 Claude 换到 GPT，从 Cursor 换到 Windsurf，从一个 MCP 服务器换到另一个，就像重新认识一个陌生人。
-
-现有方案有三个问题：
-
-1. **记忆被锁定。** 大多数记忆工具把数据存在自己的系统里。换工具，丢记忆。
-2. **什么都存。** 它们把整个对话倒进向量数据库，指望语义搜索能搞定。昂贵、嘈杂、缓慢。
-3. **没有分类。** 不理解一条消息*是什么*（偏好？纠正？闲聊？），检索就是盲目的。
-
-**60%+ 的消息不应该被存储。** 但现有系统要么全存（噪声爆炸），要么全不存（失忆）。
-
-CarryMem 解决了这三个问题。
-
----
-
-## 工作原理
-
-```
-用户消息 → MCE 引擎（分类）→ 存储层（存储）→ Agent 上下文（检索）
-```
-
-### 第一步：分类（MCE 引擎）
-
-每条用户消息流经三层分类漏斗：
-
-| 层级 | 方法 | 成本 | 覆盖率 |
-|------|------|------|--------|
-| 规则匹配 | 正则 + 关键词 | 零 | ~60% |
-| 模式分析 | NLP 模式 | 近零 | ~30% |
-| 语义推断 | LLM（仅按需） | Token 成本 | <10% |
-
-**60%+ 的分类零 LLM 成本。**
-
-### 第二步：分类为 7 种记忆类型
-
-| 类型 | 描述 | 示例 |
-|------|------|------|
-| `user_preference` | 表述的喜好 | "我喜欢深色主题" |
-| `correction` | 对 AI 的明确纠正 | "不对，我说的是 Python 版本" |
-| `fact_declaration` | 关于用户的事实 | "我在东京一家创业公司工作" |
-| `decision` | 做出的选择 | "我们用 React 吧" |
-| `relationship` | 社交/上下文信息 | "我的队友负责后端" |
-| `task_pattern` | 重复的工作模式 | "我总是先写 README" |
-| `sentiment_marker` | 对输出的情感反应 | "这正是我需要的" |
-
-### 第三步：按优先级分层存储
-
-不是所有记忆都同等重要。CarryMem 为每条分类记忆分配一个层级：
-
-| 层级 | 名称 | 默认 TTL | 描述 |
-|------|------|---------|------|
-| **Tier 1** | 感觉记忆 | 24 小时 | 临时信息，快速遗忘 |
-| **Tier 2** | 程序性记忆 | 90 天 | 习惯/偏好，中期保留 |
-| **Tier 3** | 情景记忆 | 365 天 | 重要事件，长期保留 |
-| **Tier 4** | 语义记忆 | 永久 | 核心知识，永不过期 |
-
-### 第四步：按需检索
-
-当新对话开始时，CarryMem 将相关记忆注入 Agent 的上下文窗口。Agent 不仅仅是响应——它*记得*。
-
-检索优先级：**记忆 > 知识库 > 外部 LLM**
-
----
-
-## 快速开始
+## ⚡ 快速开始
 
 ### 安装
 
@@ -95,128 +45,200 @@ CarryMem 解决了这三个问题。
 pip install carrymem
 ```
 
-### 分类 + 记忆（3 行代码）
+### 第一条记忆（1 分钟）
 
 ```python
 from memory_classification_engine import CarryMem
 
-cm = CarryMem()  # 自动 SQLite 存储，位于 ~/.carrymem/memories.db
-result = cm.classify_and_remember("我喜欢深色主题")
-# → {"type": "user_preference", "confidence": 0.95, "stored": True}
+with CarryMem() as cm:
+    # AI 自动分类并存储你的偏好
+    cm.classify_and_remember("I prefer dark mode")
+    cm.classify_and_remember("I use PostgreSQL for databases")
+    cm.classify_and_remember("I work at a startup in Tokyo")
+
+    # 召回记忆
+    memories = cm.recall_memories(query="database")
+    for mem in memories:
+        print(f"{mem['type']}: {mem['content']}")
 ```
 
-### 🆕 语义召回 (v0.4.0)
+就这么简单！🎉 CarryMem 自动在 `~/.carrymem/memories.db` 创建数据库。
+
+---
+
+## 💡 核心功能
+
+### 1. 自动分类（7 种记忆类型）
+
+CarryMem 自动识别消息类型，只存储有价值的信息：
 
 ```python
-# 中文存储，英文召回 — 跨语言工作！
+cm.classify_and_remember("I prefer dark mode")
+# → type: user_preference, confidence: 0.95
+
+cm.classify_and_remember("No, I meant Python 3.11, not 3.10")
+# → type: correction, confidence: 0.98
+
+cm.classify_and_remember("Let's use React for the frontend")
+# → type: decision, confidence: 0.92
+```
+
+**7 种记忆类型**：`user_preference` · `correction` · `fact_declaration` · `decision` · `relationship` · `task_pattern` · `sentiment_marker`
+
+### 2. 语义召回（v0.4.0+）
+
+```python
+# 用中文存储，用英文查询 — 跨语言召回！
 cm.classify_and_remember("我偏好使用PostgreSQL")
 
-# 以下所有查询都能找到这条记忆：
-memories = cm.recall_memories("PostgreSQL")     # ✅ 精确匹配
-memories = cm.recall_memories("数据库")          # ✅ 同义词扩展
-memories = cm.recall_memories("Postgres")        # ✅ 拼写纠错
-memories = cm.recall_memories("データベース")    # ✅ 跨语言（日语）
-# → 全部返回 PostgreSQL 偏好记忆！
+# 以下查询都能找到这条记忆：
+memories = cm.recall_memories(query="PostgreSQL")      # ✅ 精确匹配
+memories = cm.recall_memories(query="数据库")            # ✅ 同义词扩展
+memories = cm.recall_memories(query="Postgres")          # ✅ 拼写纠正
+memories = cm.recall_memories(query="データベース")      # ✅ 跨语言（日语）
 ```
 
-**功能特性：**
-- 🔄 **同义词扩展**: "数据库" → PostgreSQL, MySQL, Redis...
-- ✨ **拼写纠错**: "Postgres" → "PostgreSQL"
-- 🌐 **跨语言映射**: 中 ↔ 英 ↔ 日
-- ⚡ **零依赖**: 无需 PyTorch, 无需外部模型
-- 🔧 **可配置**: 运行时启用/禁用
+**特性**：同义词扩展 · 拼写纠正 · 跨语言映射（中/英/日） · 零外部依赖
 
-### 主动声明偏好
+### 3. 主动声明
 
 ```python
-# 用户主动告知 AI 关于自己的信息
-result = cm.declare("我喜欢深色主题")
-# → confidence=1.0, source_layer="declaration", 一定存储
+cm.declare("I prefer PostgreSQL over MySQL")
+# → confidence=1.0，保证被记住
 ```
 
-### 查看 AI 记住了什么
+### 4. 记忆画像
 
 ```python
 profile = cm.get_memory_profile()
-# → {
-#     "summary": "AI 记住了关于你的 12 条信息：5个偏好、3个纠正、2个决策",
-#     "highlights": {"user_preference": ["深色主题", "PostgreSQL"], ...},
-#     "stats": {"by_type": {...}, "confidence_avg": 0.92}
-#   }
+print(profile['summary'])
+# → "AI 记住了关于你的 12 件事：5 个偏好、3 个纠正、2 个决策"
 ```
 
-### Obsidian 知识库
+### 5. 导出与导入（可携带性）
 
 ```python
-from memory_classification_engine import CarryMem
-from memory_classification_engine.adapters import ObsidianAdapter
+# 导出记忆 — 数据属于你
+cm.export_memories(output_path="my_memories.json")
 
-cm = CarryMem(knowledge_adapter=ObsidianAdapter("/path/to/vault"))
-cm.index_knowledge()
-results = cm.recall_from_knowledge("Python 设计模式")
-```
-
-### 项目级隔离
-
-```python
-cm_alpha = CarryMem(namespace="project-alpha")
-cm_beta = CarryMem(namespace="project-beta")
-
-cm_alpha.declare("我喜欢深色主题")   # 隔离在 project-alpha
-cm_beta.declare("我喜欢浅色主题")    # 隔离在 project-beta
-
-# 跨项目搜索
-result = cm_alpha.recall_all("PostgreSQL", namespaces=["project-alpha", "global"])
-```
-
-### 智能系统提示词
-
-```python
-# 为你的 Agent 生成上下文感知的系统提示词
-prompt = cm.build_system_prompt(context="深色主题", language="zh")
-# → 包含相关记忆和知识库，按优先级排序
-```
-
-### 插件适配器
-
-```python
-# 通过 entry_points 加载第三方适配器
-from memory_classification_engine.adapters import load_adapter, list_available_adapters
-
-CustomAdapter = load_adapter("my_custom_adapter")
-adapters = list_available_adapters()
-# → {"sqlite": "...", "obsidian": "...", "my_custom_adapter": "... (plugin)"}
-```
-
-### 导出与导入（可携带性）
-
-```python
-# 导出你的记忆——它们属于你
-result = cm.export_memories(output_path="my_memories.json")
-# → {"exported": True, "total_memories": 42, "format": "json"}
-
-# 导出为人类可读的 Markdown
-result = cm.export_memories(output_path="my_memories.md", format="markdown")
-
-# 导入到新的 CarryMem 实例（不同工具、不同设备）
-cm2 = CarryMem(db_path="new_device.db")
-cm2.import_memories(input_path="my_memories.json")
-# → {"imported": 42, "skipped": 0, "errors": 0}
+# 在新设备上导入
+with CarryMem() as cm2:
+    cm2.import_memories(input_path="my_memories.json")
+    # 所有记忆恢复！
 ```
 
 ---
 
-## MCP 服务器：3+3+3+2+1 可选模式
+## 🎨 实际使用场景
 
-| 分组 | 工具 | 要求 |
-|------|------|------|
-| **核心 (3)** | `classify_message`, `get_classification_schema`, `batch_classify` | 始终可用 |
-| **存储 (3)** | `classify_and_remember`, `recall_memories`, `forget_memory` | 存储适配器 |
-| **知识库 (3)** | `index_knowledge`, `recall_from_knowledge`, `recall_all` | 知识库适配器 |
-| **画像 (2)** | `declare_preference`, `get_memory_profile` | 存储适配器 |
-| **提示词 (1)** | `get_system_prompt` | 存储适配器 |
+### 场景 1：代码助手记住你的风格
 
-### 配置
+```python
+with CarryMem() as cm:
+    cm.classify_and_remember("I prefer using type hints in Python")
+    cm.classify_and_remember("I like to use dataclasses instead of dicts")
+
+    # 下次对话，AI 自动知道你的偏好
+    memories = cm.recall_memories(query="Python coding style")
+```
+
+### 场景 2：跨工具使用
+
+```python
+# 在 Cursor 中
+with CarryMem(namespace="cursor") as cm_cursor:
+    cm_cursor.classify_and_remember("I prefer dark mode")
+
+# 在 Windsurf 中，使用相同的记忆
+with CarryMem(namespace="cursor") as cm_windsurf:
+    memories = cm_windsurf.recall_memories(query="theme")  # 找到了！
+```
+
+### 场景 3：项目隔离
+
+```python
+# 项目 A
+with CarryMem(namespace="project-a") as cm_a:
+    cm_a.classify_and_remember("Use React for frontend")
+
+# 项目 B — 互不干扰
+with CarryMem(namespace="project-b") as cm_b:
+    cm_b.classify_and_remember("Use Vue for frontend")
+```
+
+---
+
+## 🔥 为什么 CarryMem 更好
+
+|  | CarryMem | Mem0 | LangMem | Zep |
+|--|----------|------|---------|-----|
+| **自动分类** | ✅ 7 种类型 | ❌ 全部存储 | ⚠️ 需要 LLM | ⚠️ 事后摘要 |
+| **可携带性** | ✅ 你的文件 | ❌ 云端锁定 | ❌ 工具锁定 | ❌ 服务锁定 |
+| **成本** | ✅ 60%+ 零成本 | ❌ 每次调用 | ❌ 每次调用 | ❌ 每次调用 |
+| **项目隔离** | ✅ 命名空间 | ❌ 无 | ❌ 无 | ❌ 无 |
+| **知识库** | ✅ Obsidian | ❌ 无 | ❌ 无 | ❌ 无 |
+| **开源** | ✅ 完全开源 | ⚠️ 部分 | ✅ 完全开源 | ⚠️ 部分 |
+
+**核心差异**：CarryMem 的记忆属于你。换模型、换工具、换设备 — 记忆跟着你走。
+
+---
+
+## 📊 性能指标
+
+| 指标 | 数值 |
+|------|------|
+| 分类准确率 | **90.6%** |
+| F1 分数 | **97.9%** |
+| 零成本分类 | **60%+** |
+| 召回延迟 (P50) | **~45ms** |
+| 测试通过 | **224/224** |
+
+---
+
+## 🏗️ 工作原理
+
+### 三层分类策略
+
+```
+用户输入 → 规则引擎 (60%+) → 模式分析 (30%) → 语义推断 (10%)
+              ↓                     ↓                    ↓
+          零成本               近零成本             Token 成本
+          高速度               中等速度              低速度
+```
+
+**60%+ 的分类不需要 LLM 调用！**
+
+### 数据流
+
+```
+1. 用户输入
+   ↓
+2. 自动分类（7 种类型）
+   ↓
+3. 智能存储（去重 + TTL）
+   ↓
+4. 语义召回（FTS5 + 同义词）
+   ↓
+5. 返回相关记忆
+```
+
+---
+
+## 🌟 高级功能
+
+### Obsidian 知识库集成
+
+```python
+from memory_classification_engine import CarryMem, ObsidianAdapter
+
+with CarryMem(knowledge_adapter=ObsidianAdapter("/path/to/vault")) as cm:
+    cm.index_knowledge()
+    results = cm.recall_from_knowledge("Python design patterns")
+```
+
+### MCP 服务器
+
+添加到你的 MCP 客户端配置（如 Claude Code、Cursor）：
 
 ```json
 {
@@ -230,101 +252,62 @@ cm2.import_memories(input_path="my_memories.json")
 }
 ```
 
----
-
-## 对比
-
-|  | CarryMem | Mem0 | LangMem | Zep |
-|--|----------|------|---------|-----|
-| **分类** | 实时，7 种类型 | 无（全量存储） | 通过 LLM 链 | 事后总结 |
-| **存储** | 可携带（SQLite/你的 DB） | 锁定在 Mem0 云 | 锁定在 LangChain | 锁定在 Zep |
-| **LLM 成本** | 60%+ 零成本 | 始终嵌入 | 始终 LLM | 始终 LLM |
-| **记忆类型** | 7 种结构化类型 | 非结构化 | 3 种类型 | 2 种类型 |
-| **遗忘** | 主动（4 层 TTL） | 仅 TTL | 手动 | 仅 TTL |
-| **知识库** | Obsidian（只读） | 无 | 无 | 无 |
-| **主动声明** | 是（confidence=1.0） | 否 | 否 | 否 |
-| **项目隔离** | 基于命名空间 | 否 | 否 | 否 |
-| **开源** | 完全 | 部分 | 完全 | 部分 |
-| **可携带性** | 你的文件，带走 | 否 | 否 | 否 |
-
-**关键区别：** CarryMem 的记忆是你的。不是我们的，不是任何人的。换模型、换工具、换设备——你的记忆跟着你。
+**12 个工具**：核心 (3) · 存储 (3) · 知识库 (3) · 画像 (2) · 提示 (1)
 
 ---
 
-## 性能
+## 📚 文档
 
-| 指标 | 数值 |
-|------|------|
-| 分类准确率 | **90.6%** |
-| F1 分数 | **97.9%** |
-| 集成测试 | **133/133 通过** |
-| LLM 调用比例 | **<10%** |
-| P50 延迟（规则匹配） | ~45ms |
+- 📖 [快速入门指南](../QUICK_START_GUIDE.md)
+- 🏗️ [架构设计](../ARCHITECTURE.md)
+- 📋 [API 参考](../API_REFERENCE.md)
+- 🎯 [用户故事](../USER_STORIES.md)
+- 🗺️ [路线图](../guides/ROADMAP.md)
+- 🤝 [贡献指南](../../CONTRIBUTING.md)
 
 ---
 
-## 架构
+## 🎯 适合谁？
 
-```
-CarryMem（主类）
-  ├── MCE 引擎（三层分类漏斗）
-  │   ├── 规则匹配器（60%+ 命中，零成本）
-  │   ├── 模式分析器（30%+ 命中，近零成本）
-  │   └── 语义分类器（<10% 命中，LLM 回退）
-  ├── 存储适配器（SQLite 默认，可替换）
-  │   ├── SQLiteAdapter: FTS5 + 去重 + TTL + 命名空间
-  │   ├── ObsidianAdapter: Markdown + Frontmatter + Wiki-links（只读）
-  │   └── 插件适配器: 通过 entry_points
-  ├── declare(): 主动声明（confidence=1.0）
-  ├── get_memory_profile(): 结构化记忆画像
-  ├── build_system_prompt(): 智能提示词生成（EN/CN/JP）
-  ├── export_memories(): 导出记忆（JSON/Markdown）
-  ├── import_memories(): 导入记忆（JSON）
-  └── MCP 服务器: 3+3+3+2+1 工具
+**开发者** — 构建需要记住用户的 AI Agent
+
+**产品团队** — 需要持久记忆，不想从零构建分类逻辑
+
+**高级用户** — 希望 AI 工具记住自己，而不是反过来
+
+---
+
+## 🚦 项目状态
+
+**当前版本**：v0.4.3
+**测试**：224/224 通过
+**准确率**：90.6%
+
+---
+
+## 🤝 贡献
+
+欢迎贡献！参见 [贡献指南](../../CONTRIBUTING.md)。
+
+### 开发环境搭建
+
+```bash
+git clone https://github.com/lulin70/memory-classification-engine.git
+cd carrymem
+pip install -e ".[dev]"
+pytest
 ```
 
 ---
 
-## 项目结构
+## 📄 许可证
 
-```
-carrymem/
-├── src/memory_classification_engine/
-│   ├── carrymem.py              # CarryMem 主类
-│   ├── engine.py                # MCE 核心引擎（精简版）
-│   ├── adapters/
-│   │   ├── base.py              # StorageAdapter ABC + MemoryEntry + StoredMemory
-│   │   ├── sqlite_adapter.py    # SQLite + FTS5 + 命名空间
-│   │   ├── obsidian_adapter.py  # Obsidian（只读）
-│   │   └── loader.py            # 插件适配器加载器
-│   ├── layers/                  # 三层分类漏斗
-│   ├── coordinators/            # 分类管道
-│   ├── utils/
-│   │   ├── confirmation.py      # 确认模式检测（EN/CN/JP）
-│   │   └── ...
-│   └── integration/layer2_mcp/  # MCP 服务器
-├── tests/                       # 125 个测试通过
-├── benchmarks/                  # MCE-Bench 180 用例数据集
-├── docs/
-│   ├── consensus/               # 战略决策
-│   ├── architecture/            # 架构 + 设计文档
-│   ├── planning/                # 用户故事 + 状态
-│   └── testing/                 # 测试计划
-└── setup.py                     # carrymem v0.3.0
-```
+MIT 许可证 — 详见 [LICENSE](../../LICENSE)
 
 ---
 
-## 适合谁？
+**开始使用 CarryMem，让 AI 记住你！** 🚀
 
-**开发者** — 构建 AI Agent，需要跨会话记住用户。
-
-**Agent 产品团队** — 需要持久记忆，但不想从零构建分类逻辑。
-
-**高级用户** — 希望 AI 工具记住自己，而不是反过来。
-
----
-
-## 许可证
-
-MIT
+```bash
+pip install carrymem
+```
