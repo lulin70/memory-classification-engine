@@ -8,10 +8,7 @@ v0.4.1: Initial implementation
 
 from typing import Any, Dict, List, Optional
 
-
-class ValidationError(ValueError):
-    """Raised when input validation fails."""
-    pass
+from memory_classification_engine.exceptions import ValidationError
 
 
 def validate_message(message: str, max_length: int = 10000) -> None:

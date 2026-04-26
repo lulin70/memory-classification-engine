@@ -1,7 +1,18 @@
 import re
 from typing import Dict, List, Optional, Tuple
-from langdetect import detect, LangDetectException
-import pycld2 as cld2
+
+try:
+    from langdetect import detect, LangDetectException
+    _LANGDETECT_AVAILABLE = True
+except ImportError:
+    _LANGDETECT_AVAILABLE = False
+    LangDetectException = Exception
+
+try:
+    import pycld2 as cld2
+    _CLD2_AVAILABLE = True
+except ImportError:
+    _CLD2_AVAILABLE = False
 
 class LanguageManager:
     """Language detection and management for multi-language support."""
@@ -140,22 +151,24 @@ class LanguageManager:
         if has_cjk and not has_hiragana and not has_katakana:
             return "zh-cn", 0.95
 
-        try:
-            is_reliable, text_bytes_found, details = cld2.detect(text)
-            if is_reliable and details:
-                language_code = details[0][1].lower()
-                confidence = details[0][2] / 100.0
-                language_code = self._map_language_code(language_code)
-                return language_code, confidence
-        except Exception:
-            pass
+        if _CLD2_AVAILABLE:
+            try:
+                is_reliable, text_bytes_found, details = cld2.detect(text)
+                if is_reliable and details:
+                    language_code = details[0][1].lower()
+                    confidence = details[0][2] / 100.0
+                    language_code = self._map_language_code(language_code)
+                    return language_code, confidence
+            except Exception:
+                pass
 
-        try:
-            language_code = detect(text)
-            language_code = self._map_language_code(language_code)
-            return language_code, 0.8
-        except LangDetectException:
-            pass
+        if _LANGDETECT_AVAILABLE:
+            try:
+                language_code = detect(text)
+                language_code = self._map_language_code(language_code)
+                return language_code, 0.8
+            except LangDetectException:
+                pass
 
         return 'en', 0.5
     

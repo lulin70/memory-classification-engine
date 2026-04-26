@@ -9,8 +9,8 @@ CarryMem 是一个可携带的 AI 记忆系统，让 AI 助手记住你的偏好
 [English](../../README.md) | **中文** | [日本語](README-JP.md)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.4.3-blue" alt="Version">
-  <img src="https://img.shields.io/badge/tests-224%20passing-green" alt="Tests">
+  <img src="https://img.shields.io/badge/version-0.5.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/tests-276%20passing-green" alt="Tests">
   <img src="https://img.shields.io/badge/accuracy-90.6%25-green" alt="Accuracy">
   <img src="https://img.shields.io/badge/zero--cost-60%25%2B-brightgreen" alt="Zero Cost">
 </p>
@@ -191,7 +191,7 @@ with CarryMem(namespace="project-b") as cm_b:
 | F1 分数 | **97.9%** |
 | 零成本分类 | **60%+** |
 | 召回延迟 (P50) | **~45ms** |
-| 测试通过 | **224/224** |
+| 测试通过 | **276/276** |
 
 ---
 
@@ -279,8 +279,8 @@ with CarryMem(knowledge_adapter=ObsidianAdapter("/path/to/vault")) as cm:
 
 ## 🚦 项目状态
 
-**当前版本**：v0.4.3
-**测试**：224/224 通过
+**当前版本**：v0.5.0
+**测试**：276/276 通过
 **准确率**：90.6%
 
 ---

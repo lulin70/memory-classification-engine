@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 
 from .base import MemoryEntry, StorageAdapter, StoredMemory
 from ..exceptions import DatabaseError, ConnectionError, QueryError
+from ..scoring import calculate_importance
 
 
 def _escape_like(value: str) -> str:
@@ -52,7 +53,10 @@ CREATE TABLE IF NOT EXISTS memories (
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     expires_at TEXT,
     access_count INTEGER NOT NULL DEFAULT 0,
-    content_hash TEXT NOT NULL
+    content_hash TEXT NOT NULL,
+    importance_score REAL NOT NULL DEFAULT 0.0,
+    last_accessed_at TEXT,
+    version INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
@@ -96,6 +100,34 @@ _CREATE_INDEX_SQL = """
 CREATE INDEX IF NOT EXISTS idx_memories_namespace ON memories(namespace);
 """
 
+_V050_MIGRATION_SQL = [
+    "ALTER TABLE memories ADD COLUMN importance_score REAL NOT NULL DEFAULT 0.0",
+    "ALTER TABLE memories ADD COLUMN last_accessed_at TEXT",
+    "ALTER TABLE memories ADD COLUMN version INTEGER NOT NULL DEFAULT 1",
+]
+
+_V050_INDEX_SQL = [
+    "CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance_score DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_memories_last_accessed ON memories(last_accessed_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_memories_namespace_importance ON memories(namespace, importance_score DESC)",
+]
+
+_VERSION_SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS memory_versions (
+    version_id TEXT PRIMARY KEY,
+    memory_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    change_reason TEXT,
+    namespace TEXT NOT NULL DEFAULT 'default'
+);
+
+CREATE INDEX IF NOT EXISTS idx_mv_memory_id ON memory_versions(memory_id);
+CREATE INDEX IF NOT EXISTS idx_mv_memory_version ON memory_versions(memory_id, version);
+"""
+
 _TIER_TTL = {
     1: timedelta(hours=24),
     2: timedelta(days=90),
@@ -131,6 +163,8 @@ class SQLiteAdapter(StorageAdapter):
         namespace: str = "default",
         enable_semantic_recall: bool = True,
         semantic_config: Optional[Dict[str, Any]] = None,
+        enable_cache: bool = True,
+        cache_config: Optional[Dict[str, Any]] = None,
     ):
         self._namespace = namespace
         self._db_path = db_path or _default_db_path()
@@ -144,6 +178,7 @@ class SQLiteAdapter(StorageAdapter):
         conn = self._get_connection()
         self._init_schema()
         self._migrate_namespace()
+        self._migrate_v050()
 
         # v0.4.0: Initialize semantic recall components
         self._enable_semantic = enable_semantic_recall and SEMANTIC_AVAILABLE
@@ -166,6 +201,20 @@ class SQLiteAdapter(StorageAdapter):
                 self._enable_semantic = False
                 from memory_classification_engine.utils.logger import logger
                 logger.warning(f"Semantic recall initialization failed: {e}")
+
+        # v0.5.0: Initialize recall cache
+        self._enable_cache = enable_cache
+        self._cache = None
+        if enable_cache:
+            try:
+                from ..cache import RecallCache
+                cc = cache_config or {}
+                self._cache = RecallCache(
+                    max_size=cc.get("max_size", 256),
+                    ttl_seconds=cc.get("ttl_seconds", 300),
+                )
+            except ImportError:
+                self._enable_cache = False
 
     def _get_connection(self) -> sqlite3.Connection:
         """Get thread-local database connection.
@@ -190,6 +239,7 @@ class SQLiteAdapter(StorageAdapter):
         conn = self._get_connection()
         try:
             conn.executescript(_SCHEMA_SQL)
+            conn.executescript(_VERSION_SCHEMA_SQL)
             conn.commit()
             self._migrate_fts_tokenizer()
         except sqlite3.Error as e:
@@ -218,6 +268,62 @@ class SQLiteAdapter(StorageAdapter):
                 conn.commit()
         except sqlite3.OperationalError:
             pass
+
+    def _migrate_v050(self):
+        conn = self._get_connection()
+        needs_recalculate = False
+        try:
+            conn.execute("SELECT importance_score FROM memories LIMIT 1")
+        except sqlite3.OperationalError:
+            needs_recalculate = True
+            try:
+                for sql in _V050_MIGRATION_SQL:
+                    try:
+                        conn.execute(sql)
+                    except sqlite3.OperationalError:
+                        pass
+                conn.commit()
+            except sqlite3.Error as e:
+                from memory_classification_engine.utils.logger import logger
+                logger.warning(f"Failed to migrate v0.5.0 columns: {e}")
+
+        for sql in _V050_INDEX_SQL:
+            try:
+                conn.execute(sql)
+            except sqlite3.OperationalError:
+                pass
+        conn.commit()
+
+        if needs_recalculate:
+            self._recalculate_all_importance()
+
+    def _recalculate_all_importance(self):
+        conn = self._get_connection()
+        try:
+            rows = conn.execute(
+                "SELECT storage_key, confidence, type, created_at, access_count FROM memories"
+            ).fetchall()
+            now = datetime.now(timezone.utc)
+            for row in rows:
+                try:
+                    created_at = datetime.fromisoformat(row["created_at"]) if row["created_at"] else now
+                    score = calculate_importance(
+                        confidence=row["confidence"],
+                        memory_type=row["type"],
+                        created_at=created_at,
+                        access_count=row["access_count"],
+                        now=now,
+                    )
+                    conn.execute(
+                        "UPDATE memories SET importance_score = ? WHERE storage_key = ?",
+                        (score, row["storage_key"]),
+                    )
+                except (ValueError, TypeError):
+                    continue
+            conn.commit()
+        except sqlite3.Error as e:
+            from memory_classification_engine.utils.logger import logger
+            logger.warning(f"Failed to recalculate importance scores: {e}")
 
     def close(self):
         """Close all database connections.
@@ -283,7 +389,10 @@ class SQLiteAdapter(StorageAdapter):
 
     def remember(self, entry: MemoryEntry, _skip_commit: bool = False) -> StoredMemory:
         with self._lock:
-            return self._remember_impl(entry, _skip_commit)
+            result = self._remember_impl(entry, _skip_commit)
+        if self._enable_cache and self._cache:
+            self._cache.invalidate()
+        return result
 
     def _remember_impl(self, entry: MemoryEntry, _skip_commit: bool = False) -> StoredMemory:
         conn = self._get_connection()
@@ -312,13 +421,21 @@ class SQLiteAdapter(StorageAdapter):
         recall_hint_json = json.dumps(entry.recall_hint) if entry.recall_hint else None
         original_message = entry.metadata.get("original_message", "") if entry.metadata else ""
 
+        imp_score = calculate_importance(
+            confidence=entry.confidence,
+            memory_type=entry.type,
+            created_at=now,
+            access_count=0,
+            now=now,
+        )
+
         conn.execute(
             """INSERT INTO memories
                (id, type, content, original_message, confidence, tier,
                 source_layer, reasoning, suggested_action, recall_hint,
                 metadata, storage_key, namespace, created_at, updated_at, expires_at,
-                access_count, content_hash)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)""",
+                access_count, content_hash, importance_score, last_accessed_at, version)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, NULL, 1)""",
             (
                 entry.id or storage_key,
                 entry.type,
@@ -337,12 +454,16 @@ class SQLiteAdapter(StorageAdapter):
                 now.isoformat(),
                 expires_at,
                 c_hash,
+                imp_score,
             ),
         )
         if not _skip_commit:
             conn.commit()
 
-        return StoredMemory.from_memory_entry(entry, storage_key=storage_key, created_at=now)
+        stored = StoredMemory.from_memory_entry(entry, storage_key=storage_key, created_at=now)
+        stored.importance_score = imp_score
+        stored.version = 1
+        return stored
 
     def remember_batch(self, entries: List[MemoryEntry]) -> List[StoredMemory]:
         with self._lock:
@@ -359,7 +480,9 @@ class SQLiteAdapter(StorageAdapter):
                 from memory_classification_engine.utils.logger import logger
                 logger.warning(f"Batch remember failed, rolled back: {e}")
                 raise
-            return results
+        if self._enable_cache and self._cache:
+            self._cache.invalidate()
+        return results
 
     _ALLOWED_FILTER_KEYS = {"type", "tier", "confidence_min", "created_after"}
     _VALID_MEMORY_TYPES = {
@@ -374,8 +497,21 @@ class SQLiteAdapter(StorageAdapter):
         limit: int = 20,
         namespaces: Optional[List[str]] = None,
     ) -> List[StoredMemory]:
+        if self._enable_cache and self._cache:
+            cached = self._cache.get(self._namespace, query, filters, limit)
+            if cached is not None:
+                return [self._dict_to_stored(d) or StoredMemory() for d in cached]
+
         with self._lock:
-            return self._recall_impl(query, filters, limit, namespaces)
+            results = self._recall_impl(query, filters, limit, namespaces)
+
+        if self._enable_cache and self._cache and results:
+            self._cache.put(
+                self._namespace, query, filters, limit,
+                [r.to_dict() for r in results],
+            )
+
+        return results
 
     def _recall_impl(
         self,
@@ -470,15 +606,26 @@ class SQLiteAdapter(StorageAdapter):
 
                     # Update access counts and return
                     conn = self._get_connection()
+                    now_iso = datetime.now(timezone.utc).isoformat()
                     seen_keys = set()
                     results = []
                     for stored in final_results:
                         if stored.storage_key not in seen_keys:
                             seen_keys.add(stored.storage_key)
-                            conn.execute(
-                                "UPDATE memories SET access_count = access_count + 1 WHERE storage_key = ?",
-                                (stored.storage_key,),
+                            new_count = stored.access_count + 1
+                            new_score = calculate_importance(
+                                confidence=stored.confidence,
+                                memory_type=stored.type,
+                                created_at=stored.created_at or datetime.now(timezone.utc),
+                                access_count=new_count,
                             )
+                            conn.execute(
+                                "UPDATE memories SET access_count = ?, importance_score = ?, last_accessed_at = ? WHERE storage_key = ?",
+                                (new_count, new_score, now_iso, stored.storage_key),
+                            )
+                            stored.access_count = new_count
+                            stored.importance_score = new_score
+                            stored.last_accessed_at = datetime.now(timezone.utc)
                             results.append(stored)
                     conn.commit()
                     return results
@@ -487,23 +634,34 @@ class SQLiteAdapter(StorageAdapter):
             sql = f"""
                 SELECT * FROM memories
                 {where_clause}
-                ORDER BY confidence DESC
+                ORDER BY importance_score DESC, confidence DESC
                 LIMIT ?
             """
             params.append(limit)
             rows = conn.execute(sql, params).fetchall()
 
         conn = self._get_connection()
+        now_iso = datetime.now(timezone.utc).isoformat()
         results = []
         seen_keys = set()
         for row in rows:
             stored = self._row_to_stored(row)
             if stored and stored.storage_key not in seen_keys:
                 seen_keys.add(stored.storage_key)
-                conn.execute(
-                    "UPDATE memories SET access_count = access_count + 1 WHERE storage_key = ?",
-                    (stored.storage_key,),
+                new_count = stored.access_count + 1
+                new_score = calculate_importance(
+                    confidence=stored.confidence,
+                    memory_type=stored.type,
+                    created_at=stored.created_at or datetime.now(timezone.utc),
+                    access_count=new_count,
                 )
+                conn.execute(
+                    "UPDATE memories SET access_count = ?, importance_score = ?, last_accessed_at = ? WHERE storage_key = ?",
+                    (new_count, new_score, now_iso, stored.storage_key),
+                )
+                stored.access_count = new_count
+                stored.importance_score = new_score
+                stored.last_accessed_at = datetime.now(timezone.utc)
                 results.append(stored)
         conn.commit()
 
@@ -570,7 +728,7 @@ class SQLiteAdapter(StorageAdapter):
                 AND m.rowid IN (
                     SELECT rowid FROM memories_fts WHERE memories_fts MATCH ?
                 )
-                ORDER BY m.confidence DESC
+                ORDER BY m.importance_score DESC, m.confidence DESC
                 LIMIT ?
             """
             params_with_query = params + [query, limit]
@@ -587,7 +745,7 @@ class SQLiteAdapter(StorageAdapter):
             SELECT * FROM memories
             {where_clause}
             {like_clause}
-            ORDER BY confidence DESC
+            ORDER BY importance_score DESC, confidence DESC
             LIMIT ?
         """
         all_params = params + like_params + [limit]
@@ -601,7 +759,10 @@ class SQLiteAdapter(StorageAdapter):
                 (storage_key, self._namespace),
             )
             conn.commit()
-            return cursor.rowcount > 0
+            result = cursor.rowcount > 0
+        if self._enable_cache and self._cache:
+            self._cache.invalidate()
+        return result
 
     def forget_expired(self) -> int:
         with self._lock:
@@ -612,7 +773,158 @@ class SQLiteAdapter(StorageAdapter):
                 (self._namespace, now),
             )
             conn.commit()
-            return cursor.rowcount
+            count = cursor.rowcount
+        if self._enable_cache and self._cache and count > 0:
+            self._cache.invalidate()
+        return count
+
+    def recalculate_importance(self) -> int:
+        with self._lock:
+            self._recalculate_all_importance()
+            conn = self._get_connection()
+            total = conn.execute(
+                "SELECT COUNT(*) FROM memories WHERE namespace = ?",
+                (self._namespace,),
+            ).fetchone()[0]
+            return total
+
+    def update_memory(
+        self,
+        storage_key: str,
+        new_content: str,
+        reason: Optional[str] = None,
+    ) -> Optional[StoredMemory]:
+        with self._lock:
+            return self._update_memory_impl(storage_key, new_content, reason)
+
+    def _update_memory_impl(
+        self,
+        storage_key: str,
+        new_content: str,
+        reason: Optional[str] = None,
+    ) -> Optional[StoredMemory]:
+        conn = self._get_connection()
+        row = conn.execute(
+            "SELECT * FROM memories WHERE storage_key = ? AND namespace = ?",
+            (storage_key, self._namespace),
+        ).fetchone()
+        if not row:
+            return None
+
+        stored = self._row_to_stored(row)
+        if not stored:
+            return None
+
+        old_version = stored.version
+        new_version = old_version + 1
+
+        version_id = f"v_{storage_key}_{new_version}"
+        now = datetime.now(timezone.utc)
+        conn.execute(
+            """INSERT INTO memory_versions (version_id, memory_id, version, content, confidence, changed_at, change_reason, namespace)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (version_id, stored.id, old_version, stored.content, stored.confidence,
+             now.isoformat(), reason or f"Update to version {new_version}", self._namespace),
+        )
+
+        new_c_hash = _content_hash(new_content, stored.type)
+        new_imp_score = calculate_importance(
+            confidence=stored.confidence,
+            memory_type=stored.type,
+            created_at=stored.created_at or now,
+            access_count=stored.access_count,
+            now=now,
+        )
+
+        conn.execute(
+            """UPDATE memories SET content = ?, content_hash = ?, version = ?,
+               importance_score = ?, updated_at = ? WHERE storage_key = ? AND namespace = ?""",
+            (new_content, new_c_hash, new_version, new_imp_score, now.isoformat(),
+             storage_key, self._namespace),
+        )
+        conn.commit()
+
+        updated_row = conn.execute(
+            "SELECT * FROM memories WHERE storage_key = ? AND namespace = ?",
+            (storage_key, self._namespace),
+        ).fetchone()
+        return self._row_to_stored(updated_row)
+
+    def get_memory_history(
+        self,
+        storage_key: str,
+    ) -> List[Dict[str, Any]]:
+        conn = self._get_connection()
+        row = conn.execute(
+            "SELECT id FROM memories WHERE storage_key = ? AND namespace = ?",
+            (storage_key, self._namespace),
+        ).fetchone()
+        if not row:
+            return []
+
+        memory_id = row["id"]
+        versions = conn.execute(
+            "SELECT * FROM memory_versions WHERE memory_id = ? ORDER BY version DESC",
+            (memory_id,),
+        ).fetchall()
+
+        current_row = conn.execute(
+            "SELECT * FROM memories WHERE storage_key = ? AND namespace = ?",
+            (storage_key, self._namespace),
+        ).fetchone()
+        current = self._row_to_stored(current_row)
+
+        history = []
+        if current:
+            history.append({
+                "version": current.version,
+                "content": current.content,
+                "confidence": current.confidence,
+                "changed_at": current.updated_at.isoformat() if current.updated_at else None,
+                "change_reason": "Current version",
+                "is_current": True,
+            })
+
+        for v in versions:
+            history.append({
+                "version": v["version"],
+                "content": v["content"],
+                "confidence": v["confidence"],
+                "changed_at": v["changed_at"],
+                "change_reason": v["change_reason"],
+                "is_current": False,
+            })
+
+        return history
+
+    def rollback_memory(
+        self,
+        storage_key: str,
+        version: int,
+    ) -> Optional[StoredMemory]:
+        with self._lock:
+            conn = self._get_connection()
+            row = conn.execute(
+                "SELECT id FROM memories WHERE storage_key = ? AND namespace = ?",
+                (storage_key, self._namespace),
+            ).fetchone()
+            if not row:
+                return None
+
+            memory_id = row["id"]
+            version_row = conn.execute(
+                "SELECT * FROM memory_versions WHERE memory_id = ? AND version = ?",
+                (memory_id, version),
+            ).fetchone()
+            if not version_row:
+                return None
+
+            old_content = version_row["content"]
+            return self._update_memory_impl(
+                storage_key=storage_key,
+                new_content=old_content,
+                reason=f"Rollback to version {version}",
+            )
 
     def get_stats(self) -> Dict[str, Any]:
         conn = self._get_connection()
@@ -759,6 +1071,30 @@ class SQLiteAdapter(StorageAdapter):
             except (ValueError, TypeError):
                 updated_at = None
 
+        last_accessed_at = None
+        last_accessed_val = None
+        try:
+            last_accessed_val = row["last_accessed_at"]
+        except (IndexError, KeyError):
+            pass
+        if last_accessed_val:
+            try:
+                last_accessed_at = datetime.fromisoformat(last_accessed_val)
+            except (ValueError, TypeError):
+                last_accessed_at = None
+
+        importance_score = 0.0
+        try:
+            importance_score = row["importance_score"] or 0.0
+        except (IndexError, KeyError):
+            pass
+
+        version = 1
+        try:
+            version = row["version"] or 1
+        except (IndexError, KeyError):
+            pass
+
         return StoredMemory(
             id=row["id"],
             type=row["type"],
@@ -775,6 +1111,9 @@ class SQLiteAdapter(StorageAdapter):
             updated_at=updated_at,
             expires_at=expires_at,
             access_count=row["access_count"] or 0,
+            importance_score=importance_score,
+            last_accessed_at=last_accessed_at,
+            version=version,
         )
 
     def _dict_to_stored(self, d: Dict) -> Optional[StoredMemory]:
@@ -818,6 +1157,13 @@ class SQLiteAdapter(StorageAdapter):
                 else:
                     updated_at = d["updated_at"]
 
+            last_accessed_at = None
+            if d.get("last_accessed_at"):
+                if isinstance(d["last_accessed_at"], str):
+                    last_accessed_at = datetime.fromisoformat(d["last_accessed_at"])
+                else:
+                    last_accessed_at = d["last_accessed_at"]
+
             return StoredMemory(
                 id=d.get("id"),
                 type=d.get("type", "unknown"),
@@ -834,6 +1180,9 @@ class SQLiteAdapter(StorageAdapter):
                 updated_at=updated_at,
                 expires_at=expires_at,
                 access_count=d.get("access_count", 0),
+                importance_score=d.get("importance_score", 0.0),
+                last_accessed_at=last_accessed_at,
+                version=d.get("version", 1),
             )
         except Exception as e:
             from memory_classification_engine.utils.logger import logger

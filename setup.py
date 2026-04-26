@@ -5,17 +5,17 @@ def get_version():
         from memory_classification_engine.__version__ import __version__
         return __version__
     except ImportError:
-        return "0.4.2"
+        return "0.5.0"
 
 setup(
     name="carrymem",
     version=get_version(),
-    description="Your portable AI memory layer. Classify, store, and retrieve what matters across models, tools, and devices.",
+    description="Your portable AI memory layer. Classify, store, and recall what matters across models, tools, and devices.",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/lulin70/memory-classification-engine",
     author="lulin70",
-    author_email="lulin70@example.com",
+    author_email="lulin70@gmail.com",
     license="MIT",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
@@ -27,15 +27,19 @@ setup(
     },
     install_requires=[
         "PyYAML>=5.0",
-        "pycld2>=0.41",
-        "langdetect>=1.0.9",
     ],
     extras_require={
+        "language": [
+            "pycld2>=0.41",
+            "langdetect>=1.0.9",
+        ],
         "dev": [
             "pytest>=7.0",
             "pytest-cov>=4.0",
             "build>=0.10",
             "twine>=4.0",
+            "pycld2>=0.41",
+            "langdetect>=1.0.9",
         ],
     },
     entry_points={
@@ -48,7 +52,7 @@ setup(
         ],
     },
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",

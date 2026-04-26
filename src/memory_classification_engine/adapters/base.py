@@ -108,6 +108,9 @@ class StoredMemory(MemoryEntry):
     updated_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
     access_count: int = 0
+    importance_score: float = 0.0
+    last_accessed_at: Optional[datetime] = None
+    version: int = 1
     vector_embedding: Optional[List[float]] = None
     storage_metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -120,6 +123,9 @@ class StoredMemory(MemoryEntry):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "access_count": self.access_count,
+            "importance_score": self.importance_score,
+            "last_accessed_at": self.last_accessed_at.isoformat() if self.last_accessed_at else None,
+            "version": self.version,
             "vector_embedding": self.vector_embedding,
             "storage_metadata": self.storage_metadata,
         })
