@@ -36,10 +36,17 @@ setup(
         "dev": [
             "pytest>=7.0",
             "pytest-cov>=4.0",
+            "pytest-mock>=3.10",
+            "coverage[toml]>=7.0",
+            "pre-commit>=3.0",
             "build>=0.10",
             "twine>=4.0",
             "pycld2>=0.41",
             "langdetect>=1.0.9",
+            "flake8>=6.0",
+            "black>=23.0",
+            "isort>=5.12",
+            "mypy>=1.0",
         ],
         "encryption": [
             "cryptography>=41.0",
