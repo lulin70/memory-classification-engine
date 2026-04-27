@@ -31,6 +31,11 @@ try:
     from memory_classification_engine import CarryMem
     from memory_classification_engine.__version__ import __version__
     from memory_classification_engine.adapters.sqlite_adapter import SQLiteAdapter
+    from memory_classification_engine.cli_enhancements import (
+        cmd_doctor,
+        cmd_status,
+        cmd_setup_mcp
+    )
 except ImportError:
     print("Error: CarryMem not properly installed")
     print("Try: pip install -e .")
@@ -1164,6 +1169,7 @@ def main():
         "export": cmd_export,
         "import": cmd_import,
         "stats": cmd_stats,
+        "status": cmd_status,
         "check": cmd_check,
         "doctor": cmd_doctor,
         "setup-mcp": cmd_setup_mcp,

@@ -45,6 +45,21 @@ Switch tools (Cursor → Windsurf), switch models (Claude → GPT), start from s
 pip install carrymem
 ```
 
+**重要**: 如果 `carrymem` 命令不可用，请重新安装：
+
+```bash
+pip uninstall carrymem -y
+pip install carrymem
+```
+
+或从源码安装：
+
+```bash
+git clone https://github.com/lulin70/memory-classification-engine.git
+cd carrymem
+pip install -e .
+```
+
 ### First Memory (1 minute)
 
 ```python
