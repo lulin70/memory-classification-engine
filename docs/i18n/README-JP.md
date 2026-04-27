@@ -1,189 +1,223 @@
-# CarryMem
+# CarryMem — AI のアイデンティティレイヤー
 
-**AI があなたを覚える。その逆ではない。**
+**AI はあなたが誰かを覚える。あなたが何を言ったかだけではない。**
 
-> ポータブル AI メモリレイヤー — モデル、ツール、デバイスを越えて
+> ポータブル AI アイデンティティレイヤー — 好み、決定、訂正がモデル、ツール、デバイスを越えてついてくる。
 
-CarryMem は、AI アシスタントがあなたの好み、訂正、決定を記憶できるポータブル AI メモリシステムです。ツールを変えても記憶は失われず、デバイスを変えても持ち運べます。
+CarryMem は軽量・ゼロ依存の AI メモリシステムで、**あなたが誰か** — 好み、決定、訂正 — を保存し、そのアイデンティティをあらゆる AI ツールで利用可能にします。Cursor から Claude Code へ、GPT から Claude へ切り替えても、AI は常にあなたを知っています。
 
 [English](../../README.md) | [中文](README-CN.md) | **日本語**
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.7.0-blue" alt="Version">
-  <img src="https://img.shields.io/badge/tests-332%20passing-green" alt="Tests">
+  <img src="https://img.shields.io/badge/version-0.8.2-blue" alt="Version">
+  <img src="https://img.shields.io/badge/tests-447%20passing-green" alt="Tests">
   <img src="https://img.shields.io/badge/accuracy-90.6%25-green" alt="Accuracy">
-  <img src="https://img.shields.io/badge/zero--cost-60%25%2B-brightgreen" alt="Zero Cost">
+  <img src="https://img.shields.io/badge/zero--dependencies-core-brightgreen" alt="Zero Deps">
 </p>
 
 ---
 
-## 🎯 なぜ CarryMem が必要か？
+## なぜ CarryMem が必要か？
 
-### 問題：AI はいつもあなたを忘れる
+### 問題：AI はいつもあなたが誰かを忘れる
 
-新しい会話のたびに、AI は初めて会ったかのように振る舞います：
-- ❌ あなたの好み？忘れている
-- ❌ あなたの訂正？忘れている
-- ❌ あなたの決定？忘れている
+新しい会話のたびに、AI はゼロから始まります：
+- ダークモードがお好み？**忘れている。**
+- 前回訂正したこと？**忘れている。**
+- React を使うと決めたこと？**忘れている。**
 
-ツールを変え（Cursor → Windsurf）、モデルを変え（Claude → GPT）、毎回ゼロからやり直し。
+ツールを変え（Cursor → Windsurf）、モデルを変え（Claude → GPT）— 毎回ゼロからやり直し。
 
-### 解決策：CarryMem
+### 解決策：CarryMem アイデンティティレイヤー
 
-✅ **AI が自動的にあなたを記憶** — 好み、訂正、決定を自動分類して保存
-✅ **メモリはポータブル** — エクスポート/インポート、ツールを変えてもデータは失われない
-✅ **60%+ ゼロコスト** — スマート分類、トークンの無駄遣いなし
-✅ **5分でセットアップ** — 設定不要、すぐに使える
+CarryMem はテキストを保存するだけではなく — **あなたが誰か**を理解します：
+
+```bash
+$ carrymem whoami
+
+  あなたは誰か（AI による）
+  ==================================================
+
+  あなたの好み：
+    ⭐ すべてのエディタでダークモードが好き
+    ⭐ データベースには PostgreSQL を使う
+    ⭐ データ分析にはいつも Python を使う
+
+  あなたの決定：
+    🎯 フロントエンドは React を使う
+
+  あなたの訂正：
+    🔧 ポート番号は 5432 が正しい
+
+  メモリプロファイル：
+    合計: 19 | 主要タイプ: user_preference | 平均信頼度: 73%
+```
 
 ---
 
-## ⚡ クイックスタート
+## クイックスタート
 
 ### インストール
 
 ```bash
-pip install carrymem
+pip install -e .
 ```
 
-### 最初のメモリ（1分）
+### 5 行のコード
 
 ```python
 from memory_classification_engine import CarryMem
 
-with CarryMem() as cm:
-    # AI が自動的にあなたの好みを分類して保存
-    cm.classify_and_remember("I prefer dark mode")
-    cm.classify_and_remember("I use PostgreSQL for databases")
-    cm.classify_and_remember("I work at a startup in Tokyo")
-
-    # メモリの呼び出し
-    memories = cm.recall_memories(query="database")
-    for mem in memories:
-        print(f"{mem['type']}: {mem['content']}")
+cm = CarryMem()
+cm.classify_and_remember("ダークモードが好き")              # 好みとして自動分類
+cm.classify_and_remember("PostgreSQL を使って MySQL は使わない")  # 訂正として自動分類
+memories = cm.recall_memories("データベース")                  # セマンティックリコール
+print(cm.build_system_prompt())                               # 任意の AI に注入
+cm.close()
 ```
 
-これだけ！🎉 CarryMem は `~/.carrymem/memories.db` に自動的にデータベースを作成します。
+### CLI（19 コマンド）
+
+```bash
+carrymem init                           # 初期化
+carrymem add "ダークモードが好き"        # メモリを保存
+carrymem add "テストメモ" --force        # 強制保存（分類をスキップ）
+carrymem list                           # メモリ一覧
+carrymem search "テーマ"                # メモリ検索
+carrymem show <key>                     # メモリ詳細
+carrymem edit <key> "新しい内容"         # メモリ編集
+carrymem forget <key>                   # メモリ削除
+carrymem whoami                         # AI が考えるあなた
+carrymem profile export identity.json   # AI アイデンティティをエクスポート
+carrymem stats                          # メモリ統計
+carrymem check                          # 品質・競合チェック
+carrymem clean --expired --dry-run      # クリーンアップのプレビュー
+carrymem doctor                         # インストール診断
+carrymem setup-mcp --tool cursor        # ワンライン MCP 設定
+carrymem tui                            # ターミナル UI
+carrymem export backup.json             # 全メモリをエクスポート
+carrymem import backup.json             # メモリをインポート
+carrymem version                        # バージョン表示
+```
 
 ---
 
-## 💡 コア機能
+## コア機能
 
 ### 1. 自動分類（7つのメモリタイプ）
 
-CarryMem はメッセージタイプを自動識別し、価値のある情報だけを保存します：
+CarryMem は共有する情報の種類を自動的に識別します：
+
+| タイプ | アイコン | 例 |
+|--------|----------|-----|
+| `user_preference` | ⭐ | "ダークモードが好き" |
+| `correction` | 🔧 | "いや、Python 3.11 であって 3.10 ではない" |
+| `decision` | 🎯 | "フロントエンドは React を使う" |
+| `fact_declaration` | 📌 | "東京のスタートアップで働いている" |
+| `task_pattern` | 🔄 | "いつもテストを先に書く" |
+| `contextual_observation` | 👁 | "ユーザーはイライラしているようだ" |
+| `knowledge` | 📚 | "PostgreSQL は MVCC を使用している" |
+
+### 2. セマンティックリコール（言語間）
 
 ```python
-cm.classify_and_remember("I prefer dark mode")
-# → type: user_preference, confidence: 0.95
-
-cm.classify_and_remember("No, I meant Python 3.11, not 3.10")
-# → type: correction, confidence: 0.98
-
-cm.classify_and_remember("Let's use React for the frontend")
-# → type: decision, confidence: 0.92
-```
-
-**7つのメモリタイプ**：`user_preference` · `correction` · `fact_declaration` · `decision` · `relationship` · `task_pattern` · `sentiment_marker`
-
-### 2. セマンティックリコール（v0.4.0+）
-
-```python
-# 中国語で保存、英語で検索 — 言語を越えたリコール！
 cm.classify_and_remember("我偏好使用PostgreSQL")
 
-# 以下の検索でこのメモリが見つかります：
-memories = cm.recall_memories(query="PostgreSQL")      # ✅ 完全一致
-memories = cm.recall_memories(query="数据库")            # ✅ 同義語展開
-memories = cm.recall_memories(query="Postgres")          # ✅ スペル修正
-memories = cm.recall_memories(query="データベース")      # ✅ 言語間マッピング（日本語）
+# 以下の検索で見つかります：
+cm.recall_memories("PostgreSQL")     # 完全一致
+cm.recall_memories("数据库")          # 同義語展開
+cm.recall_memories("Postgres")       # スペル修正
+cm.recall_memories("データベース")    # 言語間マッピング（日本語）
 ```
 
-**機能**：同義語展開 · スペル修正 · 言語間マッピング（中/英/日） · 外部依存なし
-
-### 3. アクティブ宣言
+### 3. アイデンティティレイヤー（whoami）
 
 ```python
-cm.declare("I prefer PostgreSQL over MySQL")
-# → confidence=1.0、確実に記憶される
+identity = cm.whoami()
+print(identity["preferences"])   # ["ダークモードが好き", ...]
+print(identity["decisions"])     # ["フロントエンドは React", ...]
+print(identity["corrections"])   # ["ポート番号は 5432", ...]
 ```
 
-### 4. メモリプロファイル
+### 4. 重要度スコアリングとライフサイクル
 
-```python
-profile = cm.get_memory_profile()
-print(profile['summary'])
-# → "AI はあなたについて12のことを記憶：5つの好み、3つの訂正、2つの決定"
+すべてのメモリには時間とともに進化する重要度スコアがあります：
+
+```
+importance = confidence × type_weight × recency_factor × access_factor
 ```
 
-### 5. エクスポート＆インポート（ポータビリティ）
+- **30日半減期減衰** — 古いメモリはアクセスされなければ薄れる
+- **アクセス強化** — 頻繁に呼び出されるメモリは新鮮に保たれる
+- **タイプ重み付け** — 訂正 (1.3x) > 決定 (1.2x) > 好み (1.1x)
 
-```python
-# メモリをエクスポート — データはあなたのもの
-cm.export_memories(output_path="my_memories.json")
+### 5. 品質管理
 
-# 新しいデバイスでインポート
-with CarryMem() as cm2:
-    cm2.import_memories(input_path="my_memories.json")
-    # すべてのメモリが復元！
+```bash
+carrymem check                    # 全チェック
+carrymem check --conflicts        # 矛盾を検出
+carrymem check --quality          # 低品質メモリを発見
+carrymem check --expired          # 期限切れメモリを発見
+carrymem clean --expired --dry-run # クリーンアップのプレビュー
 ```
+
+### 6. セキュリティと信頼性
+
+| 機能 | 説明 |
+|------|------|
+| **暗号化** | AES-128 (Fernet) または HMAC-CTR フォールバック、ゼロ依存 |
+| **バックアップ** | ゼロダウンタイム SQLite VACUUM INTO |
+| **監査ログ** | 追記専用の操作履歴 |
+| **バージョン履歴** | すべての編集を追跡、ロールバック対応 |
+| **入力検証** | SQL インジェクション、XSS、パストラバーサル対策 |
+
+### 7. MCP 統合（ワンライン設定）
+
+```bash
+# Cursor 用に設定
+carrymem setup-mcp --tool cursor
+
+# Claude Code 用に設定
+carrymem setup-mcp --tool claude-code
+
+# すべてに設定
+carrymem setup-mcp --tool all
+```
+
+12 の MCP ツール：コア (3) · ストレージ (3) · ナレッジ (3) · プロファイル (2) · プロンプト (1)
+
+### 8. ターミナル UI
+
+```bash
+pip install textual
+carrymem tui
+```
+
+サイドバーフィルター、検索、追加モード付きのインタラクティブターミナルインターフェース。
 
 ---
 
-## 🎨 実際の使用例
+## 競合比較
 
-### 使用例 1：コードアシスタントがあなたのスタイルを記憶
+|  | CarryMem | Mem0 | OpenChronicle | ima |
+|--|----------|------|---------------|-----|
+| **ゼロ依存** | ✅ SQLite のみ | ❌ Milvus 必要 | ✅ | ❌ クラウド |
+| **自動分類** | ✅ 7 タイプ | ❌ | ❌ 手動 | ❌ |
+| **アイデンティティポートレート** | ✅ whoami | ❌ | ❌ | ❌ |
+| **CLI** | ✅ 19 コマンド | ❌ | ❌ | ❌ |
+| **TUI** | ✅ textual | ❌ | ❌ | ✅ アプリ |
+| **暗号化** | ✅ 内蔵 | ❌ | ❌ | ❌ |
+| **バージョン履歴** | ✅ ロールバック | ❌ | ❌ | ❌ |
+| **競合検出** | ✅ 内蔵 | ❌ | ❌ | ❌ |
+| **データ所有権** | ✅ ローカルファイル | ⚠️ クラウド | ✅ ローカル | ❌ クラウド |
+| **5 行統合** | ✅ | ❌ | ❌ | ❌ |
+| **言語間リコール** | ✅ 中/英/日 | ❌ | ❌ | ❌ |
 
-```python
-with CarryMem() as cm:
-    cm.classify_and_remember("I prefer using type hints in Python")
-    cm.classify_and_remember("I like to use dataclasses instead of dicts")
-
-    # 次の会話で、AI はあなたの好みを自動的に知っている
-    memories = cm.recall_memories(query="Python coding style")
-```
-
-### 使用例 2：ツール間での利用
-
-```python
-# Cursor で
-with CarryMem(namespace="cursor") as cm_cursor:
-    cm_cursor.classify_and_remember("I prefer dark mode")
-
-# Windsurf で、同じメモリを使用
-with CarryMem(namespace="cursor") as cm_windsurf:
-    memories = cm_windsurf.recall_memories(query="theme")  # 見つかった！
-```
-
-### 使用例 3：プロジェクト分離
-
-```python
-# プロジェクト A
-with CarryMem(namespace="project-a") as cm_a:
-    cm_a.classify_and_remember("Use React for frontend")
-
-# プロジェクト B — 干渉なし
-with CarryMem(namespace="project-b") as cm_b:
-    cm_b.classify_and_remember("Use Vue for frontend")
-```
+**主な違い**：他の製品はあなたが何を読んだかを保存する。CarryMem はあなたが誰かを保存する。
 
 ---
 
-## 🔥 なぜ CarryMem が優れているか
-
-|  | CarryMem | Mem0 | LangMem | Zep |
-|--|----------|------|---------|-----|
-| **自動分類** | ✅ 7タイプ | ❌ 全保存 | ⚠️ LLMが必要 | ⚠️ 事後要約 |
-| **ポータビリティ** | ✅ あなたのファイル | ❌ クラウドロックイン | ❌ ツールロックイン | ❌ サービスロックイン |
-| **コスト** | ✅ 60%+ ゼロコスト | ❌ 毎回呼び出し | ❌ 毎回呼び出し | ❌ 毎回呼び出し |
-| **プロジェクト分離** | ✅ ネームスペース | ❌ なし | ❌ なし | ❌ なし |
-| **ナレッジベース** | ✅ Obsidian | ❌ なし | ❌ なし | ❌ なし |
-| **オープンソース** | ✅ 完全公開 | ⚠️ 一部 | ✅ 完全公開 | ⚠️ 一部 |
-
-**主な違い**：CarryMem のメモリはあなたのもの。モデル、ツール、デバイスを変えても — メモリはついてくる。
-
----
-
-## 📊 パフォーマンス指標
+## パフォーマンス
 
 | 指標 | 値 |
 |------|-----|
@@ -191,105 +225,132 @@ with CarryMem(namespace="project-b") as cm_b:
 | F1 スコア | **97.9%** |
 | ゼロコスト分類 | **60%+** |
 | リコールレイテンシ (P50) | **~45ms** |
-| テスト通過 | **332/332** |
+| テスト通過 | **447/447** |
 
 ---
 
-## 🏗️ 仕組み
-
-### 3層分類戦略
+## アーキテクチャ
 
 ```
-ユーザー入力 → ルールエンジン (60%+) → パターン分析 (30%) → セマンティック (10%)
-                  ↓                        ↓                        ↓
-             ゼロコスト             ほぼゼロコスト            トークンコスト
-             高速                   中速                     低速
+ユーザー入力
+    ↓
+自動分類（7 タイプ、4 階層）
+    ↓
+重要度スコアリング（confidence × type × recency × access）
+    ↓
+スマート保存（SQLite + FTS5、重複排除、TTL、暗号化）
+    ↓
+セマンティックリコール（FTS5 + 同義語 + スペル修正 + 言語間）
+    ↓
+コンテキスト注入（トークン予算、関連性ランキング）
+    ↓
+AI ツール（Cursor / Claude Code / 任意の MCP クライアント）
 ```
 
-**60%+ の分類は LLM 呼び出し不要！**
-
-### データフロー
-
+**3層分類戦略**：
 ```
-1. ユーザー入力
-   ↓
-2. 自動分類（7タイプ）
-   ↓
-3. スマート保存（重複排除 + TTL）
-   ↓
-4. セマンティックリコール（FTS5 + 同義語）
-   ↓
-5. 関連メモリを返却
+ルールエンジン (60%+) → パターン分析 (30%) → セマンティック (10%)
+     ↓                    ↓                    ↓
+ ゼロコスト          ほぼゼロコスト        トークンコスト
 ```
 
 ---
 
-## 🌟 高度な機能
+## 高度な使い方
 
-### Obsidian ナレッジベース統合
+### Obsidian ナレッジベース
 
 ```python
 from memory_classification_engine import CarryMem, ObsidianAdapter
 
-with CarryMem(knowledge_adapter=ObsidianAdapter("/path/to/vault")) as cm:
-    cm.index_knowledge()
-    results = cm.recall_from_knowledge("Python design patterns")
+cm = CarryMem(knowledge_adapter=ObsidianAdapter("/path/to/vault"))
+cm.index_knowledge()
+results = cm.recall_from_knowledge("Python デザインパターン")
 ```
 
-### MCP サーバー
+### 非同期 API
 
-MCP クライアント設定（Claude Code、Cursor など）に追加：
+```python
+from memory_classification_engine import AsyncCarryMem
 
-```json
-{
-  "mcpServers": {
-    "carrymem": {
-      "command": "python3",
-      "args": ["-m", "memory_classification_engine.integration.layer2_mcp"],
-      "env": {}
-    }
-  }
-}
+async with AsyncCarryMem() as cm:
+    await cm.classify_and_remember("ダークモードが好き")
+    memories = await cm.recall_memories("テーマ")
 ```
 
-**12ツール**：コア (3) · ストレージ (3) · ナレッジ (3) · プロファイル (2) · プロンプト (1)
+### JSON アダプター（SQLite 不要）
+
+```python
+from memory_classification_engine import CarryMem, JSONAdapter
+
+cm = CarryMem(adapter=JSONAdapter("/path/to/memories.json"))
+```
+
+### 暗号化
+
+```python
+cm = CarryMem(encryption_key="my-secret-key")
+# すべてのコンテンツは保存時に暗号化、読み取り時に復号
+```
+
+### メモリバージョニング
+
+```python
+cm.update_memory(key, "更新されたコンテンツ")     # バージョン 2 を作成
+history = cm.get_memory_history(key)              # [v1, v2]
+cm.rollback_memory(key, version=1)                # v1 に復元
+```
+
+### 他の AI へのアイデンティティエクスポート
+
+```python
+# AI アイデンティティをエクスポート
+cm.export_profile(output_path="my_identity.json")
+
+# 別のデバイスや AI ツールで
+cm.import_memories(input_path="backup.json")
+```
 
 ---
 
-## 📚 ドキュメント
+## ドキュメント
 
-- 📖 [クイックスタートガイド](../QUICK_START_GUIDE.md)
-- 🏗️ [アーキテクチャ](../ARCHITECTURE.md)
-- 📋 [API リファレンス](../API_REFERENCE.md)
-- 🎯 [ユーザーストーリー](../USER_STORIES.md)
-- 🗺️ [ロードマップ](../guides/ROADMAP.md)
-- 🤝 [コントリビューション](../../CONTRIBUTING.md)
-
----
-
-## 🎯 誰のためのものか？
-
-**開発者** — ユーザーを記憶する必要がある AI エージェントを構築する人
-
-**プロダクトチーム** — 分類ロジックをゼロから構築せずに永続メモリが必要な人
-
-**パワーユーザー** — AI ツールに自分を記憶してほしい人
+- [クイックスタートガイド](../QUICK_START_GUIDE.md)
+- [アーキテクチャ](../ARCHITECTURE.md)
+- [API リファレンス](../API_REFERENCE.md)
+- [ユーザーストーリー](../USER_STORIES.md)
+- [ロードマップ](../guides/ROADMAP.md)
+- [コントリビューション](../../CONTRIBUTING.md)
 
 ---
 
-## 🚦 プロジェクトステータス
+## 誰のためのものか？
 
-**現在のバージョン**：v0.7.0
-**テスト**：332/332 通過
+**開発者** — セッションを越えてユーザーを記憶する必要がある AI エージェントを構築する人
+
+**パワーユーザー** — AI ツール（Cursor、Claude Code、Windsurf）に自分を記憶してほしい人
+
+**チーム** — 共有メモリネームスペースを通じて組織のナレッジを共有する人
+
+---
+
+## プロジェクトステータス
+
+**現在のバージョン**：v0.8.2
+**テスト**：447/447 通過
 **精度**：90.6%
 
+**v0.8.x チェンジログ**：
+- v0.8.2：アイデンティティレイヤー（whoami、プロファイルエクスポート）、競合差別化
+- v0.8.1：ユーザー視点の CLI 改善（show/edit/clean、カラー出力、--force）
+- v0.8.0：強化 CLI（19 コマンド）、TUI、MCP 設定、doctor、品質管理
+- v0.7.0：MCP HTTP/SSE、JSON アダプター、非同期 API
+- v0.6.0：暗号化、バックアップ、監査ログ
+- v0.5.0：スマートコンテキスト注入、重要度スコアリング、キャッシュ、マージ、バージョニング
+
 ---
 
-## 🤝 コントリビューション
-
-コントリビューションを歓迎します！[コントリビューションガイド](../../CONTRIBUTING.md)を参照してください。
-
-### 開発環境のセットアップ
+## コントリビューション
 
 ```bash
 git clone https://github.com/lulin70/memory-classification-engine.git
@@ -298,16 +359,14 @@ pip install -e ".[dev]"
 pytest
 ```
 
+詳細は [コントリビューションガイド](../../CONTRIBUTING.md) を参照してください。
+
 ---
 
-## 📄 ライセンス
+## ライセンス
 
 MIT ライセンス — 詳細は [LICENSE](../../LICENSE) を参照
 
 ---
 
-**CarryMem を使い始めて、AI にあなたを記憶させよう！** 🚀
-
-```bash
-pip install carrymem
-```
+**CarryMem — AI はあなたが誰かを覚える。データはあなただけのもの。** 🚀

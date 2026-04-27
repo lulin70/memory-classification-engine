@@ -1,189 +1,223 @@
-# CarryMem
+# CarryMem — AI 的身份层
 
-**AI 记住你。而不是反过来。**
+**AI 记住你是谁。不只是你说了什么。**
 
-> 你的随身 AI 记忆层 — 跨模型、跨工具、跨设备
+> 你的便携式 AI 身份层 — 偏好、决策和纠正，跨模型、跨工具、跨设备随身携带。
 
-CarryMem 是一个可携带的 AI 记忆系统，让 AI 助手记住你的偏好、纠正和决策。换工具不丢记忆，换设备随身携带。
+CarryMem 是一个轻量级、零依赖的 AI 记忆系统，存储**你是谁** — 你的偏好、决策、纠正 — 并将这个身份提供给任何 AI 工具。从 Cursor 切换到 Claude Code，从 GPT 切换到 Claude，你的 AI 始终认识你。
 
 [English](../../README.md) | **中文** | [日本語](README-JP.md)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.7.0-blue" alt="Version">
-  <img src="https://img.shields.io/badge/tests-332%20passing-green" alt="Tests">
+  <img src="https://img.shields.io/badge/version-0.8.2-blue" alt="Version">
+  <img src="https://img.shields.io/badge/tests-447%20passing-green" alt="Tests">
   <img src="https://img.shields.io/badge/accuracy-90.6%25-green" alt="Accuracy">
-  <img src="https://img.shields.io/badge/zero--cost-60%25%2B-brightgreen" alt="Zero Cost">
+  <img src="https://img.shields.io/badge/zero--dependencies-core-brightgreen" alt="Zero Deps">
 </p>
 
 ---
 
-## 🎯 为什么需要 CarryMem？
+## 为什么需要 CarryMem？
 
-### 问题：AI 总是忘记你
+### 问题：AI 总是忘记你是谁
 
-每次新对话，AI 都像第一次认识你：
-- ❌ 你的偏好？忘了
-- ❌ 你的纠正？忘了
-- ❌ 你的决策？忘了
+每次新对话，AI 都从零开始：
+- 你偏好深色模式？**忘了。**
+- 你上次纠正过？**忘了。**
+- 你决定用 React？**忘了。**
 
-换工具（Cursor → Windsurf），换模型（Claude → GPT），每次都从零开始。
+换工具（Cursor → Windsurf），换模型（Claude → GPT）— 每次都从零开始。
 
-### 解决方案：CarryMem
+### 解决方案：CarryMem 身份层
 
-✅ **AI 自动记住你** — 偏好、纠正、决策自动分类存储
-✅ **记忆可携带** — 导出/导入，换工具不丢数据
-✅ **60%+ 零成本** — 智能分类，不浪费 Token
-✅ **5 分钟上手** — 零配置，开箱即用
+CarryMem 不只是存储文本 — 它理解**你是谁**：
+
+```bash
+$ carrymem whoami
+
+  你是谁（根据你的 AI）
+  ==================================================
+
+  你的偏好：
+    ⭐ 我偏好所有编辑器都用深色模式
+    ⭐ 我用 PostgreSQL 做数据库
+    ⭐ 我总是用 Python 做数据分析
+
+  你的决策：
+    🎯 前端用 React
+
+  你的纠正：
+    🔧 端口号应该是 5432
+
+  记忆画像：
+    总计: 19 | 主导类型: user_preference | 平均置信度: 73%
+```
 
 ---
 
-## ⚡ 快速开始
+## 快速开始
 
 ### 安装
 
 ```bash
-pip install carrymem
+pip install -e .
 ```
 
-### 第一条记忆（1 分钟）
+### 5 行代码
 
 ```python
 from memory_classification_engine import CarryMem
 
-with CarryMem() as cm:
-    # AI 自动分类并存储你的偏好
-    cm.classify_and_remember("I prefer dark mode")
-    cm.classify_and_remember("I use PostgreSQL for databases")
-    cm.classify_and_remember("I work at a startup in Tokyo")
-
-    # 召回记忆
-    memories = cm.recall_memories(query="database")
-    for mem in memories:
-        print(f"{mem['type']}: {mem['content']}")
+cm = CarryMem()
+cm.classify_and_remember("我偏好深色模式")              # 自动分类为偏好
+cm.classify_and_remember("用 PostgreSQL 不用 MySQL")    # 自动分类为纠正
+memories = cm.recall_memories("数据库")                  # 语义召回
+print(cm.build_system_prompt())                          # 注入任何 AI
+cm.close()
 ```
 
-就这么简单！🎉 CarryMem 自动在 `~/.carrymem/memories.db` 创建数据库。
+### 命令行（19 个命令）
+
+```bash
+carrymem init                           # 初始化
+carrymem add "我偏好深色模式"            # 存储记忆
+carrymem add "测试笔记" --force         # 强制存储（跳过分类）
+carrymem list                           # 列出记忆
+carrymem search "主题"                  # 搜索记忆
+carrymem show <key>                     # 查看记忆详情
+carrymem edit <key> "新内容"            # 编辑记忆
+carrymem forget <key>                   # 删除记忆
+carrymem whoami                         # AI 认为你是谁
+carrymem profile export identity.json   # 导出 AI 身份
+carrymem stats                          # 记忆统计
+carrymem check                          # 质量与冲突检查
+carrymem clean --expired --dry-run      # 预览清理
+carrymem doctor                         # 诊断安装
+carrymem setup-mcp --tool cursor        # 一行配置 MCP
+carrymem tui                            # 终端界面
+carrymem export backup.json             # 导出所有记忆
+carrymem import backup.json             # 导入记忆
+carrymem version                        # 显示版本
+```
 
 ---
 
-## 💡 核心功能
+## 核心功能
 
 ### 1. 自动分类（7 种记忆类型）
 
-CarryMem 自动识别消息类型，只存储有价值的信息：
+CarryMem 自动识别你分享的信息类型：
+
+| 类型 | 图标 | 示例 |
+|------|------|------|
+| `user_preference` | ⭐ | "我偏好深色模式" |
+| `correction` | 🔧 | "不对，是 Python 3.11 不是 3.10" |
+| `decision` | 🎯 | "前端用 React" |
+| `fact_declaration` | 📌 | "我在东京的一家创业公司工作" |
+| `task_pattern` | 🔄 | "我总是先写测试" |
+| `contextual_observation` | 👁 | "用户似乎有些沮丧" |
+| `knowledge` | 📚 | "PostgreSQL 使用 MVCC" |
+
+### 2. 语义召回（跨语言）
 
 ```python
-cm.classify_and_remember("I prefer dark mode")
-# → type: user_preference, confidence: 0.95
-
-cm.classify_and_remember("No, I meant Python 3.11, not 3.10")
-# → type: correction, confidence: 0.98
-
-cm.classify_and_remember("Let's use React for the frontend")
-# → type: decision, confidence: 0.92
-```
-
-**7 种记忆类型**：`user_preference` · `correction` · `fact_declaration` · `decision` · `relationship` · `task_pattern` · `sentiment_marker`
-
-### 2. 语义召回（v0.4.0+）
-
-```python
-# 用中文存储，用英文查询 — 跨语言召回！
 cm.classify_and_remember("我偏好使用PostgreSQL")
 
-# 以下查询都能找到这条记忆：
-memories = cm.recall_memories(query="PostgreSQL")      # ✅ 精确匹配
-memories = cm.recall_memories(query="数据库")            # ✅ 同义词扩展
-memories = cm.recall_memories(query="Postgres")          # ✅ 拼写纠正
-memories = cm.recall_memories(query="データベース")      # ✅ 跨语言（日语）
+# 以下查询都能找到：
+cm.recall_memories("PostgreSQL")     # 精确匹配
+cm.recall_memories("数据库")          # 同义词扩展
+cm.recall_memories("Postgres")       # 拼写纠正
+cm.recall_memories("データベース")    # 跨语言（日语）
 ```
 
-**特性**：同义词扩展 · 拼写纠正 · 跨语言映射（中/英/日） · 零外部依赖
-
-### 3. 主动声明
+### 3. 身份层（whoami）
 
 ```python
-cm.declare("I prefer PostgreSQL over MySQL")
-# → confidence=1.0，保证被记住
+identity = cm.whoami()
+print(identity["preferences"])   # ["我偏好深色模式", ...]
+print(identity["decisions"])     # ["前端用 React", ...]
+print(identity["corrections"])   # ["端口号应该是 5432", ...]
 ```
 
-### 4. 记忆画像
+### 4. 重要性评分与生命周期
 
-```python
-profile = cm.get_memory_profile()
-print(profile['summary'])
-# → "AI 记住了关于你的 12 件事：5 个偏好、3 个纠正、2 个决策"
+每条记忆都有随时间演变的重要性评分：
+
+```
+importance = confidence × type_weight × recency_factor × access_factor
 ```
 
-### 5. 导出与导入（可携带性）
+- **30 天半衰期衰减** — 旧记忆逐渐淡忘，除非被访问
+- **访问强化** — 频繁召回的记忆保持新鲜
+- **类型加权** — 纠正 (1.3x) > 决策 (1.2x) > 偏好 (1.1x)
 
-```python
-# 导出记忆 — 数据属于你
-cm.export_memories(output_path="my_memories.json")
+### 5. 质量管理
 
-# 在新设备上导入
-with CarryMem() as cm2:
-    cm2.import_memories(input_path="my_memories.json")
-    # 所有记忆恢复！
+```bash
+carrymem check                    # 全面检查
+carrymem check --conflicts        # 检测矛盾
+carrymem check --quality          # 发现低质量记忆
+carrymem check --expired          # 发现过期记忆
+carrymem clean --expired --dry-run # 预览清理
 ```
+
+### 6. 安全与可靠性
+
+| 功能 | 说明 |
+|------|------|
+| **加密** | AES-128 (Fernet) 或 HMAC-CTR 回退，零依赖 |
+| **备份** | 零停机 SQLite VACUUM INTO |
+| **审计日志** | 只追加的操作历史 |
+| **版本历史** | 每次编辑追踪，支持回滚 |
+| **输入验证** | SQL 注入、XSS、路径遍历防护 |
+
+### 7. MCP 集成（一行配置）
+
+```bash
+# 配置 Cursor
+carrymem setup-mcp --tool cursor
+
+# 配置 Claude Code
+carrymem setup-mcp --tool claude-code
+
+# 配置所有
+carrymem setup-mcp --tool all
+```
+
+12 个 MCP 工具：核心 (3) · 存储 (3) · 知识库 (3) · 画像 (2) · 提示 (1)
+
+### 8. 终端界面
+
+```bash
+pip install textual
+carrymem tui
+```
+
+交互式终端界面，侧边栏过滤、搜索、添加模式。
 
 ---
 
-## 🎨 实际使用场景
+## 竞品对比
 
-### 场景 1：代码助手记住你的风格
+|  | CarryMem | Mem0 | OpenChronicle | ima |
+|--|----------|------|---------------|-----|
+| **零依赖** | ✅ 仅 SQLite | ❌ 需要 Milvus | ✅ | ❌ 云端 |
+| **自动分类** | ✅ 7 种类型 | ❌ | ❌ 手动 | ❌ |
+| **身份画像** | ✅ whoami | ❌ | ❌ | ❌ |
+| **命令行** | ✅ 19 个命令 | ❌ | ❌ | ❌ |
+| **终端界面** | ✅ textual | ❌ | ❌ | ✅ App |
+| **加密** | ✅ 内置 | ❌ | ❌ | ❌ |
+| **版本历史** | ✅ 回滚 | ❌ | ❌ | ❌ |
+| **冲突检测** | ✅ 内置 | ❌ | ❌ | ❌ |
+| **数据所有权** | ✅ 本地文件 | ⚠️ 云端 | ✅ 本地 | ❌ 云端 |
+| **5 行代码接入** | ✅ | ❌ | ❌ | ❌ |
+| **跨语言召回** | ✅ 中/英/日 | ❌ | ❌ | ❌ |
 
-```python
-with CarryMem() as cm:
-    cm.classify_and_remember("I prefer using type hints in Python")
-    cm.classify_and_remember("I like to use dataclasses instead of dicts")
-
-    # 下次对话，AI 自动知道你的偏好
-    memories = cm.recall_memories(query="Python coding style")
-```
-
-### 场景 2：跨工具使用
-
-```python
-# 在 Cursor 中
-with CarryMem(namespace="cursor") as cm_cursor:
-    cm_cursor.classify_and_remember("I prefer dark mode")
-
-# 在 Windsurf 中，使用相同的记忆
-with CarryMem(namespace="cursor") as cm_windsurf:
-    memories = cm_windsurf.recall_memories(query="theme")  # 找到了！
-```
-
-### 场景 3：项目隔离
-
-```python
-# 项目 A
-with CarryMem(namespace="project-a") as cm_a:
-    cm_a.classify_and_remember("Use React for frontend")
-
-# 项目 B — 互不干扰
-with CarryMem(namespace="project-b") as cm_b:
-    cm_b.classify_and_remember("Use Vue for frontend")
-```
+**核心差异**：其他产品存储你读过什么。CarryMem 存储你是谁。
 
 ---
 
-## 🔥 为什么 CarryMem 更好
-
-|  | CarryMem | Mem0 | LangMem | Zep |
-|--|----------|------|---------|-----|
-| **自动分类** | ✅ 7 种类型 | ❌ 全部存储 | ⚠️ 需要 LLM | ⚠️ 事后摘要 |
-| **可携带性** | ✅ 你的文件 | ❌ 云端锁定 | ❌ 工具锁定 | ❌ 服务锁定 |
-| **成本** | ✅ 60%+ 零成本 | ❌ 每次调用 | ❌ 每次调用 | ❌ 每次调用 |
-| **项目隔离** | ✅ 命名空间 | ❌ 无 | ❌ 无 | ❌ 无 |
-| **知识库** | ✅ Obsidian | ❌ 无 | ❌ 无 | ❌ 无 |
-| **开源** | ✅ 完全开源 | ⚠️ 部分 | ✅ 完全开源 | ⚠️ 部分 |
-
-**核心差异**：CarryMem 的记忆属于你。换模型、换工具、换设备 — 记忆跟着你走。
-
----
-
-## 📊 性能指标
+## 性能指标
 
 | 指标 | 数值 |
 |------|------|
@@ -191,105 +225,132 @@ with CarryMem(namespace="project-b") as cm_b:
 | F1 分数 | **97.9%** |
 | 零成本分类 | **60%+** |
 | 召回延迟 (P50) | **~45ms** |
-| 测试通过 | **332/332** |
+| 测试通过 | **447/447** |
 
 ---
 
-## 🏗️ 工作原理
-
-### 三层分类策略
+## 架构
 
 ```
-用户输入 → 规则引擎 (60%+) → 模式分析 (30%) → 语义推断 (10%)
-              ↓                     ↓                    ↓
-          零成本               近零成本             Token 成本
-          高速度               中等速度              低速度
+用户输入
+    ↓
+自动分类（7 种类型，4 个层级）
+    ↓
+重要性评分（confidence × type × recency × access）
+    ↓
+智能存储（SQLite + FTS5，去重，TTL，加密）
+    ↓
+语义召回（FTS5 + 同义词 + 拼写纠正 + 跨语言）
+    ↓
+上下文注入（token 预算，相关性排序）
+    ↓
+AI 工具（Cursor / Claude Code / 任何 MCP 客户端）
 ```
 
-**60%+ 的分类不需要 LLM 调用！**
-
-### 数据流
-
+**三层分类策略**：
 ```
-1. 用户输入
-   ↓
-2. 自动分类（7 种类型）
-   ↓
-3. 智能存储（去重 + TTL）
-   ↓
-4. 语义召回（FTS5 + 同义词）
-   ↓
-5. 返回相关记忆
+规则引擎 (60%+) → 模式分析 (30%) → 语义推断 (10%)
+     ↓                  ↓                  ↓
+ 零成本            近零成本           Token 成本
 ```
 
 ---
 
-## 🌟 高级功能
+## 高级用法
 
-### Obsidian 知识库集成
+### Obsidian 知识库
 
 ```python
 from memory_classification_engine import CarryMem, ObsidianAdapter
 
-with CarryMem(knowledge_adapter=ObsidianAdapter("/path/to/vault")) as cm:
-    cm.index_knowledge()
-    results = cm.recall_from_knowledge("Python design patterns")
+cm = CarryMem(knowledge_adapter=ObsidianAdapter("/path/to/vault"))
+cm.index_knowledge()
+results = cm.recall_from_knowledge("Python 设计模式")
 ```
 
-### MCP 服务器
+### 异步 API
 
-添加到你的 MCP 客户端配置（如 Claude Code、Cursor）：
+```python
+from memory_classification_engine import AsyncCarryMem
 
-```json
-{
-  "mcpServers": {
-    "carrymem": {
-      "command": "python3",
-      "args": ["-m", "memory_classification_engine.integration.layer2_mcp"],
-      "env": {}
-    }
-  }
-}
+async with AsyncCarryMem() as cm:
+    await cm.classify_and_remember("我偏好深色模式")
+    memories = await cm.recall_memories("主题")
 ```
 
-**12 个工具**：核心 (3) · 存储 (3) · 知识库 (3) · 画像 (2) · 提示 (1)
+### JSON 适配器（无需 SQLite）
+
+```python
+from memory_classification_engine import CarryMem, JSONAdapter
+
+cm = CarryMem(adapter=JSONAdapter("/path/to/memories.json"))
+```
+
+### 加密
+
+```python
+cm = CarryMem(encryption_key="my-secret-key")
+# 所有内容静态加密，读取时解密
+```
+
+### 记忆版本化
+
+```python
+cm.update_memory(key, "更新后的内容")     # 创建版本 2
+history = cm.get_memory_history(key)      # [v1, v2]
+cm.rollback_memory(key, version=1)        # 恢复到 v1
+```
+
+### 导出身份给其他 AI
+
+```python
+# 导出你的 AI 身份
+cm.export_profile(output_path="my_identity.json")
+
+# 在另一台设备或 AI 工具上
+cm.import_memories(input_path="backup.json")
+```
 
 ---
 
-## 📚 文档
+## 文档
 
-- 📖 [快速入门指南](../QUICK_START_GUIDE.md)
-- 🏗️ [架构设计](../ARCHITECTURE.md)
-- 📋 [API 参考](../API_REFERENCE.md)
-- 🎯 [用户故事](../USER_STORIES.md)
-- 🗺️ [路线图](../guides/ROADMAP.md)
-- 🤝 [贡献指南](../../CONTRIBUTING.md)
-
----
-
-## 🎯 适合谁？
-
-**开发者** — 构建需要记住用户的 AI Agent
-
-**产品团队** — 需要持久记忆，不想从零构建分类逻辑
-
-**高级用户** — 希望 AI 工具记住自己，而不是反过来
+- [快速入门指南](../QUICK_START_GUIDE.md)
+- [架构设计](../ARCHITECTURE.md)
+- [API 参考](../API_REFERENCE.md)
+- [用户故事](../USER_STORIES.md)
+- [路线图](../guides/ROADMAP.md)
+- [贡献指南](../../CONTRIBUTING.md)
 
 ---
 
-## 🚦 项目状态
+## 适合谁？
 
-**当前版本**：v0.7.0
-**测试**：332/332 通过
+**开发者** — 构建需要跨会话记住用户的 AI Agent
+
+**高级用户** — 希望 AI 工具（Cursor、Claude Code、Windsurf）记住自己
+
+**团队** — 通过共享记忆命名空间分享组织知识
+
+---
+
+## 项目状态
+
+**当前版本**：v0.8.2
+**测试**：447/447 通过
 **准确率**：90.6%
 
+**v0.8.x 更新日志**：
+- v0.8.2：身份层（whoami、profile 导出）、竞品差异化
+- v0.8.1：用户视角 CLI 改进（show/edit/clean、彩色输出、--force）
+- v0.8.0：增强 CLI（19 命令）、TUI、MCP 配置、doctor、质量管理
+- v0.7.0：MCP HTTP/SSE、JSON 适配器、异步 API
+- v0.6.0：加密、备份、审计日志
+- v0.5.0：智能上下文注入、重要性评分、缓存、合并、版本化
+
 ---
 
-## 🤝 贡献
-
-欢迎贡献！参见 [贡献指南](../../CONTRIBUTING.md)。
-
-### 开发环境搭建
+## 贡献
 
 ```bash
 git clone https://github.com/lulin70/memory-classification-engine.git
@@ -298,16 +359,14 @@ pip install -e ".[dev]"
 pytest
 ```
 
+详见 [贡献指南](../../CONTRIBUTING.md)。
+
 ---
 
-## 📄 许可证
+## 许可证
 
 MIT 许可证 — 详见 [LICENSE](../../LICENSE)
 
 ---
 
-**开始使用 CarryMem，让 AI 记住你！** 🚀
-
-```bash
-pip install carrymem
-```
+**CarryMem — AI 记住你是谁。只有你拥有数据。** 🚀
