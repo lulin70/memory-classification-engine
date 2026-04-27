@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional
 import json
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 
 from memory_classification_engine.engine import MemoryClassificationEngine
 from memory_classification_engine.adapters.base import MemoryEntry, StorageAdapter, StoredMemory
@@ -567,6 +568,87 @@ class CarryMem:
 
         profile = self._adapter.get_profile()
         return profile
+
+    def whoami(self) -> Dict[str, Any]:
+        if not self._adapter:
+            return {"identity": "unknown", "summary": "No storage configured"}
+
+        stats = self._adapter.get_stats()
+        profile = self._adapter.get_profile()
+        total = stats.get("total_count", 0) if isinstance(stats, dict) else 0
+
+        if total == 0:
+            return {
+                "identity": "new_user",
+                "summary": "No memories yet. Start by telling me about yourself.",
+                "total_memories": 0,
+            }
+
+        by_type = stats.get("by_type", {}) if isinstance(stats, dict) else {}
+        profile_stats = profile.get("stats", {}) if isinstance(profile, dict) else {}
+
+        preferences = self.recall_memories(query="", filters={"type": "user_preference"}, limit=10)
+        decisions = self.recall_memories(query="", filters={"type": "decision"}, limit=5)
+        corrections = self.recall_memories(query="", filters={"type": "correction"}, limit=5)
+
+        pref_list = [m.get("content", "") for m in preferences[:5]]
+        decision_list = [m.get("content", "") for m in decisions[:3]]
+        correction_list = [m.get("content", "") for m in corrections[:3]]
+
+        top_type = max(by_type, key=by_type.get) if by_type else "unknown"
+        conf_avg = profile_stats.get("confidence_avg", 0)
+
+        identity_parts = []
+        if pref_list:
+            identity_parts.append("Preferences: " + "; ".join(pref_list[:3]))
+        if decision_list:
+            identity_parts.append("Decisions: " + "; ".join(decision_list[:2]))
+        if correction_list:
+            identity_parts.append("Corrections: " + "; ".join(correction_list[:2]))
+
+        summary = " | ".join(identity_parts) if identity_parts else f"User with {total} memories"
+
+        return {
+            "identity": "known_user",
+            "summary": summary,
+            "total_memories": total,
+            "top_type": top_type,
+            "confidence_avg": conf_avg,
+            "preferences": pref_list,
+            "decisions": decision_list,
+            "corrections": correction_list,
+            "by_type": by_type,
+        }
+
+    def export_profile(self, output_path: Optional[str] = None) -> Dict[str, Any]:
+        whoami = self.whoami()
+        profile = self.get_memory_profile()
+
+        export = {
+            "schema_version": "1.0.0",
+            "format": "carrymem_identity",
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "identity": whoami.get("identity", "unknown"),
+            "summary": whoami.get("summary", ""),
+            "preferences": whoami.get("preferences", []),
+            "decisions": whoami.get("decisions", []),
+            "corrections": whoami.get("corrections", []),
+            "stats": {
+                "total_memories": whoami.get("total_memories", 0),
+                "top_type": whoami.get("top_type", ""),
+                "confidence_avg": whoami.get("confidence_avg", 0),
+                "by_type": whoami.get("by_type", {}),
+            },
+            "profile": profile,
+        }
+
+        if output_path:
+            p = Path(output_path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            with open(p, "w", encoding="utf-8") as f:
+                json.dump(export, f, ensure_ascii=False, indent=2)
+
+        return export
 
     def export_memories(
         self,

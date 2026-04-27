@@ -617,6 +617,99 @@ def cmd_stats(args):
     return 0
 
 
+def cmd_whoami(args):
+    parser = _make_parser("whoami")
+    parser.add_argument("--namespace", "-n", default="default", help="Namespace")
+    parser.add_argument("--db", help="Database path")
+    parser.add_argument("--json", action="store_true", help="Output as JSON")
+
+    parsed = parser.parse_args(args)
+    cm = _get_carrymem(parsed.db, parsed.namespace)
+
+    identity = cm.whoami()
+
+    if parsed.json:
+        print(json.dumps(identity, ensure_ascii=False, indent=2))
+        cm.close()
+        return 0
+
+    user_type = identity.get("identity", "unknown")
+    summary = identity.get("summary", "")
+    total = identity.get("total_memories", 0)
+
+    if user_type == "new_user":
+        dont_know = "I don't know you yet."
+        print(f"\n  {_dim(dont_know)}")
+        print(f"  {_dim('Start by telling me about yourself:')}")
+        print(f'    carrymem add "I prefer dark mode"')
+        print(f'    carrymem add "I use Python for data analysis"')
+        print()
+        cm.close()
+        return 0
+
+    print(f"\n  {_bold('Who You Are (according to your AI)')}")
+    print(f"  {'=' * 50}")
+    print(f"\n  {_cyan(summary)}")
+
+    preferences = identity.get("preferences", [])
+    if preferences:
+        print(f"\n  {_bold('Your Preferences:')}")
+        for p in preferences:
+            pref_icon = _TYPE_ICONS.get("user_preference", "*")
+            print(f"    {_green(pref_icon)} {p}")
+
+    decisions = identity.get("decisions", [])
+    if decisions:
+        print(f"\n  {_bold('Your Decisions:')}")
+        for d in decisions:
+            dec_icon = _TYPE_ICONS.get("decision", "*")
+            print(f"    {_cyan(dec_icon)} {d}")
+
+    corrections = identity.get("corrections", [])
+    if corrections:
+        print(f"\n  {_bold('Your Corrections:')}")
+        for c in corrections:
+            cor_icon = _TYPE_ICONS.get("correction", "*")
+            print(f"    {_yellow(cor_icon)} {c}")
+
+    by_type = identity.get("by_type", {})
+    if by_type:
+        print(f"\n  {_bold('Memory Profile:')}")
+        top = identity.get("top_type", "")
+        conf = identity.get("confidence_avg", 0)
+        print(f"    Total: {total} | Dominant: {top} | Avg Confidence: {conf:.0%}")
+
+    print(f"\n  {_dim('Export your identity: carrymem profile export identity.json')}")
+    print()
+    cm.close()
+    return 0
+
+
+def cmd_profile(args):
+    parser = _make_parser("profile")
+    parser.add_argument("action", choices=["export", "show"], default="show", nargs="?", help="Profile action")
+    parser.add_argument("--output", "-o", help="Output file path (for export)")
+    parser.add_argument("--namespace", "-n", default="default", help="Namespace")
+    parser.add_argument("--db", help="Database path")
+
+    parsed = parser.parse_args(args)
+    cm = _get_carrymem(parsed.db, parsed.namespace)
+
+    if parsed.action == "export":
+        output = parsed.output or "carrymem_profile.json"
+        result = cm.export_profile(output_path=output)
+        pref_count = len(result.get("preferences", []))
+        dec_count = len(result.get("decisions", []))
+        print(f"  {_green('Profile exported to')} {_cyan(output)}")
+        print(f"  {_dim(f'{pref_count} preferences, {dec_count} decisions')}")
+    else:
+        identity = cm.whoami()
+        print(json.dumps(identity, ensure_ascii=False, indent=2))
+
+    cm.close()
+    return 0
+
+
 def cmd_check(args):
     parser = _make_parser("check")
     parser.add_argument("--namespace", "-n", default="default", help="Namespace")
@@ -1120,6 +1213,8 @@ def show_help():
     import <path>        Import memories from file
     stats                Show memory statistics
     check                Check memory quality & conflicts
+    whoami               Who your AI thinks you are
+    profile              Export/view your AI identity
     doctor               Run diagnostics
     setup-mcp            Configure MCP integration
     tui                  Launch terminal UI
@@ -1171,6 +1266,8 @@ def main():
         "stats": cmd_stats,
         "status": cmd_status,
         "check": cmd_check,
+        "whoami": cmd_whoami,
+        "profile": cmd_profile,
         "doctor": cmd_doctor,
         "setup-mcp": cmd_setup_mcp,
         "init-integration": cmd_setup_mcp,
