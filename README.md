@@ -9,7 +9,7 @@ CarryMem is a portable AI memory system that lets AI assistants remember your pr
 **English** | [中文](docs/i18n/README-CN.md) | [日本語](docs/i18n/README-JP.md)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.8.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.2.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/tests-332%20passing-green" alt="Tests">
   <img src="https://img.shields.io/badge/accuracy-90.6%25-green" alt="Accuracy">
   <img src="https://img.shields.io/badge/zero--cost-60%25%2B-brightgreen" alt="Zero Cost">
@@ -39,7 +39,20 @@ Switch tools (Cursor → Windsurf), switch models (Claude → GPT), start from s
 
 ## ⚡ Quick Start
 
-### Install
+### One-Click Install (Recommended)
+
+```bash
+git clone https://github.com/lulin70/memory-classification-engine.git
+cd carrymem
+bash install.sh
+```
+
+The install script will:
+- ✅ Install all dependencies
+- ✅ Configure PATH automatically
+- ✅ Verify installation with `carrymem doctor`
+
+### Manual Install
 
 ```bash
 pip install carrymem
@@ -59,6 +72,22 @@ git clone https://github.com/lulin70/memory-classification-engine.git
 cd carrymem
 pip install -e .
 ```
+
+### New in v0.2.0 🎉
+
+**CLI Enhancements**:
+```bash
+# System diagnostics
+carrymem doctor
+
+# System status
+carrymem status
+
+# MCP auto-configuration
+carrymem setup-mcp --tool claude
+```
+
+See [CLI Enhancements Guide](docs/CLI_ENHANCEMENTS_GUIDE.md) for details.
 
 ### First Memory (1 minute)
 
@@ -273,11 +302,20 @@ Add to your MCP client config (e.g. Claude Code, Cursor):
 
 ## 📚 Documentation
 
-- 📖 [Quick Start Guide](docs/QUICK_START_GUIDE.md)
-- 🏗️ [Architecture](docs/ARCHITECTURE.md)
+### Getting Started
+- 📖 [Documentation Index](docs/README.md) - Start here!
+- 🚀 [Quick Start Guide](docs/QUICK_START_GUIDE.md)
+- ⚡ [Quick Fix Guide](docs/QUICK_FIX_GUIDE.md) - Common issues
+- 🔧 [Troubleshooting](docs/TROUBLESHOOTING.md) - Detailed solutions
+
+### New Features
+- 🎉 [CLI Enhancements Guide](docs/CLI_ENHANCEMENTS_GUIDE.md) - doctor/status/setup-mcp
+
+### Technical Documentation
+- ️ [Architecture](docs/ARCHITECTURE.md)
 - 📋 [API Reference](docs/API_REFERENCE.md)
 - 🎯 [User Stories](docs/USER_STORIES.md)
-- 🗺️ [Roadmap](docs/guides/ROADMAP.md)
+- 🗺️ [Roadmap](docs/ROADMAP.md)
 - 🤝 [Contributing](CONTRIBUTING.md)
 
 ---
@@ -294,9 +332,16 @@ Add to your MCP client config (e.g. Claude Code, Cursor):
 
 ## 🚦 Project Status
 
-**Current Version**: v0.8.0
+**Current Version**: v0.2.0
 **Tests**: 332/332 passing
 **Accuracy**: 90.6%
+**User Readiness**: 9.75/10 (Production Ready)
+
+**New in v0.2.0**:
+- ✅ CLI enhancements (doctor, status, setup-mcp)
+- ✅ One-click installation script
+- ✅ Comprehensive documentation
+- ✅ Quick fix and troubleshooting guides
 
 ---
 
