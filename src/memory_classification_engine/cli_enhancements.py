@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 CarryMem CLI Enhancements
-增强的 CLI 命令实现：doctor, status, 改进的 setup-mcp
+Enhanced CLI command implementations: doctor, status, improved setup-mcp
 """
 
 import sys
@@ -39,7 +39,7 @@ def _bold(t): return _c("1", t)
 
 
 # ============================================================================
-# Doctor Command - 系统诊断
+# Doctor Command - System Diagnostics
 # ============================================================================
 
 def cmd_doctor(args):
@@ -50,22 +50,22 @@ def cmd_doctor(args):
     issues = []
     warnings = []
     
-    # 1. 检查 Python 版本
+    # 1. Check Python version
     py_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     if sys.version_info >= (3, 9):
         print(f"✅ Python version: {py_version}")
     else:
         print(f"❌ Python version: {py_version} (需要 3.9+)")
-        issues.append("Python 版本过低")
+        issues.append("Python version too old")
     
-    # 2. 检查命令可用性
+    # 2. Check command availability
     if shutil.which("carrymem"):
         print("✅ Command 'carrymem' is available")
     else:
         print("⚠️  Command 'carrymem' not in PATH")
-        warnings.append("全局命令不可用")
+        warnings.append("Global command not available")
     
-    # 3. 检查数据库
+    # 3. Check database
     db_path = _DEFAULT_DB
     if db_path.exists():
         try:
@@ -79,12 +79,12 @@ def cmd_doctor(args):
             conn.close()
         except Exception as e:
             print(f"❌ Database error: {e}")
-            issues.append("数据库损坏")
+            issues.append("Database corrupted")
     else:
         print(f"⚠️  Database not found: {db_path}")
-        warnings.append("数据库未初始化")
+        warnings.append("Database not initialized")
     
-    # 4. 检查 MCP 配置
+    # 4. Check MCP configuration
     claude_config = Path.home() / "Library/Application Support/Claude/claude_desktop_config.json"
     if claude_config.exists():
         try:
@@ -94,19 +94,19 @@ def cmd_doctor(args):
                 print("✅ MCP config: Found in Claude Desktop")
             else:
                 print("⚠️  MCP ig: Not configured in Claude Desktop")
-                warnings.append("MCP 未配置")
+                warnings.append("MCP not configured")
         except Exception as e:
             print(f"⚠️  MCP config: Error reading ({e})")
     else:
         print("ℹ️  Claude Desktop not detected")
     
-    # 5. 检查依赖包
+    # 5. Check dependencies
     try:
         import yaml
         print("✅ PyYAML: Installed")
     except ImportError:
         print("⚠️  PyYAML: Not installed")
-        warnings.append("PyYAML 未安装")
+        warnings.append("PyYAML not installed")
     
     try:
         import textual
@@ -117,7 +117,7 @@ def cmd_doctor(args):
     print("")
     print("=" * 50)
     
-    # 总结
+    # Summary
     if issues:
         print(f"❌ Found {len(issues)} issue(s):")
         for issue in issues:
@@ -131,23 +131,23 @@ def cmd_doctor(args):
     if not issues and not warnings:
         print("✅ All checks passed! CarryMem is healthy.")
     
-    # 修复建议
+    # Fix suggestions
     if issues or warnings:
         print("")
         print("💡 Suggested fixes:")
-        if "Python 版本过低" in issues:
+        if "Python version too old" in issues:
             print("   - Upgrade Python: brew install python@3.11")
-        if "全局命令不可用" in warnings:
+        if "Global command not available" in warnings:
             print("   - Run: pip uninstall carrymem -y && pip install -e .")
             print("   - Or add to PATH: export PATH=\"$PATH:$(python3 -m site --user-base)/bin\"")
-        if "数据库未初始化" in warnings:
+        if "Database not initialized" in warnings:
             print("   - Run: python3 -m memory_classification_engine.cli init")
-        if "数据库损坏" in issues:
+        if "Database corrupted" in issues:
             print("   - Backup: cp ~/.carrymem/memories.db ~/.carrymem/memories.db.backup")
             print("   -rm ~/.carrymem/memories.db && carrymem init")
-        if "MCP 未配置" in warnings:
+        if "MCP not configured" in warnings:
             print("   - Run: python3 -m memory_classification_engine.cli_enhancements setup-mcp --tool claude")
-        if "PyYAML 未安装" in warnings:
+        if "PyYAML not installed" in warnings:
             print("   - Run: pip install PyYAML")
     
     print("")
@@ -155,7 +155,7 @@ def cmd_doctor(args):
 
 
 # ============================================================================
-# Status Command - 系统状态
+# Status Command - System Status
 # ============================================================================
 
 def cmd_status(args):
@@ -164,7 +164,7 @@ def cmd_status(args):
     print("=" * 50)
     print("")
     
-    # 1. 数据库信息
+    # 1. Database information
     db_path = _DEFAULT_DB
     if db_path.exists():
         size_mb = db_path.stat().st_size / (1024 * 1024)
@@ -174,12 +174,12 @@ def cmd_status(args):
             conn = sqlite3.connect(str(db_path))
             cursor = conn.cursor()
             
-            # 总记忆数
+            # Total memories
             cursor.execute("SELECT COUNT(*) FROM memories")
             total = cursor.fetchone()[0]
             print(f"📝 Memories: {total} items ({size_mb:.1f} MB)")
             
-            # 按类型统计
+            # Statistics by type
             cursor.execute("SELECT type, COUNT(*) FROM memories GROUP BY TYPE ORDER BY COUNT(*) DESC")
             types = cursor.fetchall()
             if types:
@@ -188,7 +188,7 @@ def cmd_status(args):
                 for mem_type, count in types:
                     print(f"   - {mem_type}: {count}")
             
-            # 按命名空间统计
+            # Statistics by namespace
             cursor.execute("SELECT namespace, COUNT(*) FROM memories GROUP BY namespace")
             namespaces = cursor.fetchall()
             if len(namespaces) > 1 or (namespaces and namespaces[0][0] != "default"):
@@ -205,7 +205,7 @@ def cmd_status(args):
         print("💡 Run: carrymem init")
         return 1
     
-    # 2. MCP 状态
+    # 2. MCP status
     print("")
     print("🔌 MCP Status:")
     
@@ -223,14 +223,14 @@ def cmd_status(args):
     else:
         print("   ℹ️  Claude Desktop: Not detected")
     
-    # Cursor 配置检测
+    # Cursor configuration detection
     cursor_config = Path.home() / ".cursor/mcp_config.json"
     if cursor_config.exists():
         print("   ✅ Cursor: Detected")
     else:
         print("   ℹ️  Cursor: Not detected")
     
-    # 3. 最近活动
+    # 3. Recent activity
     print("")
     print("🎯 Recent Activity:")
     try:
@@ -253,12 +253,12 @@ def cmd_status(args):
 
 
 # ============================================================================
-# Setup MCP Command - MCP 配置
+# Setup MCP Command - MCP Configuration
 # ============================================================================
 
 def cmd_setup_mcp(args):
     """Configure MCP integration"""
-    # 解析参数
+    # Parse arguments
     tool = None
     for i, arg in enumerate(args):
         if arg == "--tool" and i + 1 < len(args):
@@ -272,7 +272,7 @@ def cmd_setup_mcp(args):
     print("")
     
     if tool == "auto":
-        # 自动检测
+        # Auto-detect
         detected = []
         
         claude_config = Path.home() / "Library/Application Support/Claude/claude_desktop_config.json"
@@ -300,12 +300,12 @@ def cmd_setup_mcp(args):
             print(f"   - {tool_name}")
         print("")
         
-        # 配置所有检测到的工具
+        # Configure all detected tools
         for tool_name, config_path in detected:
             _setup_mcp_for_tool(tool_name, config_path)
     
     else:
-        # 指定工具
+        # Specified tool
         config_path = _get_mcp_config_path(tool)
         if not config_path:
             print(f"❌ Unknown tool: {tool}")
@@ -337,7 +337,7 @@ def _setup_mcp_for_tool(tool: str, config_path: Path):
     """Setup MCP for specific tool"""
     print(f"📝 Configuring {tool}...")
     
-    # 读取现有配置
+    # Read existing configuration
     if config_path.exists():
         try:
             with open(config_path) as f:
@@ -349,7 +349,7 @@ def _setup_mcp_for_tool(tool: str, config_path: Path):
         config = {}
         config_path.parent.mkdir(parents=True, exist_ok=True)
     
-    # 添加 CarryMem 配置
+    # Add CarryMem configuration
     if "mcpServers" not in config:
         config["mcpServers"] = {}
     
@@ -358,7 +358,7 @@ def _setup_mcp_for_tool(tool: str, config_path: Path):
         "args": ["-m", "memory_classification_engine.integration.layer2_mcp"]
     }
     
-    # 写入配置
+    # Write configuration
     try:
         with open(config_path, 'w') as f:
             json.dump(config, f, indent=2)
@@ -376,7 +376,7 @@ def _setup_mcp_for_tool(tool: str, config_path: Path):
 
 
 # ============================================================================
-# Main - 用于独立测试
+# Main - For standalone testing
 # ============================================================================
 
 def main():
