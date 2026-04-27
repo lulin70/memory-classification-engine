@@ -209,7 +209,7 @@ class ConflictDetector:
         mem2: StoredMemory,
     ) -> bool:
         """Check if two memories contradict each other."""
-        if mem1.namespace != mem2.namespace or mem1.type != mem2.type:
+        if getattr(mem1, 'namespace', None) != getattr(mem2, 'namespace', None) or mem1.type != mem2.type:
             return False
         
         negation_pairs = [
@@ -237,7 +237,7 @@ class ConflictDetector:
         old_memory: StoredMemory,
     ) -> bool:
         """Check if a new memory supersedes an old one."""
-        if new_memory.namespace != old_memory.namespace:
+        if getattr(new_memory, 'namespace', None) != getattr(old_memory, 'namespace', None):
             return False
         if new_memory.type != old_memory.type:
             return False

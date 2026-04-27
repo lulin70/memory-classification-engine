@@ -1,8 +1,8 @@
-"""CarryMem — 随身记忆库. 让 AI Agent 记住用户.
+"""CarryMem — Your Portable AI Memory Layer.
 
-CarryMem = MCE 分类引擎（核心壁垒）+ SQLite 默认存储（开箱即用）+ 可替换适配器（你的选择）
+CarryMem = MCE Classification Engine + SQLite Default Storage + Replaceable Adapters
 
-v0.4.0: Semantic recall with synonym expansion, spell correction, cross-language mapping
+v0.8.0: Enhanced CLI, TUI, MCP setup, carrymem doctor, quality management
 
 Quick Start:
     from memory_classification_engine import CarryMem
@@ -10,6 +10,13 @@ Quick Start:
     cm = CarryMem()
     result = cm.classify_and_remember("I prefer dark mode")
     memories = cm.recall_memories("dark mode")  # Also finds "深色模式", "ダークモード", etc.
+
+CLI:
+    carrymem add "I prefer dark mode"
+    carrymem list
+    carrymem search "theme"
+    carrymem setup-mcp --tool cursor
+    carrymem doctor
 """
 
 from memory_classification_engine.carrymem import CarryMem, StorageNotConfiguredError, KnowledgeNotConfiguredError

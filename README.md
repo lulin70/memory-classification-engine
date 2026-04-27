@@ -9,7 +9,7 @@ CarryMem is a portable AI memory system that lets AI assistants remember your pr
 **English** | [中文](docs/i18n/README-CN.md) | [日本語](docs/i18n/README-JP.md)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.7.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.8.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/tests-332%20passing-green" alt="Tests">
   <img src="https://img.shields.io/badge/accuracy-90.6%25-green" alt="Accuracy">
   <img src="https://img.shields.io/badge/zero--cost-60%25%2B-brightgreen" alt="Zero Cost">
@@ -279,7 +279,7 @@ Add to your MCP client config (e.g. Claude Code, Cursor):
 
 ## 🚦 Project Status
 
-**Current Version**: v0.7.0
+**Current Version**: v0.8.0
 **Tests**: 332/332 passing
 **Accuracy**: 90.6%
 

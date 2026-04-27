@@ -828,6 +828,73 @@ class CarryMem:
         )
         return result["system_prompt"]
 
+    def check_conflicts(self) -> List[Dict[str, Any]]:
+        from memory_classification_engine.conflict_detector import ConflictDetector
+
+        if not self._adapter:
+            raise StorageNotConfiguredError()
+
+        all_memories = self._adapter.recall("", limit=10000)
+        if not all_memories:
+            return []
+
+        detector = ConflictDetector()
+        conflicts = detector.detect_conflicts(all_memories)
+        return [c.to_dict() for c in conflicts]
+
+    def check_quality(self, min_score: float = 0.3) -> List[Dict[str, Any]]:
+        from memory_classification_engine.quality_scorer import MemoryQualityScorer, QualityAnalyzer
+
+        if not self._adapter:
+            raise StorageNotConfiguredError()
+
+        all_memories = self._adapter.recall("", limit=10000)
+        if not all_memories:
+            return []
+
+        analyzer = QualityAnalyzer()
+        low_quality = analyzer.identify_low_quality(all_memories, threshold=min_score)
+        result = []
+        for item in low_quality:
+            result.append({
+                "storage_key": item["storage_key"],
+                "score": item["score"],
+                "reasons": item["reasons"],
+                "content": item["memory"].content[:80],
+                "type": item["memory"].type,
+            })
+        return result
+
+    def list_expired(self) -> List[Dict[str, Any]]:
+        if not self._adapter:
+            raise StorageNotConfiguredError()
+
+        if not isinstance(self._adapter, SQLiteAdapter):
+            return []
+
+        from datetime import datetime, timezone
+        conn = self._adapter._get_connection()
+        now_iso = datetime.now(timezone.utc).isoformat()
+        rows = conn.execute(
+            "SELECT storage_key, content, type, expires_at FROM memories "
+            "WHERE namespace = ? AND expires_at IS NOT NULL AND expires_at < ?",
+            (self._namespace, now_iso),
+        ).fetchall()
+        conn.close()
+
+        result = []
+        for row in rows:
+            content = row["content"]
+            if self._adapter._encryption and self._adapter._encryption.is_active:
+                content = self._adapter._decrypt_field(content)
+            result.append({
+                "storage_key": row["storage_key"],
+                "content": (content or "")[:80],
+                "type": row["type"],
+                "expires_at": row["expires_at"],
+            })
+        return result
+
     def _count_by_type(self, entries: List[MemoryEntry]) -> Dict[str, int]:
         counts: Dict[str, int] = {}
         for e in entries:
