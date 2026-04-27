@@ -62,6 +62,16 @@ class CarryMemCLI:
         
         # help command
         subparsers.add_parser('help', help='Show help message')
+
+        # serve command
+        serve_parser = subparsers.add_parser('serve', help='Start MCP HTTP/SSE server')
+        serve_parser.add_argument('--host', type=str, default='127.0.0.1', help='Host to bind')
+        serve_parser.add_argument('--port', type=int, default=8765, help='Port to listen')
+        serve_parser.add_argument('--api-key', type=str, help='API key for authentication')
+
+        # init-integration command
+        integ_parser = subparsers.add_parser('init-integration', help='Initialize AI tool integration')
+        integ_parser.add_argument('--tool', type=str, choices=['claude-code', 'cursor', 'all'], default='all', help='Target tool')
         
         if len(args) == 0:
             self.show_welcome()
@@ -81,6 +91,10 @@ class CarryMemCLI:
             self.cmd_version()
         elif parsed_args.command == 'help':
             parser.print_help()
+        elif parsed_args.command == 'serve':
+            self.cmd_serve(parsed_args.host, parsed_args.port, parsed_args.api_key)
+        elif parsed_args.command == 'init-integration':
+            self.cmd_init_integration(parsed_args.tool)
         else:
             parser.print_help()
     
@@ -267,6 +281,66 @@ Documentation: https://github.com/lulin70/memory-classification-engine
         print(f"Python: {sys.version.split()[0]}")
         print(f"Config: {self.config_dir}")
         print()
+
+    def cmd_serve(self, host: str, port: int, api_key: str = None):
+        """Start MCP HTTP/SSE server."""
+        from memory_classification_engine.integration.layer2_mcp.http_server import run_http_server
+        print(f"\nStarting CarryMem MCP HTTP Server...")
+        print(f"  Host: {host}")
+        print(f"  Port: {port}")
+        print(f"  SSE endpoint: http://{host}:{port}/sse")
+        print(f"  Message endpoint: http://{host}:{port}/message")
+        print(f"  Health check: http://{host}:{port}/health")
+        print()
+        run_http_server(host=host, port=port, api_key=api_key)
+
+    def cmd_init_integration(self, tool: str):
+        """Initialize AI tool integration configuration."""
+        import shutil
+        pkg_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(os.path.dirname(pkg_dir))
+
+        if tool in ("claude-code", "all"):
+            src = os.path.join(project_root, "integrations", "claude_code", "mcp.json")
+            dst_dir = os.path.join(os.getcwd(), ".claude")
+            if os.path.exists(src):
+                os.makedirs(dst_dir, exist_ok=True)
+                shutil.copy2(src, os.path.join(dst_dir, "mcp.json"))
+                print(f"Claude Code configuration written to {dst_dir}/mcp.json")
+            else:
+                config = {
+                    "mcpServers": {
+                        "carrymem": {
+                            "command": "python",
+                            "args": ["-m", "memory_classification_engine.integration.layer2_mcp"],
+                        }
+                    }
+                }
+                os.makedirs(dst_dir, exist_ok=True)
+                with open(os.path.join(dst_dir, "mcp.json"), "w") as f:
+                    json.dump(config, f, indent=2)
+                print(f"Claude Code configuration written to {dst_dir}/mcp.json")
+
+        if tool in ("cursor", "all"):
+            src = os.path.join(project_root, "integrations", "cursor", "mcp.json")
+            dst_dir = os.path.join(os.getcwd(), ".cursor")
+            if os.path.exists(src):
+                os.makedirs(dst_dir, exist_ok=True)
+                shutil.copy2(src, os.path.join(dst_dir, "mcp.json"))
+                print(f"Cursor configuration written to {dst_dir}/mcp.json")
+            else:
+                config = {
+                    "mcpServers": {
+                        "carrymem": {
+                            "command": "python",
+                            "args": ["-m", "memory_classification_engine.integration.layer2_mcp"],
+                        }
+                    }
+                }
+                os.makedirs(dst_dir, exist_ok=True)
+                with open(os.path.join(dst_dir, "mcp.json"), "w") as f:
+                    json.dump(config, f, indent=2)
+                print(f"Cursor configuration written to {dst_dir}/mcp.json")
 
 
 def main():

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "carrymem": {
+      "command": "python",
+      "args": ["-m", "memory_classification_engine.integration.layer2_mcp"],
+      "env": {}
+    }
+  }
+}

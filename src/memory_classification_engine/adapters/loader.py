@@ -7,6 +7,7 @@ from memory_classification_engine.adapters.base import StorageAdapter
 _BUILTIN_ADAPTERS = {
     "sqlite": "memory_classification_engine.adapters.sqlite_adapter.SQLiteAdapter",
     "obsidian": "memory_classification_engine.adapters.obsidian_adapter.ObsidianAdapter",
+    "json": "memory_classification_engine.adapters.json_adapter.JSONAdapter",
 }
 
 

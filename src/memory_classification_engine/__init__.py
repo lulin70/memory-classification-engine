@@ -17,6 +17,7 @@ from memory_classification_engine.engine import MemoryClassificationEngine
 from memory_classification_engine.adapters.base import MemoryEntry, StorageAdapter, StoredMemory
 from memory_classification_engine.adapters.sqlite_adapter import SQLiteAdapter
 from memory_classification_engine.adapters.obsidian_adapter import ObsidianAdapter
+from memory_classification_engine.adapters.json_adapter import JSONAdapter
 
 try:
     from memory_classification_engine.semantic.expander import SemanticExpander
@@ -41,6 +42,11 @@ except ImportError:
     validate_query = None
     validate_namespace = None
 
+try:
+    from memory_classification_engine.async_carrymem import AsyncCarryMem
+except ImportError:
+    AsyncCarryMem = None
+
 from memory_classification_engine.__version__ import __version__
 
 __all__ = [
@@ -51,15 +57,15 @@ __all__ = [
     "StoredMemory",
     "SQLiteAdapter",
     "ObsidianAdapter",
+    "JSONAdapter",
     "StorageNotConfiguredError",
     "KnowledgeNotConfiguredError",
-    # v0.4.0 semantic recall (optional)
     "SemanticExpander",
     "ResultMerger",
-    # v0.5.0 security (optional)
     "InputValidator",
     "ValidationError",
     "validate_content",
     "validate_query",
     "validate_namespace",
+    "AsyncCarryMem",
 ]

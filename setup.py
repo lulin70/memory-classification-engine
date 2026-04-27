@@ -5,7 +5,7 @@ def get_version():
         from memory_classification_engine.__version__ import __version__
         return __version__
     except ImportError:
-        return "0.6.0"
+        return "0.7.0"
 
 setup(
     name="carrymem",
@@ -52,6 +52,7 @@ setup(
         "carrymem.adapters": [
             "sqlite=memory_classification_engine.adapters.sqlite_adapter:SQLiteAdapter",
             "obsidian=memory_classification_engine.adapters.obsidian_adapter:ObsidianAdapter",
+            "json=memory_classification_engine.adapters.json_adapter:JSONAdapter",
         ],
     },
     classifiers=[

@@ -9,8 +9,8 @@ CarryMem is a portable AI memory system that lets AI assistants remember your pr
 **English** | [中文](docs/i18n/README-CN.md) | [日本語](docs/i18n/README-JP.md)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.6.0-blue" alt="Version">
-  <img src="https://img.shields.io/badge/tests-308%20passing-green" alt="Tests">
+  <img src="https://img.shields.io/badge/version-0.7.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/tests-332%20passing-green" alt="Tests">
   <img src="https://img.shields.io/badge/accuracy-90.6%25-green" alt="Accuracy">
   <img src="https://img.shields.io/badge/zero--cost-60%25%2B-brightgreen" alt="Zero Cost">
 </p>
@@ -191,7 +191,7 @@ with CarryMem(namespace="project-b") as cm_b:
 | F1 Score | **97.9%** |
 | Zero-Cost Classification | **60%+** |
 | Recall Latency (P50) | **~45ms** |
-| Tests Passing | **308/308** |
+| Tests Passing | **332/332** |
 
 ---
 
@@ -279,8 +279,8 @@ Add to your MCP client config (e.g. Claude Code, Cursor):
 
 ## 🚦 Project Status
 
-**Current Version**: v0.6.0
-**Tests**: 308/308 passing
+**Current Version**: v0.7.0
+**Tests**: 332/332 passing
 **Accuracy**: 90.6%
 
 ---

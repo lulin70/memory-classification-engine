@@ -155,6 +155,69 @@ class StoredMemory(MemoryEntry):
             updated_at=created_at or datetime.now(timezone.utc),
         )
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "StoredMemory":
+        created_at = None
+        if data.get("created_at"):
+            if isinstance(data["created_at"], str):
+                try:
+                    created_at = datetime.fromisoformat(data["created_at"])
+                except (ValueError, TypeError):
+                    created_at = None
+            elif isinstance(data["created_at"], datetime):
+                created_at = data["created_at"]
+
+        updated_at = None
+        if data.get("updated_at"):
+            if isinstance(data["updated_at"], str):
+                try:
+                    updated_at = datetime.fromisoformat(data["updated_at"])
+                except (ValueError, TypeError):
+                    updated_at = None
+            elif isinstance(data["updated_at"], datetime):
+                updated_at = data["updated_at"]
+
+        expires_at = None
+        if data.get("expires_at"):
+            if isinstance(data["expires_at"], str):
+                try:
+                    expires_at = datetime.fromisoformat(data["expires_at"])
+                except (ValueError, TypeError):
+                    expires_at = None
+            elif isinstance(data["expires_at"], datetime):
+                expires_at = data["expires_at"]
+
+        last_accessed_at = None
+        if data.get("last_accessed_at"):
+            if isinstance(data["last_accessed_at"], str):
+                try:
+                    last_accessed_at = datetime.fromisoformat(data["last_accessed_at"])
+                except (ValueError, TypeError):
+                    last_accessed_at = None
+            elif isinstance(data["last_accessed_at"], datetime):
+                last_accessed_at = data["last_accessed_at"]
+
+        return cls(
+            id=data.get("id", ""),
+            type=data.get("type", "unknown"),
+            content=data.get("content", ""),
+            confidence=data.get("confidence", 0.0),
+            tier=data.get("tier", 2),
+            source_layer=data.get("source_layer", "unknown"),
+            reasoning=data.get("reasoning", ""),
+            suggested_action=data.get("suggested_action", "store"),
+            recall_hint=data.get("recall_hint"),
+            metadata=data.get("metadata", {}),
+            storage_key=data.get("storage_key", ""),
+            created_at=created_at,
+            updated_at=updated_at,
+            expires_at=expires_at,
+            access_count=data.get("access_count", 0),
+            importance_score=data.get("importance_score", 0.0),
+            last_accessed_at=last_accessed_at,
+            version=data.get("version", 1),
+        )
+
 
 class StorageAdapter(ABC):
     """Abstract base class for downstream storage adapters.
