@@ -880,7 +880,6 @@ class CarryMem:
             "WHERE namespace = ? AND expires_at IS NOT NULL AND expires_at < ?",
             (self._namespace, now_iso),
         ).fetchall()
-        conn.close()
 
         result = []
         for row in rows:

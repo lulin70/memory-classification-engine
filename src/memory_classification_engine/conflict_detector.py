@@ -131,16 +131,32 @@ class ConflictDetector:
         
         return conflicts
     
+    def _normalize_dt(self, dt_val) -> datetime:
+        if dt_val is None:
+            return datetime.min.replace(tzinfo=timezone.utc)
+        if isinstance(dt_val, datetime):
+            if dt_val.tzinfo is None:
+                return dt_val.replace(tzinfo=timezone.utc)
+            return dt_val
+        if isinstance(dt_val, str):
+            try:
+                parsed = datetime.fromisoformat(dt_val)
+                if parsed.tzinfo is None:
+                    return parsed.replace(tzinfo=timezone.utc)
+                return parsed
+            except (ValueError, TypeError):
+                return datetime.min.replace(tzinfo=timezone.utc)
+        return datetime.min.replace(tzinfo=timezone.utc)
+
     def _detect_outdated(
         self,
         memories: List[StoredMemory],
     ) -> List[MemoryConflict]:
-        """Detect memories that have been superseded by newer ones."""
         conflicts = []
-        
+
         sorted_memories = sorted(
             memories,
-            key=lambda m: m.created_at or datetime.min,
+            key=lambda m: self._normalize_dt(m.created_at),
         )
         
         for i, old_memory in enumerate(sorted_memories):
@@ -244,7 +260,9 @@ class ConflictDetector:
         
         if not new_memory.created_at or not old_memory.created_at:
             return False
-        if new_memory.created_at <= old_memory.created_at:
+        new_dt = self._normalize_dt(new_memory.created_at)
+        old_dt = self._normalize_dt(old_memory.created_at)
+        if new_dt <= old_dt:
             return False
         
         update_keywords = ['actually', 'correction', 'update', 'changed', 'now']
