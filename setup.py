@@ -5,7 +5,7 @@ def get_version():
         from memory_classification_engine.__version__ import __version__
         return __version__
     except ImportError:
-        return "0.5.0"
+        return "0.6.0"
 
 setup(
     name="carrymem",
@@ -40,6 +40,9 @@ setup(
             "twine>=4.0",
             "pycld2>=0.41",
             "langdetect>=1.0.9",
+        ],
+        "encryption": [
+            "cryptography>=41.0",
         ],
     },
     entry_points={

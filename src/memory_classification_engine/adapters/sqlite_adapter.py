@@ -165,14 +165,34 @@ class SQLiteAdapter(StorageAdapter):
         semantic_config: Optional[Dict[str, Any]] = None,
         enable_cache: bool = True,
         cache_config: Optional[Dict[str, Any]] = None,
+        encryption_key: Optional[str] = None,
     ):
         self._namespace = namespace
         self._db_path = db_path or _default_db_path()
         self._lock = threading.Lock()
-        
+
         # v0.4.2: Use ThreadLocal for thread-safe connections
         self._local = threading.local()
         self._closed = False
+
+        # v0.6.0: Initialize encryption
+        self._encryption = None
+        if encryption_key is not None:
+            try:
+                from ..security.encryption import MemoryEncryption
+                self._encryption = MemoryEncryption(key=encryption_key)
+            except Exception as e:
+                from memory_classification_engine.utils.logger import logger
+                logger.warning(f"Encryption initialization failed, using plaintext: {e}")
+                self._encryption = None
+
+        # v0.6.0: Initialize audit logger
+        self._audit = None
+        try:
+            from ..security.audit import AuditLogger
+            self._audit = AuditLogger(self._get_connection, namespace=namespace)
+        except Exception:
+            pass
         
         # Initialize schema with main connection
         conn = self._get_connection()
@@ -429,6 +449,9 @@ class SQLiteAdapter(StorageAdapter):
             now=now,
         )
 
+        store_content = self._encrypt_field(entry.content)
+        store_original = self._encrypt_field(original_message)
+
         conn.execute(
             """INSERT INTO memories
                (id, type, content, original_message, confidence, tier,
@@ -439,8 +462,8 @@ class SQLiteAdapter(StorageAdapter):
             (
                 entry.id or storage_key,
                 entry.type,
-                entry.content,
-                original_message,
+                store_content,
+                store_original,
                 entry.confidence,
                 entry.tier,
                 entry.source_layer,
@@ -459,6 +482,15 @@ class SQLiteAdapter(StorageAdapter):
         )
         if not _skip_commit:
             conn.commit()
+
+        if self._audit:
+            self._audit.log_operation(
+                operation="remember",
+                storage_key=storage_key,
+                memory_type=entry.type,
+                success=True,
+                details={"confidence": entry.confidence, "tier": entry.tier},
+            )
 
         stored = StoredMemory.from_memory_entry(entry, storage_key=storage_key, created_at=now)
         stored.importance_score = imp_score
@@ -762,6 +794,12 @@ class SQLiteAdapter(StorageAdapter):
             result = cursor.rowcount > 0
         if self._enable_cache and self._cache:
             self._cache.invalidate()
+        if self._audit:
+            self._audit.log_operation(
+                operation="forget",
+                storage_key=storage_key,
+                success=result,
+            )
         return result
 
     def forget_expired(self) -> int:
@@ -836,10 +874,12 @@ class SQLiteAdapter(StorageAdapter):
             now=now,
         )
 
+        encrypted_content = self._encrypt_field(new_content)
+
         conn.execute(
             """UPDATE memories SET content = ?, content_hash = ?, version = ?,
                importance_score = ?, updated_at = ? WHERE storage_key = ? AND namespace = ?""",
-            (new_content, new_c_hash, new_version, new_imp_score, now.isoformat(),
+            (encrypted_content, new_c_hash, new_version, new_imp_score, now.isoformat(),
              storage_key, self._namespace),
         )
         conn.commit()
@@ -1032,6 +1072,19 @@ class SQLiteAdapter(StorageAdapter):
             "last_updated": last_updated,
         }
 
+    def _encrypt_field(self, plaintext: str) -> str:
+        if not self._encryption or not plaintext:
+            return plaintext
+        return self._encryption.encrypt(plaintext)
+
+    def _decrypt_field(self, ciphertext: str) -> str:
+        if not self._encryption or not ciphertext:
+            return ciphertext
+        try:
+            return self._encryption.decrypt(ciphertext)
+        except Exception:
+            return ciphertext
+
     def _row_to_stored(self, row: Optional[sqlite3.Row]) -> Optional[StoredMemory]:
         if not row:
             return None
@@ -1098,7 +1151,7 @@ class SQLiteAdapter(StorageAdapter):
         return StoredMemory(
             id=row["id"],
             type=row["type"],
-            content=row["content"],
+            content=self._decrypt_field(row["content"]),
             confidence=row["confidence"],
             tier=row["tier"],
             source_layer=row["source_layer"] or "unknown",

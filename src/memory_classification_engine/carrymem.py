@@ -86,6 +86,7 @@ class CarryMem:
         knowledge_adapter: Optional[StorageAdapter] = None,
         namespace: str = "default",
         config: Optional[Dict] = None,
+        encryption_key: Optional[str] = None,
     ):
         self._engine = MemoryClassificationEngine()
         self._namespace = namespace
@@ -93,7 +94,10 @@ class CarryMem:
         if storage is None:
             self._adapter = None
         elif storage == "sqlite":
-            self._adapter = SQLiteAdapter(db_path=db_path, namespace=namespace)
+            self._adapter = SQLiteAdapter(
+                db_path=db_path, namespace=namespace,
+                encryption_key=encryption_key,
+            )
         elif isinstance(storage, StorageAdapter):
             self._adapter = storage
         elif isinstance(storage, str):
@@ -125,6 +129,70 @@ class CarryMem:
     def clear_cache(self) -> None:
         if self._adapter and hasattr(self._adapter, '_cache') and self._adapter._cache:
             self._adapter._cache.clear()
+
+    def backup(self, backup_dir: Optional[str] = None) -> Dict[str, Any]:
+        if not self._adapter or not isinstance(self._adapter, SQLiteAdapter):
+            return {"error": "Backup only supported with SQLiteAdapter"}
+
+        from memory_classification_engine.backup import BackupManager
+        db_path = self._adapter._db_path
+        if db_path == ":memory:":
+            return {"error": "Cannot backup in-memory database"}
+
+        manager = BackupManager(db_path, backup_dir=backup_dir)
+        try:
+            path = manager.create_backup()
+            return {"backed_up": True, "path": path}
+        except Exception as e:
+            return {"backed_up": False, "error": str(e)}
+
+    def list_backups(self, backup_dir: Optional[str] = None) -> List[Dict[str, Any]]:
+        if not self._adapter or not isinstance(self._adapter, SQLiteAdapter):
+            return []
+
+        from memory_classification_engine.backup import BackupManager
+        db_path = self._adapter._db_path
+        manager = BackupManager(db_path, backup_dir=backup_dir)
+        return manager.list_backups()
+
+    def restore_backup(self, backup_path: str) -> Dict[str, Any]:
+        if not self._adapter or not isinstance(self._adapter, SQLiteAdapter):
+            return {"error": "Restore only supported with SQLiteAdapter"}
+
+        from memory_classification_engine.backup import BackupManager
+        db_path = self._adapter._db_path
+        if db_path == ":memory:":
+            return {"error": "Cannot restore to in-memory database"}
+
+        manager = BackupManager(db_path)
+        try:
+            manager.restore_backup(backup_path)
+            return {"restored": True, "backup_path": backup_path}
+        except Exception as e:
+            return {"restored": False, "error": str(e)}
+
+    def get_audit_log(
+        self,
+        operation: Optional[str] = None,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
+        source: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        if not self._adapter or not isinstance(self._adapter, SQLiteAdapter):
+            return []
+
+        if not self._adapter._audit:
+            return []
+
+        return self._adapter._audit.query(
+            operation=operation,
+            namespace=self._namespace,
+            since=since,
+            until=until,
+            source=source,
+            limit=limit,
+        )
 
     def merge_memories(
         self,
