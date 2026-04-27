@@ -1,233 +1,223 @@
-# CarryMem
+# CarryMem — The Identity Layer for AI
 
-**AI remembers you. Not the other way around.**
+**AI remembers who you are. Not just what you said.**
 
-> Your portable AI memory layer — across models, tools, and devices
+> Your portable AI identity layer — preferences, decisions, and corrections that follow you across models, tools, and devices.
 
-CarryMem is a portable AI memory system that lets AI assistants remember your preferences, corrections, and decisions. Switch tools without losing memories, switch devices and take them with you.
+CarryMem is a lightweight, zero-dependency AI memory system that stores **who you are** — your preferences, decisions, corrections — and makes that identity available to any AI tool. Switch from Cursor to Claude Code, from GPT to Claude, your AI always knows you.
 
 **English** | [中文](docs/i18n/README-CN.md) | [日本語](docs/i18n/README-JP.md)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.2.0-blue" alt="Version">
-  <img src="https://img.shields.io/badge/tests-332%20passing-green" alt="Tests">
+  <img src="https://img.shields.io/badge/version-0.8.2-blue" alt="Version">
+  <img src="https://img.shields.io/badge/tests-447%20passing-green" alt="Tests">
   <img src="https://img.shields.io/badge/accuracy-90.6%25-green" alt="Accuracy">
-  <img src="https://img.shields.io/badge/zero--cost-60%25%2B-brightgreen" alt="Zero Cost">
+  <img src="https://img.shields.io/badge/zero--dependencies-core-brightgreen" alt="Zero Deps">
 </p>
 
 ---
 
-## 🎯 Why CarryMem?
+## Why CarryMem?
 
-### The Problem: AI Always Forgets You
+### The Problem: AI Always Forgets Who You Are
 
-Every new conversation, AI acts like it's meeting you for the first time:
-- ❌ Your preferences? Forgotten
-- ❌ Your corrections? Forgotten
-- ❌ Your decisions? Forgotten
+Every new conversation, AI starts from zero:
+- You prefer dark mode? **Forgotten.**
+- You corrected it last time? **Forgotten.**
+- You decided to use React? **Forgotten.**
 
-Switch tools (Cursor → Windsurf), switch models (Claude → GPT), start from scratch every time.
+Switch tools (Cursor → Windsurf), switch models (Claude → GPT) — start from scratch every time.
 
-### The Solution: CarryMem
+### The Solution: CarryMem Identity Layer
 
-✅ **AI Remembers You Automatically** — Preferences, corrections, decisions auto-classified and stored
-✅ **Memories Are Portable** — Export/import, switch tools without losing data
-✅ **60%+ Zero Cost** — Smart classification, no token waste
-✅ **5-Minute Setup** — Zero config, works out of the box
+CarryMem doesn't just store text — it understands **who you are**:
+
+```bash
+$ carrymem whoami
+
+  Who You Are (according to your AI)
+  ==================================================
+
+  Your Preferences:
+    ⭐ I prefer dark mode for all editors
+    ⭐ I use PostgreSQL for databases
+    ⭐ I always use Python for data analysis
+
+  Your Decisions:
+    🎯 Let's use React for the frontend
+
+  Your Corrections:
+    🔧 The port should be 5432, not 3306
+
+  Memory Profile:
+    Total: 19 | Dominant: user_preference | Avg Confidence: 73%
+```
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
-### One-Click Install (Recommended)
-
-```bash
-git clone https://github.com/lulin70/memory-classification-engine.git
-cd carrymem
-bash install.sh
-```
-
-The install script will:
-- ✅ Install all dependencies
-- ✅ Configure PATH automatically
-- ✅ Verify installation with `carrymem doctor`
-
-### Manual Install
+### Install
 
 ```bash
-pip install carrymem
-```
-
-**重要**: 如果 `carrymem` 命令不可用，请重新安装：
-
-```bash
-pip uninstall carrymem -y
-pip install carrymem
-```
-
-或从源码安装：
-
-```bash
-git clone https://github.com/lulin70/memory-classification-engine.git
-cd carrymem
 pip install -e .
 ```
 
-### New in v0.2.0 🎉
-
-**CLI Enhancements**:
-```bash
-# System diagnostics
-carrymem doctor
-
-# System status
-carrymem status
-
-# MCP auto-configuration
-carrymem setup-mcp --tool claude
-```
-
-See [CLI Enhancements Guide](docs/CLI_ENHANCEMENTS_GUIDE.md) for details.
-
-### First Memory (1 minute)
+### 5 Lines of Code
 
 ```python
 from memory_classification_engine import CarryMem
 
-with CarryMem() as cm:
-    # AI automatically classifies and stores your preferences
-    cm.classify_and_remember("I prefer dark mode")
-    cm.classify_and_remember("I use PostgreSQL for databases")
-    cm.classify_and_remember("I work at a startup in Tokyo")
-
-    # Recall memories
-    memories = cm.recall_memories(query="database")
-    for mem in memories:
-        print(f"{mem['type']}: {mem['content']}")
+cm = CarryMem()
+cm.classify_and_remember("I prefer dark mode")        # Auto-classified as preference
+cm.classify_and_remember("Use PostgreSQL not MySQL")   # Auto-classified as correction
+memories = cm.recall_memories("database")              # Semantic recall
+print(cm.build_system_prompt())                        # Inject into any AI
+cm.close()
 ```
 
-That's it! 🎉 CarryMem auto-creates the database at `~/.carrymem/memories.db`.
+### CLI (19 commands)
+
+```bash
+carrymem init                           # Initialize
+carrymem add "I prefer dark mode"       # Store a memory
+carrymem add "test note" --force        # Force store (bypass classification)
+carrymem list                           # List memories
+carrymem search "theme"                 # Search memories
+carrymem show <key>                     # View memory details
+carrymem edit <key> "new content"       # Edit a memory
+carrymem forget <key>                   # Delete a memory
+carrymem whoami                         # Who your AI thinks you are
+carrymem profile export identity.json   # Export your AI identity
+carrymem stats                          # Memory statistics
+carrymem check                          # Quality & conflict check
+carrymem clean --expired --dry-run      # Preview cleanup
+carrymem doctor                         # Diagnose installation
+carrymem setup-mcp --tool cursor        # One-line MCP config
+carrymem tui                            # Terminal UI
+carrymem export backup.json             # Export all memories
+carrymem import backup.json             # Import memories
+carrymem version                        # Show version
+```
 
 ---
 
-## 💡 Core Features
+## Core Features
 
 ### 1. Auto-Classification (7 Memory Types)
 
-CarryMem automatically identifies message types, storing only valuable information:
+CarryMem automatically identifies what kind of information you're sharing:
+
+| Type | Icon | Example |
+|------|------|---------|
+| `user_preference` | ⭐ | "I prefer dark mode" |
+| `correction` | 🔧 | "No, I meant Python 3.11 not 3.10" |
+| `decision` | 🎯 | "Let's use React for the frontend" |
+| `fact_declaration` | 📌 | "I work at a startup in Tokyo" |
+| `task_pattern` | 🔄 | "I always write tests first" |
+| `contextual_observation` | 👁 | "The user seems frustrated" |
+| `knowledge` | 📚 | "PostgreSQL uses MVCC" |
+
+### 2. Semantic Recall (Cross-Language)
 
 ```python
-cm.classify_and_remember("I prefer dark mode")
-# → type: user_preference, confidence: 0.95
-
-cm.classify_and_remember("No, I meant Python 3.11, not 3.10")
-# → type: correction, confidence: 0.98
-
-cm.classify_and_remember("Let's use React for the frontend")
-# → type: decision, confidence: 0.92
-```
-
-**7 Memory Types**: `user_preference` · `correction` · `fact_declaration` · `decision` · `relationship` · `task_pattern` · `sentiment_marker`
-
-### 2. Semantic Recall (v0.4.0+)
-
-```python
-# Store in Chinese, query in English — works cross-language!
 cm.classify_and_remember("我偏好使用PostgreSQL")
 
-# All of these find the memory:
-memories = cm.recall_memories(query="PostgreSQL")      # ✅ Exact match
-memories = cm.recall_memories(query="数据库")            # ✅ Synonym expansion
-memories = cm.recall_memories(query="Postgres")          # ✅ Spell correction
-memories = cm.recall_memories(query="データベース")      # ✅ Cross-language (Japanese)
+# All of these find it:
+cm.recall_memories("PostgreSQL")     # Exact match
+cm.recall_memories("数据库")          # Synonym expansion
+cm.recall_memories("Postgres")       # Spell correction
+cm.recall_memories("データベース")    # Cross-language (Japanese)
 ```
 
-**Features**: Synonym expansion · Spell correction · Cross-language mapping (CN/EN/JP) · Zero external dependencies
-
-### 3. Active Declaration
+### 3. Identity Layer (whoami)
 
 ```python
-cm.declare("I prefer PostgreSQL over MySQL")
-# → confidence=1.0, guaranteed to be remembered
+identity = cm.whoami()
+print(identity["preferences"])   # ["I prefer dark mode", ...]
+print(identity["decisions"])     # ["Let's use React", ...]
+print(identity["corrections"])   # ["The port should be 5432", ...]
 ```
 
-### 4. Memory Profile
+### 4. Importance Scoring & Lifecycle
 
-```python
-profile = cm.get_memory_profile()
-print(profile['summary'])
-# → "AI remembers 12 things about you: 5 preferences, 3 corrections, 2 decisions"
+Every memory has an importance score that evolves over time:
+
+```
+importance = confidence × type_weight × recency_factor × access_factor
 ```
 
-### 5. Export & Import (Portability)
+- **30-day half-life decay** — old memories fade unless accessed
+- **Access reinforcement** — frequently recalled memories stay fresh
+- **Type weighting** — corrections (1.3x) > decisions (1.2x) > preferences (1.1x)
 
-```python
-# Export memories — they belong to you
-cm.export_memories(output_path="my_memories.json")
+### 5. Quality Management
 
-# Import on new device
-with CarryMem() as cm2:
-    cm2.import_memories(input_path="my_memories.json")
-    # All memories restored!
+```bash
+carrymem check                    # Check all
+carrymem check --conflicts        # Detect contradictions
+carrymem check --quality          # Find low-quality memories
+carrymem check --expired          # Find expired memories
+carrymem clean --expired --dry-run # Preview cleanup
 ```
+
+### 6. Security & Reliability
+
+| Feature | Description |
+|---------|-------------|
+| **Encryption** | AES-128 (Fernet) or HMAC-CTR fallback, zero-dep |
+| **Backup** | Zero-downtime SQLite VACUUM INTO |
+| **Audit Log** | Append-only operation history |
+| **Version History** | Every edit tracked, rollback supported |
+| **Input Validation** | SQL injection, XSS, path traversal protection |
+
+### 7. MCP Integration (One-Line Setup)
+
+```bash
+# Configure for Cursor
+carrymem setup-mcp --tool cursor
+
+# Configure for Claude Code
+carrymem setup-mcp --tool claude-code
+
+# Configure for all
+carrymem setup-mcp --tool all
+```
+
+12 MCP tools available: Core (3) · Storage (3) · Knowledge (3) · Profile (2) · Prompt (1)
+
+### 8. Terminal UI
+
+```bash
+pip install textual
+carrymem tui
+```
+
+Interactive terminal interface with sidebar filters, search, and add mode.
 
 ---
 
-## 🎨 Real-World Use Cases
+## Comparison
 
-### Use Case 1: Code Assistant Remembers Your Style
+|  | CarryMem | Mem0 | OpenChronicle | ima |
+|--|----------|------|---------------|-----|
+| **Zero Dependencies** | ✅ SQLite only | ❌ Milvus needed | ✅ | ❌ Cloud |
+| **Auto-Classification** | ✅ 7 types | ❌ | ❌ Manual | ❌ |
+| **Identity Portrait** | ✅ whoami | ❌ | ❌ | ❌ |
+| **CLI** | ✅ 19 commands | ❌ | ❌ | ❌ |
+| **TUI** | ✅ textual | ❌ | ❌ | ✅ App |
+| **Encryption** | ✅ Built-in | ❌ | ❌ | ❌ |
+| **Version History** | ✅ Rollback | ❌ | ❌ | ❌ |
+| **Conflict Detection** | ✅ Built-in | ❌ | ❌ | ❌ |
+| **Data Ownership** | ✅ Local files | ⚠️ Cloud | ✅ Local | ❌ Cloud |
+| **5-Line Integration** | ✅ | ❌ | ❌ | ❌ |
+| **Cross-Language Recall** | ✅ EN/CN/JP | ❌ | ❌ | ❌ |
 
-```python
-with CarryMem() as cm:
-    cm.classify_and_remember("I prefer using type hints in Python")
-    cm.classify_and_remember("I like to use dataclasses instead of dicts")
-
-    # Next conversation, AI automatically knows your preferences
-    memories = cm.recall_memories(query="Python coding style")
-```
-
-### Use Case 2: Cross-Tool Usage
-
-```python
-# In Cursor
-with CarryMem(namespace="cursor") as cm_cursor:
-    cm_cursor.classify_and_remember("I prefer dark mode")
-
-# In Windsurf, use same memories
-with CarryMem(namespace="cursor") as cm_windsurf:
-    memories = cm_windsurf.recall_memories(query="theme")  # Found!
-```
-
-### Use Case 3: Project Isolation
-
-```python
-# Project A
-with CarryMem(namespace="project-a") as cm_a:
-    cm_a.classify_and_remember("Use React for frontend")
-
-# Project B — no interference
-with CarryMem(namespace="project-b") as cm_b:
-    cm_b.classify_and_remember("Use Vue for frontend")
-```
+**Key Difference**: Other products store *what you read*. CarryMem stores *who you are*.
 
 ---
 
-## 🔥 Why CarryMem Is Better
-
-|  | CarryMem | Mem0 | LangMem | Zep |
-|--|----------|------|---------|-----|
-| **Auto-Classification** | ✅ 7 types | ❌ Store all | ⚠️ Needs LLM | ⚠️ Post-summary |
-| **Portability** | ✅ Your files | ❌ Locked in cloud | ❌ Locked in tool | ❌ Locked in service |
-| **Cost** | ✅ 60%+ zero cost | ❌ Always calls | ❌ Always calls | ❌ Always calls |
-| **Project Isolation** | ✅ Namespace | ❌ No | ❌ No | ❌ No |
-| **Knowledge Base** | ✅ Obsidian | ❌ No | ❌ No | ❌ No |
-| **Open Source** | ✅ Fully open | ⚠️ Partial | ✅ Fully open | ⚠️ Partial |
-
-**Key Difference**: CarryMem's memories belong to you. Switch models, tools, devices — memories follow you.
-
----
-
-## 📊 Performance Metrics
+## Performance
 
 | Metric | Value |
 |--------|-------|
@@ -235,121 +225,132 @@ with CarryMem(namespace="project-b") as cm_b:
 | F1 Score | **97.9%** |
 | Zero-Cost Classification | **60%+** |
 | Recall Latency (P50) | **~45ms** |
-| Tests Passing | **332/332** |
+| Tests Passing | **447/447** |
 
 ---
 
-## 🏗️ How It Works
-
-### Three-Tier Classification Strategy
+## Architecture
 
 ```
-User Input → Rule Engine (60%+) → Pattern Analysis (30%) → Semantic (10%)
-               ↓                        ↓                         ↓
-          Zero cost              Near-zero cost             Token cost
-          High speed             Medium speed               Low speed
+User Input
+    ↓
+Auto-Classification (7 types, 4 tiers)
+    ↓
+Importance Scoring (confidence × type × recency × access)
+    ↓
+Smart Storage (SQLite + FTS5, dedup, TTL, encryption)
+    ↓
+Semantic Recall (FTS5 + synonyms + spell fix + cross-language)
+    ↓
+Context Injection (token budget, relevance ranking)
+    ↓
+AI Tool (Cursor / Claude Code / any MCP client)
 ```
 
-**60%+ classifications don't need LLM calls!**
-
-### Data Flow
-
+**Three-Tier Classification**:
 ```
-1. User Input
-   ↓
-2. Auto-Classification (7 types)
-   ↓
-3. Smart Storage (dedup + TTL)
-   ↓
-4. Semantic Recall (FTS5 + synonyms)
-   ↓
-5. Return Relevant Memories
+Rule Engine (60%+) → Pattern Analysis (30%) → Semantic (10%)
+     ↓                      ↓                      ↓
+ Zero cost            Near-zero cost          Token cost
 ```
 
 ---
 
-## 🌟 Advanced Features
+## Advanced Usage
 
-### Obsidian Knowledge Base Integration
+### Obsidian Knowledge Base
 
 ```python
 from memory_classification_engine import CarryMem, ObsidianAdapter
 
-with CarryMem(knowledge_adapter=ObsidianAdapter("/path/to/vault")) as cm:
-    cm.index_knowledge()
-    results = cm.recall_from_knowledge("Python design patterns")
+cm = CarryMem(knowledge_adapter=ObsidianAdapter("/path/to/vault"))
+cm.index_knowledge()
+results = cm.recall_from_knowledge("Python design patterns")
 ```
 
-### MCP Server
+### Async API
 
-Add to your MCP client config (e.g. Claude Code, Cursor):
+```python
+from memory_classification_engine import AsyncCarryMem
 
-```json
-{
-  "mcpServers": {
-    "carrymem": {
-      "command": "python3",
-      "args": ["-m", "memory_classification_engine.integration.layer2_mcp"],
-      "env": {}
-    }
-  }
-}
+async with AsyncCarryMem() as cm:
+    await cm.classify_and_remember("I prefer dark mode")
+    memories = await cm.recall_memories("theme")
 ```
 
-**12 Tools**: Core (3) · Storage (3) · Knowledge (3) · Profile (2) · Prompt (1)
+### JSON Adapter (No SQLite)
+
+```python
+from memory_classification_engine import CarryMem, JSONAdapter
+
+cm = CarryMem(adapter=JSONAdapter("/path/to/memories.json"))
+```
+
+### Encryption
+
+```python
+cm = CarryMem(encryption_key="my-secret-key")
+# All content encrypted at rest, decrypted on read
+```
+
+### Memory Versioning
+
+```python
+cm.update_memory(key, "Updated content")     # Creates version 2
+history = cm.get_memory_history(key)          # [v1, v2]
+cm.rollback_memory(key, version=1)            # Restore v1
+```
+
+### Export Identity for Other AIs
+
+```python
+# Export your AI identity
+cm.export_profile(output_path="my_identity.json")
+
+# On another device or AI tool
+cm.import_memories(input_path="backup.json")
+```
 
 ---
 
-## 📚 Documentation
+## Documentation
 
-### Getting Started
-- 📖 [Documentation Index](docs/README.md) - Start here!
-- 🚀 [Quick Start Guide](docs/QUICK_START_GUIDE.md)
-- ⚡ [Quick Fix Guide](docs/QUICK_FIX_GUIDE.md) - Common issues
-- 🔧 [Troubleshooting](docs/TROUBLESHOOTING.md) - Detailed solutions
-
-### New Features
-- 🎉 [CLI Enhancements Guide](docs/CLI_ENHANCEMENTS_GUIDE.md) - doctor/status/setup-mcp
-
-### Technical Documentation
-- ️ [Architecture](docs/ARCHITECTURE.md)
-- 📋 [API Reference](docs/API_REFERENCE.md)
-- 🎯 [User Stories](docs/USER_STORIES.md)
-- 🗺️ [Roadmap](docs/ROADMAP.md)
-- 🤝 [Contributing](CONTRIBUTING.md)
+- [Quick Start Guide](docs/QUICK_START_GUIDE.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [API Reference](docs/API_REFERENCE.md)
+- [User Stories](docs/USER_STORIES.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Contributing](CONTRIBUTING.md)
 
 ---
 
-## 🎯 Who Is This For?
+## Who Is This For?
 
-**Developers** — Building AI Agents that need to remember users
+**Developers** — Building AI agents that need to remember users across sessions
 
-**Product Teams** — Need persistent memory without building classification logic from scratch
+**Power Users** — Want AI tools (Cursor, Claude Code, Windsurf) to remember them
 
-**Power Users** — Want AI tools to remember them, not the other way around
+**Teams** — Share organizational knowledge through shared memory namespaces
 
 ---
 
-## 🚦 Project Status
+## Project Status
 
-**Current Version**: v0.2.0
-**Tests**: 332/332 passing
+**Current Version**: v0.8.2
+**Tests**: 447/447 passing
 **Accuracy**: 90.6%
-**User Readiness**: 9.75/10 (Production Ready)
 
-**New in v0.2.0**:
-- ✅ CLI enhancements (doctor, status, setup-mcp)
-- ✅ One-click installation script
-- ✅ Comprehensive documentation
-- ✅ Quick fix and troubleshooting guides
+**v0.8.x Changelog**:
+- v0.8.2: Identity layer (whoami, profile export), competitive differentiation
+- v0.8.1: User-perspective CLI improvements (show/edit/clean, color output, --force)
+- v0.8.0: Enhanced CLI (19 commands), TUI, MCP setup, doctor, quality management
+- v0.7.0: MCP HTTP/SSE, JSON adapter, async API
+- v0.6.0: Encryption, backup, audit logging
+- v0.5.0: Smart context injection, importance scoring, cache, merge, versioning
 
 ---
 
-## 🤝 Contributing
-
-We welcome contributions! See [Contributing Guide](CONTRIBUTING.md).
-
-### Development Setup
+## Contributing
 
 ```bash
 git clone https://github.com/lulin70/memory-classification-engine.git
@@ -358,16 +359,14 @@ pip install -e ".[dev]"
 pytest
 ```
 
+See [Contributing Guide](CONTRIBUTING.md) for details.
+
 ---
 
-## 📄 License
+## License
 
 MIT License — see [LICENSE](LICENSE)
 
 ---
 
-**Start using CarryMem and let AI remember you!** 🚀
-
-```bash
-pip install carrymem
-```
+**CarryMem — AI remembers who you are. Only you own the data.** 🚀
