@@ -5,10 +5,14 @@ Usage:
     carrymem add "I prefer dark mode"     Store a memory
     carrymem list                         List recent memories
     carrymem search "theme"               Search memories
-    carrymem forget <id>                  Delete a memory
+    carrymem show <key>                   View memory details
+    carrymem edit <key> "new content"     Edit a memory
+    carrymem forget <key>                 Delete a memory
+    carrymem clean                        Remove expired/low-quality
     carrymem export backup.json           Export memories
     carrymem import backup.json           Import memories
     carrymem stats                        Show statistics
+    carrymem check                        Check quality & conflicts
     carrymem doctor                       Run diagnostics
     carrymem setup-mcp --tool cursor      Configure MCP integration
     carrymem tui                          Launch terminal UI
@@ -19,7 +23,6 @@ Usage:
 import sys
 import os
 import json
-import shutil
 import sqlite3
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -38,17 +41,33 @@ _DEFAULT_DB = Path.home() / ".carrymem" / "memories.db"
 _DEFAULT_CONFIG_DIR = Path.home() / ".carrymem"
 
 _TYPE_ICONS = {
-    "user_preference": "⭐",
-    "fact_declaration": "📌",
-    "correction": "🔧",
-    "decision": "🎯",
-    "task_pattern": "🔄",
-    "contextual_observation": "👁",
-    "knowledge": "📚",
-    "unknown": "❓",
+    "user_preference": "\u2b50",
+    "fact_declaration": "\U0001f4cc",
+    "correction": "\U0001f527",
+    "decision": "\U0001f3af",
+    "task_pattern": "\U0001f504",
+    "contextual_observation": "\U0001f441",
+    "knowledge": "\U0001f4da",
+    "unknown": "\u2753",
 }
 
 _TIER_LABELS = {1: "Core", 2: "Standard", 3: "Background", 4: "Archive"}
+
+_HAS_COLOR = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
+
+
+def _c(code: str, text: str) -> str:
+    if not _HAS_COLOR:
+        return text
+    return f"\033[{code}m{text}\033[0m"
+
+
+def _green(t): return _c("32", t)
+def _red(t): return _c("31", t)
+def _yellow(t): return _c("33", t)
+def _cyan(t): return _c("36", t)
+def _dim(t): return _c("2", t)
+def _bold(t): return _c("1", t)
 
 
 def _get_carrymem(db_path: Optional[str] = None, namespace: str = "default") -> CarryMem:
@@ -87,28 +106,30 @@ def _truncate(text: str, max_len: int = 60) -> str:
     return text[:max_len - 3] + "..."
 
 
-def _print_table(headers: List[str], rows: List[List[str]], col_widths: Optional[List[int]] = None):
-    if not col_widths:
-        col_widths = []
-        for i, h in enumerate(headers):
-            max_w = len(h)
-            for row in rows:
-                if i < len(row):
-                    max_w = max(max_w, len(str(row[i])))
-            col_widths.append(min(max_w + 2, 50))
+def _find_memory(cm: CarryMem, key: str) -> Optional[Dict[str, Any]]:
+    memories = cm.recall_memories(query="", limit=200)
+    for m in memories:
+        if m.get("storage_key") == key:
+            return m
+    return None
 
-    header_line = ""
-    for i, h in enumerate(headers):
-        header_line += str(h).ljust(col_widths[i])
-    print(header_line)
-    print("-" * sum(col_widths))
 
-    for row in rows:
-        line = ""
-        for i, cell in enumerate(row):
-            if i < len(col_widths):
-                line += str(cell).ljust(col_widths[i])
-        print(line)
+def _print_memory_card(m: Dict[str, Any], index: Optional[int] = None):
+    mtype = m.get("type", "unknown")
+    icon = _TYPE_ICONS.get(mtype, "\u2753")
+    content = m.get("content", "")
+    confidence = m.get("confidence", 0)
+    importance = m.get("importance_score", 0)
+    key = m.get("storage_key", "")
+    created = m.get("created_at", "")
+    tier = m.get("tier", 2)
+    tier_label = _TIER_LABELS.get(tier, f"T{tier}")
+    access_count = m.get("access_count", 0)
+
+    prefix = f"  {index}." if index else "  "
+    print(f"{prefix} {icon} {_bold(_truncate(content, 65))}")
+    print(f"     {_dim(f'Type: {mtype} | Conf: {confidence:.0%} | Importance: {importance:.2f} | {tier_label}')}")
+    print(f"     {_dim(f'Key: {key} | {_format_time(created)}')}")
 
 
 def cmd_add(args):
@@ -116,6 +137,8 @@ def cmd_add(args):
     parser.add_argument("message", help="Message to remember")
     parser.add_argument("--namespace", "-n", default="default", help="Namespace")
     parser.add_argument("--context", "-c", help="Additional context (JSON)")
+    parser.add_argument("--force", "-f", action="store_true", help="Force store without classification")
+    parser.add_argument("--type", "-t", help="Override memory type (with --force)")
     parser.add_argument("--db", help="Database path")
 
     parsed = parser.parse_args(args)
@@ -126,30 +149,54 @@ def cmd_add(args):
         try:
             context = json.loads(parsed.context)
         except json.JSONDecodeError:
-            print(f"Error: Invalid JSON context: {parsed.context}")
+            print(f"  {_red('Error:')} Invalid JSON context: {parsed.context}")
             return 1
 
-    result = cm.classify_and_remember(parsed.message, context=context)
+    if parsed.force:
+        result = cm.declare(parsed.message, context=context)
+        keys = result.get("storage_keys", [])
+        entries = result.get("entries", [])
+        if keys:
+            print(f"  {_green('Stored')} (forced) {len(keys)} item(s)")
+            for i, key in enumerate(keys):
+                entry = entries[i] if i < len(entries) else {}
+                mtype = entry.get("type", parsed.type or "unknown")
+                icon = _TYPE_ICONS.get(mtype, "\u2753")
+                content = entry.get("content", parsed.message)
+                print(f"    {icon} [{mtype}] {_truncate(content, 70)}")
+                print(f"       Key: {key}")
+        else:
+            print(f"  {_red('Failed to store memory')}")
+            cm.close()
+            return 1
+    else:
+        result = cm.classify_and_remember(parsed.message, context=context)
 
-    if not result.get("should_remember"):
-        print("  Not worth remembering (noise or too vague)")
-        return 0
+        if not result.get("should_remember"):
+            print(f"  {_yellow('Not classified as memorable')} (noise or too vague)")
+            print(f"  {_dim('Tip: Use --force to store anyway:')}")
+            tip_msg = f'  carrymem add --force "{parsed.message}"'
+            print(f"  {_dim(tip_msg)}")
+            cm.close()
+            return 0
 
-    entries = result.get("entries", [])
-    keys = result.get("storage_keys", [])
+        entries = result.get("entries", [])
+        keys = result.get("storage_keys", [])
 
-    for i, entry in enumerate(entries):
-        mtype = entry.get("type", "unknown")
-        icon = _TYPE_ICONS.get(mtype, "❓")
-        confidence = entry.get("confidence", 0)
-        content = entry.get("content", "")
-        tier = entry.get("tier", 2)
-        tier_label = _TIER_LABELS.get(tier, f"T{tier}")
+        for i, entry in enumerate(entries):
+            mtype = entry.get("type", "unknown")
+            icon = _TYPE_ICONS.get(mtype, "\u2753")
+            confidence = entry.get("confidence", 0)
+            content = entry.get("content", "")
+            tier = entry.get("tier", 2)
+            tier_label = _TIER_LABELS.get(tier, f"T{tier}")
 
-        print(f"  {icon} [{mtype}] {_truncate(content, 70)}")
-        print(f"     Confidence: {confidence:.0%} | Tier: {tier_label} | Key: {keys[i] if i < len(keys) else 'N/A'}")
+            print(f"  {icon} [{mtype}] {_bold(_truncate(content, 70))}")
+            key_display = keys[i] if i < len(keys) else "N/A"
+            print(f"     {_dim(f'Confidence: {confidence:.0%} | Tier: {tier_label} | Key: {key_display}')}")
 
-    print(f"\n  Remembered {len(entries)} item(s)")
+        print(f"\n  {_green(f'Remembered {len(entries)} item(s)')}")
+
     cm.close()
     return 0
 
@@ -172,8 +219,9 @@ def cmd_list(args):
     memories = cm.recall_memories(query="", filters=filters, limit=parsed.limit)
 
     if not memories:
-        print("  No memories found")
-        print('  Tip: carrymem add "I prefer dark mode"')
+        print(f"  {_dim('No memories found')}")
+        tip = 'Tip: carrymem add "I prefer dark mode"'
+        print(f"  {_dim(tip)}")
         cm.close()
         return 0
 
@@ -183,21 +231,9 @@ def cmd_list(args):
         for m in memories:
             print(f"{m.get('storage_key', '')}\t{m.get('type', '')}\t{m.get('content', '')}\t{m.get('confidence', 0):.2f}")
     else:
-        print(f"\n  Memories ({len(memories)} shown, namespace={parsed.namespace})\n")
+        print(f"\n  {_bold(f'Memories')} ({len(memories)} shown, namespace={parsed.namespace})\n")
         for i, m in enumerate(memories, 1):
-            mtype = m.get("type", "unknown")
-            icon = _TYPE_ICONS.get(mtype, "❓")
-            content = m.get("content", "")
-            confidence = m.get("confidence", 0)
-            importance = m.get("importance_score", 0)
-            key = m.get("storage_key", "")
-            created = m.get("created_at", "")
-            tier = m.get("tier", 2)
-            tier_label = _TIER_LABELS.get(tier, f"T{tier}")
-
-            print(f"  {i}. {icon} {_truncate(content, 65)}")
-            print(f"     Type: {mtype} | Conf: {confidence:.0%} | Importance: {importance:.2f} | {tier_label}")
-            print(f"     Key: {key} | {_format_time(created)}")
+            _print_memory_card(m, index=i)
             print()
 
     cm.close()
@@ -223,7 +259,7 @@ def cmd_search(args):
     memories = cm.recall_memories(query=parsed.query, filters=filters, limit=parsed.limit)
 
     if not memories:
-        print(f"  No memories matching '{parsed.query}'")
+        print(f"  {_dim(f'No memories matching')} {_bold(parsed.query)}")
         cm.close()
         return 0
 
@@ -233,18 +269,111 @@ def cmd_search(args):
         for m in memories:
             print(f"{m.get('storage_key', '')}\t{m.get('type', '')}\t{m.get('content', '')}\t{m.get('confidence', 0):.2f}")
     else:
-        print(f"\n  Search: '{parsed.query}' ({len(memories)} results)\n")
+        print(f"\n  {_bold('Search:')} {_cyan(parsed.query)} ({len(memories)} results)\n")
         for i, m in enumerate(memories, 1):
-            mtype = m.get("type", "unknown")
-            icon = _TYPE_ICONS.get(mtype, "❓")
-            content = m.get("content", "")
-            confidence = m.get("confidence", 0)
-            key = m.get("storage_key", "")
-            created = m.get("created_at", "")
-
-            print(f"  {i}. {icon} {_truncate(content, 65)}")
-            print(f"     Type: {mtype} | Conf: {confidence:.0%} | Key: {key} | {_format_time(created)}")
+            _print_memory_card(m, index=i)
             print()
+
+    cm.close()
+    return 0
+
+
+def cmd_show(args):
+    parser = _make_parser("show")
+    parser.add_argument("key", help="Storage key of the memory")
+    parser.add_argument("--namespace", "-n", default="default", help="Namespace")
+    parser.add_argument("--db", help="Database path")
+    parser.add_argument("--json", action="store_true", help="Output as JSON")
+
+    parsed = parser.parse_args(args)
+    cm = _get_carrymem(parsed.db, parsed.namespace)
+
+    target = _find_memory(cm, parsed.key)
+
+    if not target:
+        print(f"  {_red('Memory not found:')} {parsed.key}")
+        cm.close()
+        return 1
+
+    if parsed.json:
+        print(json.dumps(target, ensure_ascii=False, indent=2))
+        cm.close()
+        return 0
+
+    mtype = target.get("type", "unknown")
+    icon = _TYPE_ICONS.get(mtype, "\u2753")
+    content = target.get("content", "")
+    confidence = target.get("confidence", 0)
+    importance = target.get("importance_score", 0)
+    key = target.get("storage_key", "")
+    created = target.get("created_at", "")
+    tier = target.get("tier", 2)
+    tier_label = _TIER_LABELS.get(tier, f"T{tier}")
+    access_count = target.get("access_count", 0)
+    original = target.get("original_message", "")
+    version = target.get("version", 1)
+    expires = target.get("expires_at", "")
+
+    print(f"\n  {icon} {_bold(content)}")
+    print(f"  {'=' * 50}")
+    print(f"  Key:        {key}")
+    print(f"  Type:       {mtype}")
+    print(f"  Tier:       {tier_label} ({tier})")
+    print(f"  Confidence: {confidence:.0%}")
+    print(f"  Importance: {importance:.3f}")
+    print(f"  Version:    {version}")
+    print(f"  Accesses:   {access_count}")
+    print(f"  Created:    {_format_time(created)}")
+    if expires:
+        print(f"  Expires:    {expires}")
+    if original and original != content:
+        print(f"\n  Original:   {_dim(original)}")
+
+    print()
+    cm.close()
+    return 0
+
+
+def cmd_edit(args):
+    parser = _make_parser("edit")
+    parser.add_argument("key", help="Storage key of the memory to edit")
+    parser.add_argument("content", help="New content")
+    parser.add_argument("--namespace", "-n", default="default", help="Namespace")
+    parser.add_argument("--db", help="Database path")
+
+    parsed = parser.parse_args(args)
+    cm = _get_carrymem(parsed.db, parsed.namespace)
+
+    target = _find_memory(cm, parsed.key)
+
+    if not target:
+        print(f"  {_red('Memory not found:')} {parsed.key}")
+        cm.close()
+        return 1
+
+    old_content = target.get("content", "")
+    print(f"  {_dim('Old:')} {_truncate(old_content, 60)}")
+    print(f"  {_green('New:')} {_truncate(parsed.content, 60)}")
+
+    try:
+        answer = input("  Confirm edit? [y/N] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        cm.close()
+        return 0
+
+    if answer != "y":
+        print(f"  {_dim('Cancelled')}")
+        cm.close()
+        return 0
+
+    success = cm.update_memory(parsed.key, parsed.content)
+    if success:
+        print(f"  {_green('Updated:')} {parsed.key}")
+    else:
+        print(f"  {_red('Failed to update:')} {parsed.key}")
+        cm.close()
+        return 1
 
     cm.close()
     return 0
@@ -260,21 +389,16 @@ def cmd_forget(args):
     parsed = parser.parse_args(args)
     cm = _get_carrymem(parsed.db, parsed.namespace)
 
-    memories = cm.recall_memories(query="", limit=100)
-    target = None
-    for m in memories:
-        if m.get("storage_key") == parsed.key:
-            target = m
-            break
+    target = _find_memory(cm, parsed.key)
 
     if not target:
-        print(f"  Memory not found: {parsed.key}")
+        print(f"  {_red('Memory not found:')} {parsed.key}")
         cm.close()
         return 1
 
     if not parsed.force:
         content = target.get("content", "")
-        print(f"  Delete: {_truncate(content, 60)}")
+        print(f"  {_red('Delete:')} {_truncate(content, 60)}")
         print(f"  Key: {parsed.key}")
         try:
             answer = input("  Confirm? [y/N] ").strip().lower()
@@ -283,20 +407,93 @@ def cmd_forget(args):
             cm.close()
             return 0
         if answer != "y":
-            print("  Cancelled")
+            print(f"  {_dim('Cancelled')}")
             cm.close()
             return 0
 
     success = cm.forget_memory(parsed.key)
     if success:
-        print(f"  Forgotten: {parsed.key}")
+        print(f"  {_green('Forgotten:')} {parsed.key}")
     else:
-        print(f"  Failed to forget: {parsed.key}")
+        print(f"  {_red('Failed to forget:')} {parsed.key}")
         cm.close()
         return 1
 
     cm.close()
     return 0
+
+
+def cmd_clean(args):
+    parser = _make_parser("clean")
+    parser.add_argument("--namespace", "-n", default="default", help="Namespace")
+    parser.add_argument("--db", help="Database path")
+    parser.add_argument("--expired", action="store_true", help="Remove expired memories")
+    parser.add_argument("--quality", type=float, default=0, help="Remove memories below quality threshold")
+    parser.add_argument("--dry-run", action="store_true", help="Show what would be removed")
+    parser.add_argument("--force", "-y", action="store_true", help="Skip confirmation")
+
+    parsed = parser.parse_args(args)
+    cm = _get_carrymem(parsed.db, parsed.namespace)
+
+    to_remove = []
+
+    if parsed.expired:
+        expired = cm.list_expired()
+        for item in expired:
+            to_remove.append(("expired", item))
+
+    if parsed.quality > 0:
+        low_quality = cm.check_quality(min_score=parsed.quality)
+        for item in low_quality:
+            already = any(r[1].get("storage_key") == item["storage_key"] for r in to_remove)
+            if not already:
+                to_remove.append(("low_quality", item))
+
+    if not to_remove:
+        print(f"  {_green('Nothing to clean')} — all memories are healthy")
+        cm.close()
+        return 0
+
+    print(f"\n  {_bold('Memories to clean:')} {len(to_remove)}\n")
+    for reason, item in to_remove:
+        key = item.get("storage_key", "")
+        content = item.get("content", "")
+        if reason == "expired":
+            print(f"    {_yellow('[EXPIRED]')} {_truncate(content, 50)}")
+        else:
+            score = item.get("score", 0)
+            print(f"    {_yellow(f'[QUALITY:{score:.2f}]')} {_truncate(content, 50)}")
+        print(f"      Key: {key}")
+
+    if parsed.dry_run:
+        print(f"\n  {_dim('Dry run — no changes made')}")
+        cm.close()
+        return 0
+
+    if not parsed.force:
+        try:
+            answer = input(f"\n  Remove {len(to_remove)} memories? [y/N] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            cm.close()
+            return 0
+        if answer != "y":
+            print(f"  {_dim('Cancelled')}")
+            cm.close()
+            return 0
+
+    removed = 0
+    errors = 0
+    for reason, item in to_remove:
+        key = item.get("storage_key", "")
+        if cm.forget_memory(key):
+            removed += 1
+        else:
+            errors += 1
+
+    print(f"\n  {_green(f'Cleaned:')} {removed} removed, {errors} errors")
+    cm.close()
+    return 0 if errors == 0 else 1
 
 
 def cmd_export(args):
@@ -314,9 +511,9 @@ def cmd_export(args):
     if result.get("exported"):
         total = result.get("total_memories", 0)
         fmt = result.get("format", "json")
-        print(f"  Exported {total} memories to {parsed.output} ({fmt})")
+        print(f"  {_green('Exported')} {total} memories to {_cyan(parsed.output)} ({fmt})")
     else:
-        print(f"  Export failed: {result}")
+        print(f"  {_red('Export failed:')} {result}")
         cm.close()
         return 1
 
@@ -345,7 +542,7 @@ def cmd_import(args):
     errors = result.get("errors", 0)
     total = result.get("total_processed", 0)
 
-    print(f"  Import complete: {imported} imported, {skipped} skipped, {errors} errors ({total} total)")
+    print(f"  {_green('Import complete:')} {imported} imported, {skipped} skipped, {errors} errors ({total} total)")
 
     if errors > 0:
         cm.close()
@@ -376,18 +573,18 @@ def cmd_stats(args):
     total = stats.get("total_count", 0)
     by_type = stats.get("by_type", {})
 
-    print(f"\n  CarryMem Statistics (namespace: {parsed.namespace})")
+    print(f"\n  {_bold('CarryMem Statistics')} (namespace: {parsed.namespace})")
     print(f"  {'=' * 45}")
-    print(f"\n  Total Memories: {total}")
+    print(f"\n  Total Memories: {_bold(str(total))}")
 
     if by_type:
         print(f"\n  By Type:")
         max_type_len = max(len(t) for t in by_type) if by_type else 10
         for mtype, count in sorted(by_type.items(), key=lambda x: -x[1]):
             icon = _TYPE_ICONS.get(mtype, "  ")
-            bar = "█" * min(count, 30)
+            bar = "\u2588" * min(count, 30)
             pct = (count / total * 100) if total > 0 else 0
-            print(f"    {icon} {mtype.ljust(max_type_len)}  {count:4d}  {bar}  ({pct:.0f}%)")
+            print(f"    {icon} {mtype.ljust(max_type_len)}  {count:4d}  {_cyan(bar)}  ({pct:.0f}%)")
 
     profile_stats = profile.get("stats", {})
     by_tier = profile_stats.get("by_tier", {})
@@ -408,9 +605,86 @@ def cmd_stats(args):
         if p.exists():
             size_mb = p.stat().st_size / (1024 * 1024)
             print(f"  Database Size: {size_mb:.2f} MB")
-            print(f"  Database Path: {db_path}")
+            print(f"  Database Path: {_dim(db_path)}")
 
     print()
+    cm.close()
+    return 0
+
+
+def cmd_check(args):
+    parser = _make_parser("check")
+    parser.add_argument("--namespace", "-n", default="default", help="Namespace")
+    parser.add_argument("--db", help="Database path")
+    parser.add_argument("--conflicts", action="store_true", help="Check for conflicts")
+    parser.add_argument("--quality", action="store_true", help="Check for low quality memories")
+    parser.add_argument("--expired", action="store_true", help="Check for expired memories")
+    parser.add_argument("--all", action="store_true", help="Run all checks")
+
+    parsed = parser.parse_args(args)
+    cm = _get_carrymem(parsed.db, parsed.namespace)
+
+    run_all = parsed.all or (not parsed.conflicts and not parsed.quality and not parsed.expired)
+
+    print(f"\n  {_bold('CarryMem Quality Check')} (namespace: {parsed.namespace})")
+    print(f"  {'=' * 45}\n")
+
+    if run_all or parsed.conflicts:
+        print(f"  Conflicts:")
+        try:
+            conflicts = cm.check_conflicts()
+            if not conflicts:
+                print(f"    {_green('No conflicts detected')}")
+            else:
+                for c in conflicts:
+                    ctype = c.get("conflict_type", "unknown")
+                    severity = c.get("severity", "unknown")
+                    reason = c.get("reason", "")
+                    keys = c.get("memory_keys", [])
+                    sev_color = _red if severity == "high" else _yellow
+                    print(f"    {sev_color(f'[{severity.upper()}]')} {ctype}: {reason}")
+                    for key in keys:
+                        print(f"      {_dim(f'- {key}')}")
+        except Exception as e:
+            print(f"    {_red(f'Error: {e}')}")
+        print()
+
+    if run_all or parsed.quality:
+        print(f"  Low Quality Memories:")
+        try:
+            low_quality = cm.check_quality(min_score=0.3)
+            if not low_quality:
+                print(f"    {_green('All memories have good quality')}")
+            else:
+                for item in low_quality:
+                    key = item.get("storage_key", "")
+                    score = item.get("score", 0)
+                    reasons = item.get("reasons", [])
+                    content = item.get("content", "")
+                    print(f"    {_yellow(f'Score: {score:.3f}')} | {_truncate(content, 50)}")
+                    reasons_str = ", ".join(reasons)
+                    print(f"      {_dim(f'Key: {key} | Reasons: {reasons_str}')}")
+        except Exception as e:
+            print(f"    {_red(f'Error: {e}')}")
+        print()
+
+    if run_all or parsed.expired:
+        print(f"  Expired Memories:")
+        try:
+            expired = cm.list_expired()
+            if not expired:
+                print(f"    {_green('No expired memories')}")
+            else:
+                for item in expired:
+                    key = item.get("storage_key", "")
+                    content = item.get("content", "")
+                    expires = item.get("expires_at", "")
+                    print(f"    {_yellow('[EXPIRED]')} {_truncate(content, 50)}")
+                    print(f"      {_dim(f'Key: {key} | Expired: {expires}')}")
+        except Exception as e:
+            print(f"    {_red(f'Error: {e}')}")
+        print()
+
     cm.close()
     return 0
 
@@ -423,66 +697,61 @@ def cmd_doctor(args):
     parsed = parser.parse_args(args)
     db_path = parsed.db or str(_DEFAULT_DB)
 
-    print("\n  CarryMem Doctor - Diagnostics\n")
+    print(f"\n  {_bold('CarryMem Doctor')} - Diagnostics\n")
     print(f"  {'=' * 45}")
 
     checks_passed = 0
     checks_total = 0
     issues = []
 
-    # Check 1: Python version
     checks_total += 1
     py_ver = sys.version_info
     py_str = f"{py_ver.major}.{py_ver.minor}.{py_ver.micro}"
     if py_ver >= (3, 9):
-        print(f"  [OK] Python {py_str} (>= 3.9)")
+        print(f"  {_green('[OK]')} Python {py_str} (>= 3.9)")
         checks_passed += 1
     else:
-        print(f"  [FAIL] Python {py_str} (need >= 3.9)")
+        print(f"  {_red('[FAIL]')} Python {py_str} (need >= 3.9)")
         issues.append("Python version too old")
 
-    # Check 2: CarryMem import
     checks_total += 1
     try:
         from memory_classification_engine import CarryMem
-        print(f"  [OK] CarryMem v{__version__}")
+        print(f"  {_green('[OK]')} CarryMem v{__version__}")
         checks_passed += 1
     except ImportError as e:
-        print(f"  [FAIL] CarryMem import: {e}")
+        print(f"  {_red('[FAIL]')} CarryMem import: {e}")
         issues.append("CarryMem not importable")
 
-    # Check 3: Config directory
     checks_total += 1
     if _DEFAULT_CONFIG_DIR.exists():
-        print(f"  [OK] Config directory: {_DEFAULT_CONFIG_DIR}")
+        print(f"  {_green('[OK]')} Config directory: {_DEFAULT_CONFIG_DIR}")
         checks_passed += 1
     else:
-        print(f"  [WARN] Config directory missing: {_DEFAULT_CONFIG_DIR}")
+        print(f"  {_yellow('[WARN]')} Config directory missing: {_DEFAULT_CONFIG_DIR}")
         issues.append("Config directory missing")
         if parsed.fix:
             _DEFAULT_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
             print(f"        Fixed: Created {_DEFAULT_CONFIG_DIR}")
 
-    # Check 4: Database file
     checks_total += 1
     db = Path(db_path)
     if db.exists():
         size_mb = db.stat().st_size / (1024 * 1024)
-        print(f"  [OK] Database: {db} ({size_mb:.2f} MB)")
+        print(f"  {_green('[OK]')} Database: {db} ({size_mb:.2f} MB)")
         checks_passed += 1
     else:
-        print(f"  [WARN] Database not found: {db}")
+        print(f"  {_yellow('[WARN]')} Database not found: {db}")
         issues.append("Database not initialized")
         if parsed.fix:
             try:
                 cm = CarryMem(db_path=db_path)
-                cm.classify_and_remember("CarryMem initialized by doctor")
+                cm.declare("CarryMem initialized by doctor")
                 cm.close()
                 print(f"        Fixed: Created database at {db}")
             except Exception as e:
                 print(f"        Fix failed: {e}")
 
-    # Check 5: Database integrity
     checks_total += 1
     if db.exists():
         try:
@@ -490,30 +759,28 @@ def cmd_doctor(args):
             result = conn.execute("PRAGMA integrity_check").fetchone()
             conn.close()
             if result[0] == "ok":
-                print(f"  [OK] Database integrity: OK")
+                print(f"  {_green('[OK]')} Database integrity: OK")
                 checks_passed += 1
             else:
-                print(f"  [FAIL] Database integrity: {result[0]}")
+                print(f"  {_red('[FAIL]')} Database integrity: {result[0]}")
                 issues.append("Database integrity check failed")
         except Exception as e:
-            print(f"  [FAIL] Database check error: {e}")
+            print(f"  {_red('[FAIL]')} Database check error: {e}")
             issues.append(f"Database error: {e}")
     else:
-        print(f"  [SKIP] Database integrity (no database)")
+        print(f"  {_dim('[SKIP]')} Database integrity (no database)")
 
-    # Check 6: Write permissions
     checks_total += 1
     try:
         test_file = _DEFAULT_CONFIG_DIR / ".doctor_test"
         test_file.touch()
         test_file.unlink()
-        print(f"  [OK] Write permissions")
+        print(f"  {_green('[OK]')} Write permissions")
         checks_passed += 1
     except Exception as e:
-        print(f"  [FAIL] Write permissions: {e}")
+        print(f"  {_red('[FAIL]')} Write permissions: {e}")
         issues.append("Cannot write to config directory")
 
-    # Check 7: Optional dependencies
     checks_total += 1
     optional_deps = []
     try:
@@ -531,46 +798,48 @@ def cmd_doctor(args):
         optional_deps.append("langdetect")
     except ImportError:
         pass
+    try:
+        import textual
+        optional_deps.append("textual")
+    except ImportError:
+        pass
 
     if optional_deps:
-        print(f"  [OK] Optional deps: {', '.join(optional_deps)}")
+        print(f"  {_green('[OK]')} Optional deps: {', '.join(optional_deps)}")
         checks_passed += 1
     else:
-        print(f"  [INFO] No optional deps (pycld2, cryptography, langdetect)")
+        print(f"  {_dim('[INFO]')} No optional deps (pycld2, cryptography, langdetect, textual)")
         checks_passed += 1
 
-    # Check 8: FTS5 support
     checks_total += 1
     try:
         test_conn = sqlite3.connect(":memory:")
         test_conn.execute("CREATE VIRTUAL TABLE t USING fts5(c)")
         test_conn.close()
-        print(f"  [OK] SQLite FTS5 support")
+        print(f"  {_green('[OK]')} SQLite FTS5 support")
         checks_passed += 1
     except Exception:
-        print(f"  [FAIL] SQLite FTS5 not available")
+        print(f"  {_red('[FAIL]')} SQLite FTS5 not available")
         issues.append("FTS5 not supported (search will be limited)")
 
-    # Check 9: Security module
     checks_total += 1
     try:
         from memory_classification_engine.security import InputValidator
         validator = InputValidator()
         test_result = validator.validate_content("test content")
         if test_result:
-            print(f"  [OK] Security module (InputValidator)")
+            print(f"  {_green('[OK]')} Security module (InputValidator)")
             checks_passed += 1
         else:
-            print(f"  [WARN] Security module: validation returned empty")
+            print(f"  {_yellow('[WARN]')} Security module: validation returned empty")
             issues.append("InputValidator not working correctly")
     except ImportError:
-        print(f"  [INFO] Security module not available")
+        print(f"  {_dim('[INFO]')} Security module not available")
         checks_passed += 1
     except Exception as e:
-        print(f"  [WARN] Security module: {e}")
+        print(f"  {_yellow('[WARN]')} Security module: {e}")
         issues.append(f"Security module issue: {e}")
 
-    # Check 10: MCP integration status
     checks_total += 1
     mcp_configs = []
     cwd = Path.cwd()
@@ -582,40 +851,38 @@ def cmd_doctor(args):
         mcp_configs.append(f"cursor ({cursor_mcp})")
 
     if mcp_configs:
-        print(f"  [OK] MCP configs: {', '.join(mcp_configs)}")
+        print(f"  {_green('[OK]')} MCP configs: {', '.join(mcp_configs)}")
         checks_passed += 1
     else:
-        print(f"  [INFO] No MCP configs in current directory")
+        print(f"  {_dim('[INFO]')} No MCP configs in current directory")
         print(f"         Run 'carrymem setup-mcp' to configure")
         checks_passed += 1
 
-    # Check 11: Memory count
     checks_total += 1
     if db.exists():
         try:
             cm = CarryMem(db_path=db_path)
             stats = cm.get_stats()
             total = stats.get("total_count", 0)
-            print(f"  [OK] Memory count: {total}")
+            print(f"  {_green('[OK]')} Memory count: {total}")
             checks_passed += 1
             cm.close()
         except Exception:
-            print(f"  [WARN] Cannot read memory count")
+            print(f"  {_yellow('[WARN]')} Cannot read memory count")
             checks_passed += 1
     else:
-        print(f"  [SKIP] Memory count (no database)")
+        print(f"  {_dim('[SKIP]')} Memory count (no database)")
         checks_passed += 1
 
-    # Summary
     print(f"\n  {'=' * 45}")
     if issues:
-        print(f"  Issues found ({len(issues)}):")
+        print(f"  {_red(f'Issues found ({len(issues)}):')}")
         for issue in issues:
             print(f"    - {issue}")
         if not parsed.fix:
-            print(f"\n  Tip: Run 'carrymem doctor --fix' to auto-fix issues")
+            print(f"\n  {_dim('Tip: Run')} carrymem doctor --fix {_dim('to auto-fix issues')}")
     else:
-        print(f"  All checks passed ({checks_passed}/{checks_total})")
+        print(f"  {_green(f'All checks passed ({checks_passed}/{checks_total})')}")
 
     print()
     return 0 if not issues else 1
@@ -630,9 +897,7 @@ def cmd_setup_mcp(args):
     parsed = parser.parse_args(args)
     project_dir = Path(parsed.project).resolve()
 
-    import sys
     python_path = sys.executable
-
     module_cmd = f"{python_path} -m memory_classification_engine.integration.layer2_mcp"
 
     mcp_config = {
@@ -655,7 +920,7 @@ def cmd_setup_mcp(args):
                 with open(claude_file) as f:
                     existing = json.load(f)
                 if "carrymem" in existing.get("mcpServers", {}):
-                    print(f"  Claude Code: already configured ({claude_file})")
+                    print(f"  {_dim('Claude Code: already configured')} ({claude_file})")
                     configured.append("claude-code")
                     skip_claude = True
                 else:
@@ -680,7 +945,7 @@ def cmd_setup_mcp(args):
             else:
                 with open(claude_file, "w") as f:
                     json.dump(mcp_config, f, indent=2)
-            print(f"  Claude Code: configured ({claude_file})")
+            print(f"  {_green('Claude Code:')} configured ({claude_file})")
             configured.append("claude-code")
 
     if parsed.tool in ("cursor", "all"):
@@ -692,7 +957,7 @@ def cmd_setup_mcp(args):
                 with open(cursor_file) as f:
                     existing = json.load(f)
                 if "carrymem" in existing.get("mcpServers", {}):
-                    print(f"  Cursor: already configured ({cursor_file})")
+                    print(f"  {_dim('Cursor: already configured')} ({cursor_file})")
                     configured.append("cursor")
                     skip_cursor = True
                 else:
@@ -717,15 +982,15 @@ def cmd_setup_mcp(args):
             else:
                 with open(cursor_file, "w") as f:
                     json.dump(mcp_config, f, indent=2)
-            print(f"  Cursor: configured ({cursor_file})")
+            print(f"  {_green('Cursor:')} configured ({cursor_file})")
             configured.append("cursor")
 
     if configured:
-        print(f"\n  MCP integration ready for: {', '.join(configured)}")
-        print(f"  Command: {module_cmd}")
-        print(f"\n  Restart your AI tool to activate CarryMem")
+        print(f"\n  {_green('MCP integration ready for:')} {', '.join(configured)}")
+        print(f"  {_dim(f'Command: {module_cmd}')}")
+        print(f"\n  {_bold('Restart your AI tool to activate CarryMem')}")
     else:
-        print(f"  No tools configured")
+        print(f"  {_dim('No tools configured')}")
 
     return 0
 
@@ -739,98 +1004,23 @@ def cmd_serve(args):
     parsed = parser.parse_args(args)
 
     from memory_classification_engine.integration.layer2_mcp.http_server import run_http_server
-    print(f"\n  CarryMem MCP HTTP Server")
-    print(f"  Host: {parsed.host}")
-    print(f"  Port: {parsed.port}")
-    print(f"  SSE:  http://{parsed.host}:{parsed.port}/sse")
-    print(f"  API:  http://{parsed.host}:{parsed.port}/message")
-    print(f"  Health: http://{parsed.host}:{parsed.port}/health")
+    print(f"\n  {_bold('CarryMem MCP HTTP Server')}")
+    print(f"  Host:   {parsed.host}")
+    print(f"  Port:   {parsed.port}")
+    print(f"  SSE:    {_cyan(f'http://{parsed.host}:{parsed.port}/sse')}")
+    print(f"  API:    {_cyan(f'http://{parsed.host}:{parsed.port}/message')}")
+    print(f"  Health: {_cyan(f'http://{parsed.host}:{parsed.port}/health')}")
     print()
     run_http_server(host=parsed.host, port=parsed.port, api_key=parsed.api_key)
-    return 0
-
-
-def cmd_check(args):
-    parser = _make_parser("check")
-    parser.add_argument("--namespace", "-n", default="default", help="Namespace")
-    parser.add_argument("--db", help="Database path")
-    parser.add_argument("--conflicts", action="store_true", help="Check for conflicts")
-    parser.add_argument("--quality", action="store_true", help="Check for low quality memories")
-    parser.add_argument("--expired", action="store_true", help="Check for expired memories")
-    parser.add_argument("--all", action="store_true", help="Run all checks")
-
-    parsed = parser.parse_args(args)
-    cm = _get_carrymem(parsed.db, parsed.namespace)
-
-    run_all = parsed.all or (not parsed.conflicts and not parsed.quality and not parsed.expired)
-
-    print(f"\n  CarryMem Quality Check (namespace: {parsed.namespace})")
-    print(f"  {'=' * 45}\n")
-
-    if run_all or parsed.conflicts:
-        print(f"  Conflicts:")
-        try:
-            conflicts = cm.check_conflicts()
-            if not conflicts:
-                print(f"    No conflicts detected")
-            else:
-                for c in conflicts:
-                    ctype = c.get("conflict_type", "unknown")
-                    severity = c.get("severity", "unknown")
-                    reason = c.get("reason", "")
-                    keys = c.get("memory_keys", [])
-                    print(f"    [{severity.upper()}] {ctype}: {reason}")
-                    for key in keys:
-                        print(f"      - {key}")
-        except Exception as e:
-            print(f"    Error: {e}")
-        print()
-
-    if run_all or parsed.quality:
-        print(f"  Low Quality Memories:")
-        try:
-            low_quality = cm.check_quality(min_score=0.3)
-            if not low_quality:
-                print(f"    All memories have good quality")
-            else:
-                for item in low_quality:
-                    key = item.get("storage_key", "")
-                    score = item.get("score", 0)
-                    reasons = item.get("reasons", [])
-                    content = item.get("content", "")
-                    print(f"    Score: {score:.3f} | {_truncate(content, 50)}")
-                    print(f"      Key: {key} | Reasons: {', '.join(reasons)}")
-        except Exception as e:
-            print(f"    Error: {e}")
-        print()
-
-    if run_all or parsed.expired:
-        print(f"  Expired Memories:")
-        try:
-            expired = cm.list_expired()
-            if not expired:
-                print(f"    No expired memories")
-            else:
-                for item in expired:
-                    key = item.get("storage_key", "")
-                    content = item.get("content", "")
-                    expires = item.get("expires_at", "")
-                    print(f"    {_truncate(content, 50)}")
-                    print(f"      Key: {key} | Expired: {expires}")
-        except Exception as e:
-            print(f"    Error: {e}")
-        print()
-
-    cm.close()
     return 0
 
 
 def cmd_tui(args):
     from memory_classification_engine.tui import run_tui, HAS_TEXTUAL
     if not HAS_TEXTUAL:
-        print("  Textual is not installed.")
-        print("  Install with: pip install textual")
-        print("  Then run: carrymem tui")
+        print(f"  {_yellow('Textual is not installed.')}")
+        print(f"  Install with: {_cyan('pip install textual')}")
+        print(f"  Then run: carrymem tui")
         return 1
 
     parser = _make_parser("tui")
@@ -849,13 +1039,13 @@ def cmd_init(args):
     parsed = parser.parse_args(args)
     db_path = parsed.db or str(_DEFAULT_DB)
 
-    print("\n  Initializing CarryMem...\n")
+    print(f"\n  {_bold('Initializing CarryMem...')}\n")
 
     if not _DEFAULT_CONFIG_DIR.exists():
         _DEFAULT_CONFIG_DIR.mkdir(parents=True)
-        print(f"  [OK] Created config directory: {_DEFAULT_CONFIG_DIR}")
+        print(f"  {_green('[OK]')} Created config directory: {_DEFAULT_CONFIG_DIR}")
     else:
-        print(f"  [OK] Config directory exists: {_DEFAULT_CONFIG_DIR}")
+        print(f"  {_green('[OK]')} Config directory exists: {_DEFAULT_CONFIG_DIR}")
 
     config_file = _DEFAULT_CONFIG_DIR / "config.json"
     if not config_file.exists():
@@ -866,31 +1056,32 @@ def cmd_init(args):
         }
         with open(config_file, "w") as f:
             json.dump(config, f, indent=2)
-        print(f"  [OK] Created config: {config_file}")
+        print(f"  {_green('[OK]')} Created config: {config_file}")
     else:
-        print(f"  [OK] Config exists: {config_file}")
+        print(f"  {_green('[OK]')} Config exists: {config_file}")
 
     try:
         cm = CarryMem(db_path=db_path)
-        cm.classify_and_remember("CarryMem initialized successfully!")
-        print(f"  [OK] Database initialized: {db_path}")
+        cm.declare("CarryMem initialized successfully!")
+        print(f"  {_green('[OK]')} Database initialized: {db_path}")
         cm.close()
     except Exception as e:
-        print(f"  [FAIL] Database init error: {e}")
+        print(f"  {_red('[FAIL]')} Database init error: {e}")
         return 1
 
-    print(f"\n  CarryMem is ready!")
-    print(f"\n  Quick Start:")
+    print(f"\n  {_green(_bold('CarryMem is ready!'))}")
+    print(f"\n  {_bold('Quick Start:')}")
     print(f'    carrymem add "I prefer dark mode"')
     print(f"    carrymem list")
     print(f'    carrymem search "theme"')
     print(f"    carrymem setup-mcp --tool cursor")
+    print(f"    carrymem tui")
     print()
     return 0
 
 
 def cmd_version(args):
-    print(f"\n  CarryMem v{__version__}")
+    print(f"\n  {_bold(f'CarryMem v{__version__}')}")
     print(f"  Python: {sys.version.split()[0]}")
     print(f"  Config: {_DEFAULT_CONFIG_DIR}")
     print(f"  Database: {_DEFAULT_DB}")
@@ -908,15 +1099,18 @@ def _make_parser(cmd_name: str):
 
 def show_help():
     print(f"""
-  CarryMem v{__version__} - Your Portable AI Memory Layer
+  {_bold(f'CarryMem v{__version__}')} - Your Portable AI Memory Layer
 
-  AI remembers you. Not the other way around.
+  {_dim('AI remembers you. Not the other way around.')}
 
-  Commands:
+  {_bold('Commands:')}
     add <message>        Store a memory
     list                 List recent memories
     search <query>       Search memories
+    show <key>           View memory details
+    edit <key> <text>    Edit a memory
     forget <key>         Delete a memory
+    clean                Remove expired/low-quality
     export <path>        Export memories to file
     import <path>        Import memories from file
     stats                Show memory statistics
@@ -928,17 +1122,20 @@ def show_help():
     init                 Initialize CarryMem
     version              Show version
 
-  Examples:
+  {_bold('Examples:')}
     carrymem add "I prefer dark mode"
-    carrymem add "Using React for frontend" --namespace work
+    carrymem add "test note" --force
+    carrymem add "Using React" --namespace work
     carrymem search "theme"
+    carrymem show cm_20260423_xxxx
+    carrymem edit cm_20260423_xxxx "Updated content"
+    carrymem clean --expired --dry-run
     carrymem list --type user_preference --limit 20
     carrymem export backup.json
-    carrymem import backup.json
     carrymem setup-mcp --tool cursor
     carrymem doctor --fix
 
-  Documentation: https://github.com/lulin70/memory-classification-engine
+  {_dim('Documentation: https://github.com/lulin70/memory-classification-engine')}
 """)
 
 
@@ -953,11 +1150,17 @@ def main():
     commands = {
         "add": cmd_add,
         "list": cmd_list,
+        "ls": cmd_list,
         "search": cmd_search,
         "find": cmd_search,
+        "show": cmd_show,
+        "get": cmd_show,
+        "edit": cmd_edit,
+        "update": cmd_edit,
         "forget": cmd_forget,
         "delete": cmd_forget,
         "rm": cmd_forget,
+        "clean": cmd_clean,
         "export": cmd_export,
         "import": cmd_import,
         "stats": cmd_stats,
@@ -976,8 +1179,9 @@ def main():
 
     handler = commands.get(command)
     if handler is None:
-        print(f"  Unknown command: {command}")
-        print(f"  Run 'carrymem help' for usage")
+        print(f"  {_red('Unknown command:')} {command}")
+        help_tip = "Run 'carrymem help' for usage"
+        print(f"  {_dim(help_tip)}")
         sys.exit(1)
 
     try:
@@ -987,7 +1191,7 @@ def main():
         print()
         sys.exit(130)
     except Exception as e:
-        print(f"  Error: {e}")
+        print(f"  {_red(f'Error: {e}')}")
         sys.exit(1)
 
 

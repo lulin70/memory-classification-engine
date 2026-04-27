@@ -1,6 +1,6 @@
 """Tests for CarryMem CLI v0.8.0 — Enhanced command-line interface.
 
-Covers: add, list, search, forget, export, import, stats, doctor, setup-mcp, init, version
+Covers: add, list, search, show, edit, forget, clean, export, import, stats, doctor, setup-mcp, init, version
 """
 
 import json
@@ -13,9 +13,9 @@ from unittest.mock import patch
 import pytest
 
 from memory_classification_engine.cli import (
-    cmd_add, cmd_list, cmd_search, cmd_forget, cmd_export, cmd_import,
-    cmd_stats, cmd_doctor, cmd_setup_mcp, cmd_init, cmd_version,
-    _format_time, _truncate, main,
+    cmd_add, cmd_list, cmd_search, cmd_show, cmd_edit, cmd_forget, cmd_clean,
+    cmd_export, cmd_import, cmd_stats, cmd_doctor, cmd_setup_mcp, cmd_init,
+    cmd_version, _format_time, _truncate, main,
 )
 from memory_classification_engine import CarryMem
 
@@ -423,3 +423,119 @@ class TestHelperFunctions:
         result = _truncate("a" * 100, 10)
         assert len(result) == 10
         assert result.endswith("...")
+
+
+class TestCmdAddForce:
+    def test_add_force_bypasses_classification(self, temp_db, capsys):
+        result = cmd_add(["test", "--force", "--db", temp_db])
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Stored" in captured.out
+
+    def test_add_force_with_type(self, temp_db, capsys):
+        result = cmd_add(["test note", "--force", "--db", temp_db])
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Stored" in captured.out
+
+    def test_add_rejected_gives_tip(self, temp_db, capsys):
+        result = cmd_add(["asdf xyz random", "--db", temp_db])
+        assert result == 0
+        captured = capsys.readouterr()
+        if "--force" in captured.out:
+            assert "--force" in captured.out
+
+
+class TestCmdShow:
+    def test_show_existing(self, temp_db, capsys):
+        cm = CarryMem(db_path=temp_db)
+        keys = _store(cm, "I prefer dark mode for all editors")
+        key = keys[0]
+        cm.close()
+
+        result = cmd_show([key, "--db", temp_db])
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "dark mode" in captured.out
+        assert "Key:" in captured.out
+        assert "Type:" in captured.out
+
+    def test_show_not_found(self, temp_db, capsys):
+        result = cmd_show(["nonexistent-key", "--db", temp_db])
+        assert result == 1
+        captured = capsys.readouterr()
+        assert "not found" in captured.out
+
+    def test_show_json(self, temp_db, capsys):
+        cm = CarryMem(db_path=temp_db)
+        keys = _store(cm, "I prefer dark mode for all editors")
+        key = keys[0]
+        cm.close()
+
+        result = cmd_show([key, "--json", "--db", temp_db])
+        assert result == 0
+        captured = capsys.readouterr()
+        data = json.loads(captured.out.strip())
+        assert data["storage_key"] == key
+
+
+class TestCmdEdit:
+    def test_edit_existing(self, temp_db, capsys):
+        cm = CarryMem(db_path=temp_db)
+        keys = _store(cm, "I prefer dark mode for all editors")
+        key = keys[0]
+        cm.close()
+
+        with patch("builtins.input", return_value="y"):
+            result = cmd_edit([key, "I prefer light mode now", "--db", temp_db])
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Updated" in captured.out
+
+    def test_edit_not_found(self, temp_db, capsys):
+        result = cmd_edit(["nonexistent-key", "new content", "--db", temp_db])
+        assert result == 1
+
+    def test_edit_cancelled(self, temp_db, capsys):
+        cm = CarryMem(db_path=temp_db)
+        keys = _store(cm, "I prefer dark mode for all editors")
+        key = keys[0]
+        cm.close()
+
+        with patch("builtins.input", return_value="n"):
+            result = cmd_edit([key, "I prefer light mode now", "--db", temp_db])
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Cancelled" in captured.out
+
+
+class TestCmdClean:
+    def test_clean_nothing(self, temp_db, capsys):
+        result = cmd_clean(["--db", temp_db])
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Nothing to clean" in captured.out or "healthy" in captured.out
+
+    def test_clean_dry_run(self, temp_db, capsys):
+        result = cmd_clean(["--expired", "--dry-run", "--db", temp_db])
+        assert result == 0
+
+    def test_clean_with_quality(self, temp_db, capsys):
+        cm = CarryMem(db_path=temp_db)
+        _store(cm, "I prefer dark mode for all editors")
+        cm.close()
+
+        result = cmd_clean(["--quality", "0.01", "--dry-run", "--db", temp_db])
+        assert result == 0
+
+
+class TestCmdListAlias:
+    def test_ls_alias(self, temp_db, capsys):
+        cm = CarryMem(db_path=temp_db)
+        _store(cm, "I prefer dark mode for all editors")
+        cm.close()
+
+        with pytest.raises(SystemExit) as exc_info:
+            with patch.object(sys, "argv", ["carrymem", "ls", "--db", temp_db]):
+                main()
+        assert exc_info.value.code == 0
