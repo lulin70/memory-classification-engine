@@ -1,7 +1,13 @@
 import os
 import logging
-import yaml
+import json
 from typing import Dict, Any
+
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
 
 _logger = logging.getLogger('memory-classification-engine')
 
@@ -39,15 +45,13 @@ class ConfigManager:
         return value
     
     def load_config(self) -> Dict[str, Any]:
-        """Load configuration from file.
-        
-        Returns:
-            The loaded configuration as a dictionary.
-        """
         try:
             with open(self.config_path, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
-            return config or {}
+                if self.config_path.endswith('.json'):
+                    return json.load(f) or {}
+                if YAML_AVAILABLE:
+                    return yaml.safe_load(f) or {}
+                return json.load(f) or {}
         except Exception as e:
             _logger.debug(f"Config file not found: {self.config_path}")
             return {}
@@ -57,25 +61,16 @@ class ConfigManager:
         self.config = self.load_config()
     
     def get_rules(self, rules_path: str = None) -> Dict[str, Any]:
-        """Load rules from file.
-        
-        Args:
-            rules_path: Path to the rules file. If None, use path from config.
-            
-        Returns:
-            The loaded rules as a dictionary.
-        """
         rules_path = rules_path or self.get('rules.config_path', './config/advanced_rules.json')
         try:
             with open(rules_path, 'r', encoding='utf-8') as f:
-                if rules_path.endswith('.yaml') or rules_path.endswith('.yml'):
-                    rules = yaml.safe_load(f)
-                elif rules_path.endswith('.json'):
-                    import json
-                    rules = json.load(f)
-                else:
-                    rules = yaml.safe_load(f)
-            return rules or {}
+                if rules_path.endswith('.json'):
+                    return json.load(f) or {}
+                if YAML_AVAILABLE and (rules_path.endswith('.yaml') or rules_path.endswith('.yml')):
+                    return yaml.safe_load(f) or {}
+                if YAML_AVAILABLE:
+                    return yaml.safe_load(f) or {}
+                return json.load(f) or {}
         except Exception as e:
             _logger.debug(f"Rules file not found: {rules_path}")
             return {}

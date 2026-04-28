@@ -17,8 +17,10 @@ Security:
 """
 
 import asyncio
+import hmac
 import json
 import os
+from memory_classification_engine.__version__ import __version__ as _version
 import uuid
 from typing import Any, Dict, Optional
 
@@ -48,11 +50,13 @@ class MCPHTTPServer:
         port: int = 8765,
         api_key: Optional[str] = None,
         carrymem_config: Optional[Dict[str, Any]] = None,
+        allowed_origins: Optional[list] = None,
     ):
         self._host = host
         self._port = port
         self._api_key = api_key or os.environ.get("CARRYMEM_API_KEY")
         self._carrymem_config = carrymem_config
+        self._allowed_origins = allowed_origins or ["http://localhost:*", "http://127.0.0.1:*"]
         self._clients: Dict[str, SSEClient] = {}
         self._server = None
         self._mcq_server = None
@@ -62,8 +66,19 @@ class MCPHTTPServer:
             return True
         auth = headers.get("authorization", "")
         if auth.startswith("Bearer "):
-            return auth[7:] == self._api_key
+            return hmac.compare_digest(auth[7:], self._api_key)
         return False
+
+    def _get_cors_origin(self, request_origin: str) -> str:
+        if not request_origin:
+            return ""
+        for pattern in self._allowed_origins:
+            if pattern.endswith("*"):
+                if request_origin.startswith(pattern[:-1]):
+                    return request_origin
+            elif request_origin == pattern:
+                return request_origin
+        return ""
 
     async def _handle_request(self, reader, writer):
         try:
@@ -94,28 +109,30 @@ class MCPHTTPServer:
                     if key.strip().lower() == "content-length":
                         content_length = int(val.strip())
 
+            request_origin = headers.get("origin", "")
+
             body = b""
             if content_length > 0:
                 body = await reader.readexactly(content_length)
 
             if path == "/health":
-                await self._send_response(writer, 200, {"status": "ok", "version": "0.7.0"})
+                await self._send_response(writer, 200, {"status": "ok", "version": _version}, request_origin)
                 return
 
             if not self._check_auth(headers):
-                await self._send_response(writer, 401, {"error": "Unauthorized"})
+                await self._send_response(writer, 401, {"error": "Unauthorized"}, request_origin)
                 return
 
             if method == "GET" and path == "/sse":
-                await self._handle_sse(writer)
+                await self._handle_sse(writer, request_origin)
             elif method == "POST" and path == "/message":
-                await self._handle_message(writer, body)
+                await self._handle_message(writer, body, request_origin)
             else:
-                await self._send_response(writer, 404, {"error": "Not found"})
+                await self._send_response(writer, 404, {"error": "Not found"}, request_origin)
 
         except Exception as e:
             try:
-                await self._send_response(writer, 500, {"error": str(e)})
+                await self._send_response(writer, 500, {"error": str(e)}, "")
             except Exception:
                 pass
         finally:
@@ -124,17 +141,18 @@ class MCPHTTPServer:
             except Exception:
                 pass
 
-    async def _handle_sse(self, writer):
+    async def _handle_sse(self, writer, request_origin: str = ""):
         client_id = str(uuid.uuid4())
         client = SSEClient(client_id)
         self._clients[client_id] = client
 
+        cors_origin = self._get_cors_origin(request_origin)
         headers = (
             "HTTP/1.1 200 OK\r\n"
             "Content-Type: text/event-stream\r\n"
             "Cache-Control: no-cache\r\n"
             "Connection: keep-alive\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
+            f"Access-Control-Allow-Origin: {cors_origin}\r\n"
             "\r\n"
         )
         writer.write(headers.encode())
@@ -159,11 +177,11 @@ class MCPHTTPServer:
             client.close()
             self._clients.pop(client_id, None)
 
-    async def _handle_message(self, writer, body: bytes):
+    async def _handle_message(self, writer, body: bytes, request_origin: str = ""):
         try:
             request = json.loads(body)
         except json.JSONDecodeError:
-            await self._send_response(writer, 400, {"error": "Invalid JSON"})
+            await self._send_response(writer, 400, {"error": "Invalid JSON"}, request_origin)
             return
 
         if not self._mcq_server:
@@ -171,7 +189,7 @@ class MCPHTTPServer:
 
         response = await self._mcq_server.handle_request(request)
 
-        await self._send_response(writer, 200, response)
+        await self._send_response(writer, 200, response, request_origin)
 
         if "method" in request and request.get("method") != "initialize":
             for client in self._clients.values():
@@ -182,15 +200,16 @@ class MCPHTTPServer:
                 }
                 await client.send(json.dumps(notification))
 
-    async def _send_response(self, writer, status_code: int, body: Dict):
+    async def _send_response(self, writer, status_code: int, body: Dict, request_origin: str = ""):
         status_messages = {200: "OK", 400: "Bad Request", 401: "Unauthorized", 404: "Not Found", 500: "Internal Server Error"}
         status_msg = status_messages.get(status_code, "Unknown")
         body_bytes = json.dumps(body).encode("utf-8")
+        cors_origin = self._get_cors_origin(request_origin)
         headers = (
             f"HTTP/1.1 {status_code} {status_msg}\r\n"
             "Content-Type: application/json\r\n"
             f"Content-Length: {len(body_bytes)}\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
+            f"Access-Control-Allow-Origin: {cors_origin}\r\n"
             "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
             "Access-Control-Allow-Headers: Content-Type, Authorization\r\n"
             "\r\n"

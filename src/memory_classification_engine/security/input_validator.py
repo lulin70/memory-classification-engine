@@ -27,11 +27,11 @@ class InputValidator:
     
     # SQL injection patterns
     SQL_INJECTION_PATTERNS = [
-        r"(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE)\b)",
-        r"(--|;|\/\*|\*\/)",
-        r"(\bOR\b.*=.*)",
-        r"(\bAND\b.*=.*)",
-        r"('|(\\x27)|(\\x22))",
+        r"(\b(DROP\s+TABLE|DROP\s+DATABASE)\b)",
+        r"(;\s*(DROP|DELETE|TRUNCATE|ALTER)\b)",
+        r"(\bUNION\b\s+\bSELECT\b)",
+        r"(1\s*=\s*1\b)",
+        r"('\s*(OR|AND)\s+')",
     ]
     
     # XSS patterns
@@ -58,10 +58,10 @@ class InputValidator:
     
     # Command injection patterns
     COMMAND_INJECTION_PATTERNS = [
-        r"[;&|`$]",
         r"\$\(",
-        r"`",
+        r"`[^`]*`",
         r">\s*/dev/",
+        r"\b(rm|chmod|chown|wget|curl)\s+-",
     ]
     
     # Maximum lengths
@@ -248,9 +248,9 @@ class InputValidator:
             "correction",
             "fact_declaration",
             "decision",
-            "context",
-            "question",
-            "other"
+            "relationship",
+            "task_pattern",
+            "sentiment_marker",
         ]
         
         if memory_type not in valid_types:

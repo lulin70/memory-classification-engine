@@ -41,7 +41,7 @@ class DatabaseError(StorageError):
     pass
 
 
-class ConnectionError(DatabaseError):
+class DBConnectionError(DatabaseError):
     """Raised when database connection fails."""
     pass
 

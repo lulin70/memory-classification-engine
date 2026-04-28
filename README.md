@@ -9,8 +9,8 @@ CarryMem is a lightweight, zero-dependency AI memory system that stores **who yo
 **English** | [中文](docs/i18n/README-CN.md) | [日本語](docs/i18n/README-JP.md)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.8.2-blue" alt="Version">
-  <img src="https://img.shields.io/badge/tests-507%20passing-green" alt="Tests">
+  <img src="https://img.shields.io/badge/version-0.1.2-blue" alt="Version">
+  <img src="https://img.shields.io/badge/tests-490%20passing-green" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-62.54%25-yellow" alt="Coverage">
   <img src="https://img.shields.io/badge/accuracy-90.6%25-green" alt="Accuracy">
   <img src="https://img.shields.io/badge/zero--dependencies-core-brightgreen" alt="Zero Deps">
@@ -338,13 +338,13 @@ cm.import_memories(input_path="backup.json")
 
 ## Project Status
 
-**Current Version**: v0.8.2
+**Current Version**: v0.1.2
 **Tests**: 507/507 passing
 **Coverage**: 62.54%
 **Accuracy**: 90.6%
 
 **v0.8.x Changelog**:
-- v0.8.2: Identity layer (whoami, profile export), competitive differentiation
+- v0.1.2: Identity layer (whoami, profile export), competitive differentiation
 - v0.8.1: User-perspective CLI improvements (show/edit/clean, color output, --force)
 - v0.8.0: Enhanced CLI (19 commands), TUI, MCP setup, doctor, quality management
 - v0.7.0: MCP HTTP/SSE, JSON adapter, async API

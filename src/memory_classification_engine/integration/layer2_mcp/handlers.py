@@ -9,6 +9,7 @@ MCP Tool handlers for CarryMem.
   Prompt handlers: get_system_prompt
 """
 
+import asyncio
 import json
 import time
 from datetime import datetime, timezone
@@ -379,13 +380,17 @@ class Handlers:
         handler_func = handler_map[tool_name]
         try:
             if tool_name in OPTIONAL_TOOL_NAMES or tool_name in KNOWLEDGE_TOOL_NAMES or tool_name in PROFILE_TOOL_NAMES or tool_name in PROMPT_TOOL_NAMES:
-                result = handler_func(self._carrymem, arguments or {})
+                target = self._carrymem
             else:
-                result = handler_func(self._engine, arguments or {})
+                target = self._engine
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                None, lambda: handler_func(target, arguments or {})
+            )
             return {"success": True, "data": result}
         except Exception as e:
             return {"success": False, "error": _safe_error(e)}
 
-    def cleanup(self):
+    async def cleanup(self):
         if self._carrymem:
             self._carrymem.close()

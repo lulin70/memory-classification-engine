@@ -100,7 +100,7 @@ class TestMCPHandlerSafety:
 
 class TestExceptionSanitization:
     def test_exceptions_file_not_corrupted(self):
-        from memory_classification_engine.exceptions import DatabaseError, ConnectionError, QueryError
+        from memory_classification_engine.exceptions import DatabaseError, DBConnectionError, QueryError
         assert issubclass(DatabaseError, Exception)
-        assert issubclass(ConnectionError, Exception)
+        assert issubclass(DBConnectionError, Exception)
         assert issubclass(QueryError, Exception)

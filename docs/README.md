@@ -1,7 +1,7 @@
 # CarryMem 文档中心
 
-**版本**: v0.2.0  
-**最后更新**: 2026-04-27
+**版本**: v0.1.2  
+**最后更新**: 2026-04-28
 
 ---
 
@@ -60,32 +60,43 @@ carrymem status
 
 ---
 
-## 🛠️ 新功能（v0.2.0）
+## 🛠️ 核心功能（v0.1.2）
 
-### 1. 系统诊断命令
+### 1. 智能记忆分类
+```bash
+carrymem add "I prefer dark mode"
+```
+自动分类为 7 种类型：user_preference, correction, fact_declaration, decision, relationship, task_pattern, sentiment_marker
+
+### 2. 语义召回
+```bash
+carrymem search "dark"
+```
+跨语言搜索：dark mode / 深色模式 / ダークモード
+
+### 3. AI 身份层
+```bash
+carrymem whoami
+carrymem profile export identity.json
+```
+
+### 4. 系统诊断
 ```bash
 carrymem doctor
-# 或
-python3 -m memory_classification_engine.cli_enhancements doctor
+carrymem check
 ```
-自动检查：
-- ✅ Python版本
-- ✅ 数据库状态
-- ✅ MCP配置
-- ✅ 依赖包
-- ✅ 提供修复建议
 
-### 2. 系统状态命令
+### 5. MCP 集成
 ```bash
-carrymem status
-# 或
-python3 -m memory_classification_engine.cli_enhancements status
+carrymem setup-mcp --tool cursor
+carrymem serve --port 8765
 ```
-显示：
-- 📊 数据库信息
-- 📈 按类型统计
-- 🔌 MCP连接状态
-- 🎯 最近活动
+
+### 6. 数据安全
+- AES 加密存储
+- 自动备份 + 安全回滚
+- 访问审计日志
+- 输入验证（SQL注入/XSS/路径遍历防护）
 
 ### 3. MCP自动配置
 ```bash

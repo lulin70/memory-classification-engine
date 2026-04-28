@@ -104,6 +104,7 @@ class StoredMemory(MemoryEntry):
     """
 
     storage_key: str = ""
+    namespace: str = "default"
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
@@ -119,6 +120,7 @@ class StoredMemory(MemoryEntry):
         base = super().to_dict()
         base.update({
             "storage_key": self.storage_key,
+            "namespace": self.namespace,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,

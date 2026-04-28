@@ -1,7 +1,7 @@
 # CarryMem API Reference
 
-**Version**: v0.4.3
-**Date**: 2026-04-25
+**Version**: v0.1.2
+**Date**: 2026-04-28
 
 ---
 

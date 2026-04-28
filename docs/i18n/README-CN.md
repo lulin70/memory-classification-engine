@@ -9,7 +9,7 @@ CarryMem 是一个轻量级、零依赖的 AI 记忆系统，存储**你是谁**
 [English](../../README.md) | **中文** | [日本語](README-JP.md)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.8.2-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.1.2-blue" alt="Version">
   <img src="https://img.shields.io/badge/tests-447%20passing-green" alt="Tests">
   <img src="https://img.shields.io/badge/accuracy-90.6%25-green" alt="Accuracy">
   <img src="https://img.shields.io/badge/zero--dependencies-core-brightgreen" alt="Zero Deps">
@@ -336,12 +336,12 @@ cm.import_memories(input_path="backup.json")
 
 ## 项目状态
 
-**当前版本**：v0.8.2
+**当前版本**：v0.1.2
 **测试**：447/447 通过
 **准确率**：90.6%
 
 **v0.8.x 更新日志**：
-- v0.8.2：身份层（whoami、profile 导出）、竞品差异化
+- v0.1.2：身份层（whoami、profile 导出）、竞品差异化
 - v0.8.1：用户视角 CLI 改进（show/edit/clean、彩色输出、--force）
 - v0.8.0：增强 CLI（19 命令）、TUI、MCP 配置、doctor、质量管理
 - v0.7.0：MCP HTTP/SSE、JSON 适配器、异步 API

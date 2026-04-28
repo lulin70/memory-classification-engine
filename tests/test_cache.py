@@ -113,7 +113,6 @@ class TestRecallCache:
         assert cache.get("ns2", "q2", None, 10) is None
     
     def test_invalidate_namespace(self):
-        """Test invalidate specific namespace"""
         cache = RecallCache()
         
         cache.put("ns1", "q1", None, 10, [{"id": "1"}])
@@ -121,8 +120,9 @@ class TestRecallCache:
         
         cache.invalidate("ns1")
         
-        # Current implementation clears all (lines 95-98)
-        assert len(cache._cache) == 0
+        assert len(cache._cache) == 1
+        assert cache.get("ns1", "q1", None, 10) is None
+        assert cache.get("ns2", "q2", None, 10) is not None
     
     def test_clear(self):
         """Test clear method resets stats"""

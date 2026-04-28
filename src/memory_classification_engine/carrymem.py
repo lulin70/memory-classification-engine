@@ -44,8 +44,7 @@ from memory_classification_engine.adapters.loader import load_adapter
 from memory_classification_engine.utils.logger import logger
 from memory_classification_engine.utils.validators import (
     validate_message, validate_context, validate_language,
-    validate_namespace, validate_limit, validate_filters,
-    validate_storage_key, validate_query,
+    validate_limit, validate_storage_key, validate_query,
 )
 from memory_classification_engine.__version__ import __version__ as _version
 from memory_classification_engine.exceptions import (
@@ -110,7 +109,10 @@ class CarryMem:
                     "or install a plugin that registers this adapter name."
                 )
             if storage == "obsidian":
-                self._adapter = adapter_cls()
+                raise ValueError(
+                    "ObsidianAdapter requires a vault_path. "
+                    "Use CarryMem(knowledge_adapter=ObsidianAdapter('/path/to/vault')) instead."
+                )
             else:
                 self._adapter = adapter_cls()
         else:

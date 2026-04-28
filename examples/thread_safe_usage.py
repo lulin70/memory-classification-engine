@@ -1,4 +1,4 @@
-"""Thread-safe usage example for CarryMem v0.4.2+.
+"""Thread-safe usage example for CarryMem v0.1.2+.
 
 This example demonstrates:
 1. Multiple threads can safely access the same CarryMem instance
@@ -22,7 +22,7 @@ def worker(worker_id: int, cm: CarryMem, num_operations: int = 10):
     print(f"Worker {worker_id} finished")
 
 def main():
-    print("=== CarryMem Thread-Safe Usage Example (v0.4.2+) ===\n")
+    print("=== CarryMem Thread-Safe Usage Example (v0.1.2+) ===\n")
 
     with CarryMem() as cm:
         num_threads = 5

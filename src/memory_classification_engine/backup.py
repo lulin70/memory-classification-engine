@@ -92,7 +92,22 @@ class BackupManager:
         if self._db_path == ":memory:":
             raise ValueError("Cannot restore to in-memory database")
 
-        shutil.copy2(backup_path, self._db_path)
+        pre_restore_backup = self._db_path + ".pre_restore.bak"
+        if os.path.exists(self._db_path):
+            shutil.copy2(self._db_path, pre_restore_backup)
+
+        try:
+            shutil.copy2(backup_path, self._db_path)
+        except Exception as e:
+            if os.path.exists(pre_restore_backup):
+                shutil.copy2(pre_restore_backup, self._db_path)
+            raise RuntimeError(f"Restore failed, rolled back: {e}") from e
+        finally:
+            if os.path.exists(pre_restore_backup):
+                try:
+                    os.remove(pre_restore_backup)
+                except OSError:
+                    pass
 
     def list_backups(self) -> List[Dict[str, Any]]:
         if not os.path.exists(self._backup_dir):

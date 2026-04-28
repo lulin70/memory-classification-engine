@@ -122,27 +122,22 @@ def validate_limit(limit: int, max_limit: int = 100000) -> None:
         raise ValidationError(f"Limit too large: {limit} (max {max_limit})")
 
 
-def validate_filters(filters: Optional[Dict[str, Any]], allowed_keys: set) -> None:
-    """Validate a filters dictionary.
-    
-    Args:
-        filters: The filters to validate
-        allowed_keys: Set of allowed filter keys
-        
-    Rais:
-        ValidationError: If validation fails
-    """
+_DEFAULT_ALLOWED_FILTER_KEYS = {"type", "tier", "confidence_min", "created_after", "namespace"}
+
+
+def validate_filters(filters: Optional[Dict[str, Any]], allowed_keys: set = None) -> None:
     if filters is None:
         return
     
     if not isinstance(filters, dict):
         raise ValidationError(f"Filters must be a dictionary, got {type(filters).__name__}")
     
-    invalid_keys = set(filters.keys()) - allowed_keys
+    keys = allowed_keys or _DEFAULT_ALLOWED_FILTER_KEYS
+    invalid_keys = set(filters.keys()) - keys
     if invalid_keys:
         raise ValidationError(
             f"Invalid filter keys: {invalid_keys}. "
-            f"Allowed keys: {allowed_keys}"
+            f"Allowed keys: {keys}"
         )
 
 

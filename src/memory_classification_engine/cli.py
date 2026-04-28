@@ -107,6 +107,10 @@ def _truncate(text: str, max_len: int = 60) -> str:
 
 
 def _find_memory(cm: CarryMem, key: str) -> Optional[Dict[str, Any]]:
+    if cm._adapter and hasattr(cm._adapter, '_get_by_key'):
+        stored = cm._adapter._get_by_key(key)
+        if stored:
+            return stored.to_dict()
     memories = cm.recall_memories(query="", limit=200)
     for m in memories:
         if m.get("storage_key") == key:
@@ -367,7 +371,8 @@ def cmd_edit(args):
         cm.close()
         return 0
 
-    success = cm.update_memory(parsed.key, parsed.content)
+    result = cm.update_memory(parsed.key, parsed.content)
+    success = result if isinstance(result, bool) else bool(result)
     if success:
         print(f"  {_green('Updated:')} {parsed.key}")
     else:
@@ -1008,6 +1013,7 @@ def cmd_setup_mcp(args):
         claude_dir = project_dir / ".claude"
         claude_file = claude_dir / "mcp.json"
 
+        skip_claude = False
         if claude_file.exists() and not parsed.force:
             try:
                 with open(claude_file) as f:
@@ -1016,16 +1022,12 @@ def cmd_setup_mcp(args):
                     print(f"  {_dim('Claude Code: already configured')} ({claude_file})")
                     configured.append("claude-code")
                     skip_claude = True
-                else:
-                    skip_claude = False
             except Exception:
-                skip_claude = False
-        else:
-            skip_claude = False
+                pass
 
         if not skip_claude:
             claude_dir.mkdir(parents=True, exist_ok=True)
-            if claude_file.exists() and not parsed.force:
+            if claude_file.exists():
                 try:
                     with open(claude_file) as f:
                         existing = json.load(f)
@@ -1045,6 +1047,7 @@ def cmd_setup_mcp(args):
         cursor_dir = project_dir / ".cursor"
         cursor_file = cursor_dir / "mcp.json"
 
+        skip_cursor = False
         if cursor_file.exists() and not parsed.force:
             try:
                 with open(cursor_file) as f:
@@ -1053,16 +1056,12 @@ def cmd_setup_mcp(args):
                     print(f"  {_dim('Cursor: already configured')} ({cursor_file})")
                     configured.append("cursor")
                     skip_cursor = True
-                else:
-                    skip_cursor = False
             except Exception:
-                skip_cursor = False
-        else:
-            skip_cursor = False
+                pass
 
         if not skip_cursor:
             cursor_dir.mkdir(parents=True, exist_ok=True)
-            if cursor_file.exists() and not parsed.force:
+            if cursor_file.exists():
                 try:
                     with open(cursor_file) as f:
                         existing = json.load(f)

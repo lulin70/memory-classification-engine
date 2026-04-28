@@ -21,11 +21,12 @@ from .adapters.base import StoredMemory
 
 
 class _CacheEntry:
-    __slots__ = ("value", "expires_at")
+    __slots__ = ("value", "expires_at", "namespace")
 
-    def __init__(self, value: List[Dict[str, Any]], expires_at: float):
+    def __init__(self, value: List[Dict[str, Any]], expires_at: float, namespace: str):
         self.value = value
         self.expires_at = expires_at
+        self.namespace = namespace
 
 
 class RecallCache:
@@ -82,7 +83,7 @@ class RecallCache:
         key = self._make_key(namespace, query, filters, limit)
         expires_at = time.monotonic() + self._ttl
         with self._lock:
-            self._cache[key] = _CacheEntry(value, expires_at)
+            self._cache[key] = _CacheEntry(value, expires_at, namespace)
             self._cache.move_to_end(key)
             while len(self._cache) > self._max_size:
                 self._cache.popitem(last=False)
@@ -92,10 +93,12 @@ class RecallCache:
             if namespace is None:
                 self._cache.clear()
                 return
-            keys_to_remove = []
-            for key, entry in self._cache.items():
-                pass
-            self._cache.clear()
+            keys_to_remove = [
+                k for k, entry in self._cache.items()
+                if entry.namespace == namespace
+            ]
+            for k in keys_to_remove:
+                del self._cache[k]
 
     def clear(self) -> None:
         with self._lock:

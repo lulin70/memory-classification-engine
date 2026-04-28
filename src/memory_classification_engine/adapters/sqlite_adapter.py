@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from .base import MemoryEntry, StorageAdapter, StoredMemory
-from ..exceptions import DatabaseError, ConnectionError, QueryError
+from ..exceptions import DatabaseError, DBConnectionError, QueryError
 from ..scoring import calculate_importance
 
 
@@ -171,9 +171,10 @@ class SQLiteAdapter(StorageAdapter):
         self._db_path = db_path or _default_db_path()
         self._lock = threading.Lock()
 
-        # v0.4.2: Use ThreadLocal for thread-safe connections
         self._local = threading.local()
         self._closed = False
+        self._all_connections: Dict[int, sqlite3.Connection] = {}
+        self._conn_lock = threading.Lock()
 
         # v0.6.0: Initialize encryption
         self._encryption = None
@@ -237,21 +238,20 @@ class SQLiteAdapter(StorageAdapter):
                 self._enable_cache = False
 
     def _get_connection(self) -> sqlite3.Connection:
-        """Get thread-local database connection.
-        
-        v0.4.2: Each thread gets its own connection for thread safety.
-        """
         if self._closed:
-            raise ConnectionError("Adapter has been closed")
+            raise DBConnectionError("Adapter has been closed")
         
         if not hasattr(self._local, 'conn') or self._local.conn is None:
             try:
-                self._local.conn = sqlite3.connect(self._db_path)
-                self._local.conn.row_factory = sqlite3.Row
-                self._local.conn.execute("PRAGMA journal_mode=WAL")
-                self._local.conn.execute("PRAGMA foreign_keys=ON")
+                conn = sqlite3.connect(self._db_path)
+                conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA foreign_keys=ON")
+                self._local.conn = conn
+                with self._conn_lock:
+                    self._all_connections[id(conn)] = conn
             except sqlite3.Error as e:
-                raise ConnectionError(f"Failed to connect to database: {e}") from e
+                raise DBConnectionError(f"Failed to connect to database: {e}") from e
         
         return self._local.conn
 
@@ -264,6 +264,19 @@ class SQLiteAdapter(StorageAdapter):
             self._migrate_fts_tokenizer()
         except sqlite3.Error as e:
             raise DatabaseError(f"Failed to initialize schema: {e}") from e
+
+    def _get_by_key(self, storage_key: str):
+        conn = self._get_connection()
+        try:
+            row = conn.execute(
+                "SELECT * FROM memories WHERE storage_key = ?",
+                (storage_key,),
+            ).fetchone()
+            if row:
+                return self._row_to_stored(row)
+            return None
+        except sqlite3.Error:
+            return None
 
     def _migrate_namespace(self):
         conn = self._get_connection()
@@ -346,17 +359,16 @@ class SQLiteAdapter(StorageAdapter):
             logger.warning(f"Failed to recalculate importance scores: {e}")
 
     def close(self):
-        """Close all database connections.
-        
-        v0.4.2: Properly close thread-local connections.
-        """
         self._closed = True
-        if hasattr(self._local, 'conn') and self._local.conn:
-            try:
-                self._local.conn.close()
-                self._local.conn = None
-            except sqlite3.Error:
-                pass
+        with self._conn_lock:
+            for conn_id, conn in self._all_connections.items():
+                try:
+                    conn.close()
+                except sqlite3.Error:
+                    pass
+            self._all_connections.clear()
+        if hasattr(self._local, 'conn'):
+            self._local.conn = None
 
     def __enter__(self):
         """Context manager entry."""
@@ -641,6 +653,7 @@ class SQLiteAdapter(StorageAdapter):
                     now_iso = datetime.now(timezone.utc).isoformat()
                     seen_keys = set()
                     results = []
+                    batch_updates = []
                     for stored in final_results:
                         if stored.storage_key not in seen_keys:
                             seen_keys.add(stored.storage_key)
@@ -651,14 +664,16 @@ class SQLiteAdapter(StorageAdapter):
                                 created_at=stored.created_at or datetime.now(timezone.utc),
                                 access_count=new_count,
                             )
-                            conn.execute(
-                                "UPDATE memories SET access_count = ?, importance_score = ?, last_accessed_at = ? WHERE storage_key = ?",
-                                (new_count, new_score, now_iso, stored.storage_key),
-                            )
+                            batch_updates.append((new_count, new_score, now_iso, stored.storage_key))
                             stored.access_count = new_count
                             stored.importance_score = new_score
                             stored.last_accessed_at = datetime.now(timezone.utc)
                             results.append(stored)
+                    if batch_updates:
+                        conn.executemany(
+                            "UPDATE memories SET access_count = ?, importance_score = ?, last_accessed_at = ? WHERE storage_key = ?",
+                            batch_updates,
+                        )
                     conn.commit()
                     return results
         else:
@@ -676,6 +691,7 @@ class SQLiteAdapter(StorageAdapter):
         now_iso = datetime.now(timezone.utc).isoformat()
         results = []
         seen_keys = set()
+        batch_updates = []
         for row in rows:
             stored = self._row_to_stored(row)
             if stored and stored.storage_key not in seen_keys:
@@ -687,14 +703,16 @@ class SQLiteAdapter(StorageAdapter):
                     created_at=stored.created_at or datetime.now(timezone.utc),
                     access_count=new_count,
                 )
-                conn.execute(
-                    "UPDATE memories SET access_count = ?, importance_score = ?, last_accessed_at = ? WHERE storage_key = ?",
-                    (new_count, new_score, now_iso, stored.storage_key),
-                )
+                batch_updates.append((new_count, new_score, now_iso, stored.storage_key))
                 stored.access_count = new_count
                 stored.importance_score = new_score
                 stored.last_accessed_at = datetime.now(timezone.utc)
                 results.append(stored)
+        if batch_updates:
+            conn.executemany(
+                "UPDATE memories SET access_count = ?, importance_score = ?, last_accessed_at = ? WHERE storage_key = ?",
+                batch_updates,
+            )
         conn.commit()
 
         return results
@@ -960,6 +978,11 @@ class SQLiteAdapter(StorageAdapter):
                 return None
 
             old_content = version_row["content"]
+            if self._encryption and self._encryption.is_active:
+                old_content = self._decrypt_field(old_content)
+            old_original = version_row["original_message"] if "original_message" in version_row.keys() else None
+            if old_original and self._encryption and self._encryption.is_active:
+                old_original = self._decrypt_field(old_original)
             return self._update_memory_impl(
                 storage_key=storage_key,
                 new_content=old_content,
@@ -1160,6 +1183,7 @@ class SQLiteAdapter(StorageAdapter):
             recall_hint=recall_hint,
             metadata=metadata,
             storage_key=row["storage_key"],
+            namespace=row["namespace"] if "namespace" in row.keys() else self._namespace,
             created_at=created_at,
             updated_at=updated_at,
             expires_at=expires_at,

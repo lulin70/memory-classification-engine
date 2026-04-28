@@ -94,41 +94,29 @@ class ConflictDetector:
         self,
         memories: List[StoredMemory],
     ) -> List[MemoryConflict]:
-        """Detect direct contradictions between memories."""
         conflicts = []
-        
+
         by_type: Dict[str, List[StoredMemory]] = {}
         for memory in memories:
             if memory.type not in by_type:
                 by_type[memory.type] = []
             by_type[memory.type].append(memory)
-        
-        if 'correction' in by_type:
-            corrections = by_type['correction']
-            for i, corr1 in enumerate(corrections):
-                for corr2 in corrections[i+1:]:
-                    if self._are_contradictory(corr1, corr2):
+
+        for mem_type, type_memories in by_type.items():
+            if len(type_memories) < 2:
+                continue
+            severity = ConflictSeverity.HIGH if mem_type == 'correction' else ConflictSeverity.MEDIUM
+            for i, mem1 in enumerate(type_memories):
+                for mem2 in type_memories[i+1:]:
+                    if self._are_contradictory(mem1, mem2):
                         conflicts.append(MemoryConflict(
                             conflict_type=ConflictType.CONTRADICTION,
-                            severity=ConflictSeverity.HIGH,
-                            memories=[corr1, corr2],
-                            reason=f"Contradictory corrections",
-                            suggested_resolution="Keep the most recent correction",
+                            severity=severity,
+                            memories=[mem1, mem2],
+                            reason=f"Contradictory {mem_type} memories",
+                            suggested_resolution="Keep the most recent memory",
                         ))
-        
-        if 'preference' in by_type:
-            prefs = by_type['preference']
-            for i, pref1 in enumerate(prefs):
-                for pref2 in prefs[i+1:]:
-                    if self._are_contradictory(pref1, pref2):
-                        conflicts.append(MemoryConflict(
-                            conflict_type=ConflictType.CONTRADICTION,
-                            severity=ConflictSeverity.MEDIUM,
-                            memories=[pref1, pref2],
-                            reason=f"Contradictory preferences",
-                            suggested_resolution="Keep the most recent preference",
-                        ))
-        
+
         return conflicts
     
     def _normalize_dt(self, dt_val) -> datetime:
@@ -154,43 +142,57 @@ class ConflictDetector:
     ) -> List[MemoryConflict]:
         conflicts = []
 
-        sorted_memories = sorted(
-            memories,
-            key=lambda m: self._normalize_dt(m.created_at),
-        )
-        
-        for i, old_memory in enumerate(sorted_memories):
-            for new_memory in sorted_memories[i+1:]:
-                if self._supersedes(new_memory, old_memory):
-                    conflicts.append(MemoryConflict(
-                        conflict_type=ConflictType.OUTDATED,
-                        severity=ConflictSeverity.MEDIUM,
-                        memories=[old_memory, new_memory],
-                        reason=f"Memory superseded by newer version",
-                        suggested_resolution="Archive or delete older memory",
-                    ))
-        
+        by_type_ns: Dict[str, List[StoredMemory]] = {}
+        for mem in memories:
+            key = f"{getattr(mem, 'namespace', '')}:{mem.type}"
+            by_type_ns.setdefault(key, []).append(mem)
+
+        for group_key, group in by_type_ns.items():
+            if len(group) < 2:
+                continue
+            sorted_group = sorted(
+                group,
+                key=lambda m: self._normalize_dt(m.created_at),
+            )
+            for i, old_memory in enumerate(sorted_group):
+                for new_memory in sorted_group[i+1:]:
+                    if self._supersedes(new_memory, old_memory):
+                        conflicts.append(MemoryConflict(
+                            conflict_type=ConflictType.OUTDATED,
+                            severity=ConflictSeverity.MEDIUM,
+                            memories=[old_memory, new_memory],
+                            reason=f"Memory superseded by newer version",
+                            suggested_resolution="Archive or delete older memory",
+                        ))
+
         return conflicts
     
     def _detect_duplicates(
         self,
         memories: List[StoredMemory],
     ) -> List[MemoryConflict]:
-        """Detect near-duplicate memories."""
         conflicts = []
-        
-        for i, mem1 in enumerate(memories):
-            for mem2 in memories[i+1:]:
-                similarity = self._calculate_similarity(mem1, mem2)
-                if similarity >= self.similarity_threshold:
-                    conflicts.append(MemoryConflict(
-                        conflict_type=ConflictType.DUPLICATE,
-                        severity=ConflictSeverity.LOW,
-                        memories=[mem1, mem2],
-                        reason=f"Near-duplicate memories (similarity: {similarity:.2f})",
-                        suggested_resolution="Merge or keep the higher quality one",
-                    ))
-        
+
+        by_type_ns: Dict[str, List[StoredMemory]] = {}
+        for mem in memories:
+            key = f"{getattr(mem, 'namespace', '')}:{mem.type}"
+            by_type_ns.setdefault(key, []).append(mem)
+
+        for group_key, group in by_type_ns.items():
+            if len(group) < 2:
+                continue
+            for i, mem1 in enumerate(group):
+                for mem2 in group[i+1:]:
+                    similarity = self._calculate_similarity(mem1, mem2)
+                    if similarity >= self.similarity_threshold:
+                        conflicts.append(MemoryConflict(
+                            conflict_type=ConflictType.DUPLICATE,
+                            severity=ConflictSeverity.LOW,
+                            memories=[mem1, mem2],
+                            reason=f"Near-duplicate memories (similarity: {similarity:.2f})",
+                            suggested_resolution="Merge or keep the higher quality one",
+                        ))
+
         return conflicts
     
     def _detect_preference_changes(
@@ -200,7 +202,7 @@ class ConflictDetector:
         """Detect preference changes over time."""
         conflicts = []
         
-        preferences = [m for m in memories if m.type == 'preference']
+        preferences = [m for m in memories if m.type == 'user_preference']
         groups = self._group_similar_preferences(preferences)
         
         for group in groups:
