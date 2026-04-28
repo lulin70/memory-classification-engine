@@ -5,7 +5,7 @@ def get_version():
         from memory_classification_engine.__version__ import __version__
         return __version__
     except ImportError:
-        return "0.8.0"
+        return "0.8.2"
 
 setup(
     name="carrymem",

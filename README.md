@@ -10,7 +10,8 @@ CarryMem is a lightweight, zero-dependency AI memory system that stores **who yo
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-0.8.2-blue" alt="Version">
-  <img src="https://img.shields.io/badge/tests-447%20passing-green" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-507%20passing-green" alt="Tests">
+  <img src="https://img.shields.io/badge/coverage-62.54%25-yellow" alt="Coverage">
   <img src="https://img.shields.io/badge/accuracy-90.6%25-green" alt="Accuracy">
   <img src="https://img.shields.io/badge/zero--dependencies-core-brightgreen" alt="Zero Deps">
 </p>
@@ -225,7 +226,8 @@ Interactive terminal interface with sidebar filters, search, and add mode.
 | F1 Score | **97.9%** |
 | Zero-Cost Classification | **60%+** |
 | Recall Latency (P50) | **~45ms** |
-| Tests Passing | **447/447** |
+| Tests Passing | **507/507** |
+| Test Coverage | **62.54%** |
 
 ---
 
@@ -337,7 +339,8 @@ cm.import_memories(input_path="backup.json")
 ## Project Status
 
 **Current Version**: v0.8.2
-**Tests**: 447/447 passing
+**Tests**: 507/507 passing
+**Coverage**: 62.54%
 **Accuracy**: 90.6%
 
 **v0.8.x Changelog**:

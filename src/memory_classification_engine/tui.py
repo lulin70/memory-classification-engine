@@ -19,8 +19,6 @@ if not HAS_TEXTUAL:
         print("  Textual is not installed.")
         print("  Install with: pip install textual")
         print("  Then run: carrymem tui")
-    else:
-        run_tui = None
 
 else:
     from memory_classification_engine import CarryMem
